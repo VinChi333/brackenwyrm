@@ -7,7 +7,9 @@ Das Dorf Moosgrund liegt am Rand des Brackenwalds. Jeden Tag gibt es eine feste 
 Wer genug Erfahrung sammelt, fordert den Meister seiner Stufe heraus. Ab Stufe 15 wartet in der
 Farnschlucht der Brackenwyrm. Wer ihn besiegt, beginnt wieder bei Stufe 1 und behält einen Bonus.
 
-## Stand: Prototyp 0.3
+## Stand: Prototyp 0.4
+
+- Erste echte Illustrationen: Borkenwolf, Irrlicht, Steintroll (Originale in `art-source/`)
 
 - Aufbau wie die Browserspiele von damals, modern gestaltet: Navigation links mit hervorgehobenen Tastenkürzeln, Geschehen in der Mitte, Charakterwerte rechts; am Handy untereinander
 - Gegner als illustrierte Karten (Gewöhnlich, Selten, Episch, Legendär) mit Treffer-Effekten; bis die Illustrationen da sind, zeigen sie eine Schattenkarte
@@ -20,8 +22,11 @@ Farnschlucht der Brackenwyrm. Wer ihn besiegt, beginnt wieder bei Stufe 1 und be
 
 ## Illustrationen eintragen
 
-Bilder kommen nach `src/assets/monsters/<monster-id>.webp` und werden in `src/ui/art/cards.ts` (`MONSTER_ART`) eingetragen.
-Ohne Eintrag zeigt die Karte automatisch die Schattenkarte.
+1. Original (z. B. aus Leonardo, Hochformat) nach `art-source/<monster-id>.png` legen.
+2. Auf 3:4 zuschneiden, auf 540 × 720 verkleinern und als `src/assets/monsters/<monster-id>.webp` speichern (Qualität 80).
+3. Fertig: Jede Datei in diesem Ordner wird automatisch übernommen. Ohne Datei zeigt die Karte die Schattenkarte.
+
+Auch `dragon.webp`, `master-<stufe>.webp` und `hero.webp` werden erkannt.
 
 ## Befehle
 

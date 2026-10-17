@@ -136,7 +136,7 @@ function titleScreen(): string {
         ...(p ? [{ act: 'continue', label: `Weiterspielen: ${p.name}`, key: 'w', hint: `Stufe ${p.level} · Spieltag ${state!.day}` }] : []),
         { act: 'new', label: p && ui.confirmNew ? 'Wirklich neu beginnen? Der alte Spielstand geht verloren.' : 'Neues Spiel beginnen', key: 'n' },
       ] }])}</div>
-      <p class="fine">Prototyp 0.3 · Tastenkürzel am Computer, Tippen am Handy</p>
+      <p class="fine">Prototyp 0.4 · Tastenkürzel am Computer, Tippen am Handy</p>
     </div>
   </div>`;
 }

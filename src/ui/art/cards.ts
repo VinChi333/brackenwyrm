@@ -7,8 +7,14 @@ import { DRAGON, monsterById } from '../../content/monsters';
 import type { MonsterDef, PropId, ShapeId } from '../../game/types';
 import { creature, humanoid } from './silhouettes';
 
-/** Illustrationen (z. B. aus Leonardo), Schlüssel = Monster-ID. Wird befüllt, sobald Bilder da sind. */
-export const MONSTER_ART: Record<string, string> = {};
+/**
+ * Illustrationen, Schlüssel = Monster-ID. Jede Datei in src/assets/monsters/<id>.webp wird
+ * automatisch übernommen (auch "dragon.webp", "master-3.webp", "hero.webp").
+ */
+const ART_FILES = import.meta.glob('../../assets/monsters/*.webp', { eager: true, import: 'default' }) as Record<string, string>;
+export const MONSTER_ART: Record<string, string> = Object.fromEntries(
+  Object.entries(ART_FILES).map(([path, url]) => [path.split('/').pop()!.replace(/\.webp$/, ''), url]),
+);
 
 // Höhe jeder Form in Zeicheneinheiten (oben, unten), um sie in die Karte einzupassen.
 const SPAN: Record<ShapeId, [number, number]> = {
