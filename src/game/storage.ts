@@ -63,3 +63,31 @@ export function importCode(code: string): GameState | null {
     return null;
   }
 }
+
+// ---------- Darstellung (gilt für das Gerät, nicht für den Spielstand) ----------
+
+export interface Prefs {
+  retro: boolean;         // Retro-Stil (BBS) statt Schattentheater
+  crt: boolean;           // Röhrenbildschirm-Effekt im Retro-Stil
+  reducedMotion: boolean;
+}
+
+const PREFS_KEY = 'brackenwyrm.prefs';
+
+export function loadPrefs(): Prefs {
+  const base: Prefs = { retro: true, crt: true, reducedMotion: false };
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    return raw ? Object.assign(base, JSON.parse(raw)) : base;
+  } catch {
+    return base;
+  }
+}
+
+export function savePrefs(p: Prefs): void {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+  } catch {
+    /* nicht schlimm: dann gilt die Einstellung nur bis zum Neuladen */
+  }
+}

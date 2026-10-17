@@ -12,10 +12,11 @@ import {
   newGame, requestSong, specialUsesPerDay, startDragonFight, startMasterFight, startNewDay,
 } from '../game/engine';
 import type { DragonBonus, FightAction, ForestMode } from '../game/engine';
-import { deleteGame, exportCode, importCode, loadGame, saveGame } from '../game/storage';
+import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import type { Fight, GameState, LogLine, SpecialtyId } from '../game/types';
 import { creature, humanoid } from './art/silhouettes';
 import { stageSvg, villageBanner, vignette } from './art/stage';
+import { ansiCanvas, ansiFigure, paintAnsi } from './ansi/render';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'sheet' | 'settings' | 'shadows' | 'dragonBonus';
@@ -31,6 +32,7 @@ interface Ui {
 }
 
 let state: GameState | null = loadGame();
+const prefs = loadPrefs();
 const ui: Ui = {
   screen: 'title', flash: [], createName: '', createSpec: 'klinge', confirmDelete: false, confirmNew: false, importMsg: '',
 };
@@ -50,7 +52,7 @@ function menu(items: Item[]): string {
   return `<nav class="menu">${items.map((it, i) => `
     <button type="button" data-act="${it.act}" ${it.key ? `data-hotkey="${it.key}"` : ''} ${it.disabled ? 'disabled' : ''}>
       <span class="num">${ROMAN[i] ?? i + 1}.</span>
-      <span>${it.label}${it.key ? `<span class="key">${it.key.toUpperCase()}</span>` : ''}</span>
+      <span>${it.key ? `<span class="rk">(${it.key.toUpperCase()})</span>` : ''}${it.label}${it.key ? `<span class="key">${it.key.toUpperCase()}</span>` : ''}</span>
       ${it.hint ? `<span class="hint">${it.hint}</span>` : ''}
     </button>`).join('')}</nav>`;
 }
@@ -97,14 +99,17 @@ function titleScreen(): string {
   const p = state?.player;
   return `<div class="page">
     ${villageBanner()}
-    <div class="center"><h1>Brackenwyrm</h1><p class="sub">Ein Abenteuer in Tagen, Wäldern und Drachenfeuer</p></div>
+    <div class="retro-only retro-title">${ansiCanvas('logo', 'logo', '', 'Brackenwyrm')}
+      <div class="astage">${ansiCanvas('bg:lair', 'abg')}${ansiFigure('dragon', '')}</div></div>
+    <div class="center"><h1 class="theater-only">Brackenwyrm</h1><p class="sub">Ein Abenteuer in Tagen, Wäldern und Drachenfeuer</p></div>
     <p class="ornament">❦ ❦ ❦</p>
     ${flash()}
     ${menu([
       ...(p ? [{ act: 'continue', label: `Weiterspielen: ${esc(p.name)}`, key: 'w', hint: `Stufe ${p.level} · Tag ${state!.day}` }] : []),
       { act: 'new', label: p && ui.confirmNew ? 'Wirklich neu beginnen? Der alte Spielstand geht verloren.' : 'Neues Spiel beginnen', key: 'n' },
+      { act: 'style', label: `Grafikstil: ${prefs.retro ? 'Retro (wie damals)' : 'Schattentheater'}`, key: 'g', hint: 'zum Umschalten tippen' },
     ])}
-    <p class="sub center" style="font-size:14px">Prototyp 0.1 · Tastenkürzel am Computer, Tippen am Handy</p>
+    <p class="sub center" style="font-size:14px">Prototyp 0.2 · Tastenkürzel am Computer, Tippen am Handy</p>
   </div>`;
 }
 
@@ -132,7 +137,7 @@ function villageScreen(s: GameState): string {
   const m = masterForLevel(p.level);
   const mstate = canChallengeMaster(p);
   return `<div class="page">${statusBar(s)}
-    ${villageBanner()}
+    ${villageBanner()}${ansiCanvas('village', 'retro-only scene-wide', '', 'Moosgrund bei Nacht')}
     <div><h2>Moosgrund</h2><p class="sub">Rauch steigt aus den Kaminen. Hinter den Dächern rauscht der Brackenwald.</p></div>
     ${flash()}
     ${s.news.length ? `<div class="news">${s.news.slice(-4).map((n) => `<p>${esc(n)}</p>`).join('')}</div>` : ''}
@@ -207,7 +212,16 @@ function fightScreen(s: GameState): string {
       ${foeAttacked ? `<div class="dmg hero-dmg show-hero">${f.lastFoeMiss ? 'daneben' : '−' + f.lastFoeDmg}</div>` : ''}
     </div>`;
 
-  const retro = `<div class="retro-only"><p style="color:#ff6b5e">${esc(f.foe.name.toUpperCase())}</p>
+  const foeKey = f.kind === 'dragon' ? 'dragon' : f.kind === 'master' ? `master:${f.foe.level}` : `m:${f.monsterId}`;
+  const astage = `<div class="astage retro-only">
+      ${ansiCanvas(`bg:${fig.stage}`, 'abg', '', `${esc(p.name)} kämpft gegen ${esc(f.foe.name)}`)}
+      ${ansiFigure(`hero:${p.specialty}`, `hero ${heroCls}`)}
+      ${ansiFigure(foeKey, `foe ${foeCls}`)}
+      ${heroAttacked ? `<div class="dmg foe-dmg show-foe ${f.lastCrit ? 'crit' : ''}">${f.lastHeroMiss ? 'DANEBEN' : '-' + f.lastHeroDmg}</div>` : ''}
+      ${foeAttacked ? `<div class="dmg hero-dmg show-hero">${f.lastFoeMiss ? 'DANEBEN' : '-' + f.lastFoeDmg}</div>` : ''}
+    </div>`;
+
+  const retro = `<div class="retro-only rhud"><p style="color:#ff6b5e">${esc(f.foe.name.toUpperCase())}</p>
       <p class="retro-hp" style="color:#ff6b5e">${textBar(f.foe.hp, f.foe.maxHp)}  ${f.foe.hp}/${f.foe.maxHp}</p>
       <p style="color:#7fd16b">${esc(p.name.toUpperCase())}</p>
       <p class="retro-hp" style="color:#7fd16b">${textBar(p.hp, maxHp(p))}  ${p.hp}/${maxHp(p)}</p></div>`;
@@ -215,10 +229,10 @@ function fightScreen(s: GameState): string {
   let actions = '';
   if (!f.over) {
     actions = `<div class="actions">
-      <button type="button" class="btn" data-act="fight:attack" data-hotkey="a">Angreifen</button>
-      <button type="button" class="btn secondary" data-act="fight:special" data-hotkey="s" ${p.specialUses <= 0 ? 'disabled' : ''}>${sp.move} (${p.specialUses})</button>
-      <button type="button" class="btn secondary" data-act="fight:flee" data-hotkey="f">${f.kind === 'master' ? 'Aufgeben' : 'Fliehen'}</button>
-      ${f.kind !== 'master' ? `<button type="button" class="btn secondary" data-act="fight:auto" data-hotkey="k" style="grid-column:1/-1">Kämpfen bis zum Ende</button>` : ''}
+      <button type="button" class="btn" data-act="fight:attack" data-hotkey="a"><span class="rk">(A)</span>Angreifen</button>
+      <button type="button" class="btn secondary" data-act="fight:special" data-hotkey="s" ${p.specialUses <= 0 ? 'disabled' : ''}><span class="rk">(S)</span>${sp.move} (${p.specialUses})</button>
+      <button type="button" class="btn secondary" data-act="fight:flee" data-hotkey="f"><span class="rk">(F)</span>${f.kind === 'master' ? 'Aufgeben' : 'Fliehen'}</button>
+      ${f.kind !== 'master' ? `<button type="button" class="btn secondary" data-act="fight:auto" data-hotkey="k" style="grid-column:1/-1"><span class="rk">(K)</span>Kämpfen bis zum Ende</button>` : ''}
     </div>`;
   } else {
     const items: Item[] = [];
@@ -240,7 +254,7 @@ function fightScreen(s: GameState): string {
   }
 
   return `<div class="page">${statusBar(s)}
-    ${stage}${retro}
+    ${stage}${astage}${retro}
     <div class="log" aria-live="polite">${f.log.slice(-5).map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}</div>
     ${actions}
   </div>`;
@@ -382,8 +396,9 @@ function settingsScreen(s: GameState): string {
   return `<div class="page">${statusBar(s)}
     <h2>Einstellungen & Spielstand</h2>
     ${flash()}
-    <label class="toggle"><input type="checkbox" data-act="toggle:retro" ${s.settings.retro ? 'checked' : ''}> Retro-Modus: reiner Text wie damals</label>
-    <label class="toggle"><input type="checkbox" data-act="toggle:motion" ${s.settings.reducedMotion ? 'checked' : ''}> Weniger Bewegung im Kampf</label>
+    <label class="toggle"><input type="checkbox" id="opt-retro" data-act="toggle:retro" ${prefs.retro ? 'checked' : ''}> Retro-Stil wie damals (aus: Schattentheater)</label>
+    <label class="toggle"><input type="checkbox" id="opt-crt" data-act="toggle:crt" ${prefs.crt ? 'checked' : ''}> Röhrenbildschirm-Effekt im Retro-Stil</label>
+    <label class="toggle"><input type="checkbox" id="opt-motion" data-act="toggle:motion" ${prefs.reducedMotion ? 'checked' : ''}> Weniger Bewegung im Kampf</label>
     <h3>Spielstand auf ein anderes Gerät mitnehmen</h3>
     <p class="sub">Im Prototyp liegt der Spielstand nur in diesem Browser. Kopiere den Code und füge ihn auf dem anderen Gerät ein. Später übernimmt das ein Spielerkonto automatisch.</p>
     <textarea id="exportcode" readonly>${exportCode(s)}</textarea>
@@ -419,7 +434,7 @@ function shadowsScreen(s: GameState): string {
 
 function dragonBonusScreen(s: GameState): string {
   return `<div class="page">${statusBar(s)}
-    ${villageBanner()}
+    ${villageBanner()}${ansiCanvas('village', 'retro-only scene-wide', '', 'Moosgrund bei Nacht')}
     <div class="prose"><h1>Drachentöter!</h1>
     <p class="lead">Ganz Moosgrund läuft zusammen. Frieda schenkt aus, Florian dichtet, Mirla weint ein bisschen. Doch alte Geschichten sagen: Ein Wyrm stirbt nie ganz. Du wirst wieder klein anfangen, aber etwas von diesem Tag bleibt dir für immer.</p>
     <h3>Was nimmst du mit?</h3></div>
@@ -445,8 +460,9 @@ function currentScreen(): Screen {
 export function render(): void {
   const scr = currentScreen();
   const s = state;
-  document.body.classList.toggle('retro', !!s?.settings.retro);
-  document.body.classList.toggle('reduced', !!s?.settings.reducedMotion);
+  document.body.classList.toggle('retro', prefs.retro);
+  document.body.classList.toggle('crt', prefs.retro && prefs.crt);
+  document.body.classList.toggle('reduced', prefs.reducedMotion);
   let html = '';
   switch (scr) {
     case 'title': html = titleScreen(); break;
@@ -465,6 +481,7 @@ export function render(): void {
     case 'dragonBonus': html = dragonBonusScreen(s!); break;
   }
   root.innerHTML = html;
+  if (prefs.retro) paintAnsi(root);
 }
 
 function go(screen: Screen): void {
@@ -487,6 +504,11 @@ function handle(act: string, el: HTMLElement): void {
   switch (cmd) {
     case 'go': go(a as Screen); return;
     case 'continue': if (s) { checkRealDay(s); saveGame(s); go('village'); } return;
+    case 'style':
+      prefs.retro = !prefs.retro;
+      savePrefs(prefs);
+      render();
+      return;
     case 'new':
       if (state && !ui.confirmNew) { ui.confirmNew = true; render(); return; }
       ui.createName = ''; go('create'); return;
@@ -545,8 +567,10 @@ function handle(act: string, el: HTMLElement): void {
     case 'inn': say(a === 'beer' ? drinkHarzbier(s) : requestSong(s), 'good'); commit(); return;
     case 'bonus': chooseDragonBonus(s, a as DragonBonus); saveGame(s); go('village'); return;
     case 'toggle':
-      if (a === 'retro') s.settings.retro = (el as HTMLInputElement).checked;
-      if (a === 'motion') s.settings.reducedMotion = (el as HTMLInputElement).checked;
+      if (a === 'retro') prefs.retro = (el as HTMLInputElement).checked;
+      if (a === 'crt') prefs.crt = (el as HTMLInputElement).checked;
+      if (a === 'motion') prefs.reducedMotion = (el as HTMLInputElement).checked;
+      savePrefs(prefs);
       commit();
       return;
     case 'testday':

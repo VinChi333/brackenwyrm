@@ -243,35 +243,108 @@ label { display: flex; flex-direction: column; gap: 6px; }
 .reduced .anim-hero-lunge, .reduced .anim-foe-lunge, .reduced .anim-foe-hit, .reduced .anim-hero-hit, .reduced .dmg, .reduced .bar.anim > i { animation: none !important; }
 .reduced .anim-fall { animation: none !important; opacity: 0.12; }
 
-/* ---------- Retro-Modus: wie damals ---------- */
-body.retro { background: #000; color-scheme: dark; }
-body.retro .page {
-  background: #0b0b0b; color: #c8c8c8; box-shadow: 0 0 0 1px #333;
-  font-family: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; font-size: 15px;
+/* ---------- Retro-Stil: wie im BBS damals ---------- */
+@font-face { font-family: 'VT323'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('@fontsource/vt323/files/vt323-latin-400-normal.woff2') format('woff2'); }
+
+:root {
+  /* Die 16 Farben der alten PC-Grafik */
+  --ega-black: #000000; --ega-blue: #0000aa; --ega-green: #00aa00; --ega-cyan: #00aaaa;
+  --ega-red: #aa0000; --ega-magenta: #aa00aa; --ega-brown: #aa5500; --ega-grey: #aaaaaa;
+  --ega-dark: #555555; --ega-lblue: #5555ff; --ega-lgreen: #55ff55; --ega-lcyan: #55ffff;
+  --ega-lred: #ff5555; --ega-lmagenta: #ff55ff; --ega-yellow: #ffff55; --ega-white: #ffffff;
+  --font-term: 'VT323', ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
 }
-body.retro h1, body.retro h2, body.retro h3, body.retro .brand, body.retro .menu .num, body.retro .btn, body.retro th, body.retro .choice strong, body.retro .stats b {
-  font-family: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace; letter-spacing: 0;
-}
-body.retro h1, body.retro h2, body.retro .brand { color: #ffd34d; }
-body.retro .woodcut, body.retro .vignette, body.retro .stage { display: none; }
+
+.retro-only, .rk { display: none; }
+canvas.ansi { image-rendering: pixelated; image-rendering: crisp-edges; display: block; max-width: 100%; }
+.scene-wide { width: 100%; height: auto; }
+.astage { position: relative; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+.astage canvas.abg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.astage canvas.fig { position: absolute; height: auto; }
+
+body.retro { background: var(--ega-black); color-scheme: dark; }
 body.retro .retro-only { display: block; }
-body.retro .menu button, body.retro .tbtn, body.retro .choice { color: #c8c8c8; border-color: #333; }
-body.retro .menu button:hover:not(:disabled), body.retro .choice:hover { background: #1a1a1a; }
-body.retro .menu .num { color: #ffd34d; }
-body.retro .menu .hint, body.retro .sub, body.retro .status-day, body.retro .stats b { color: #8a8a8a; }
-body.retro .btn { background: #222; color: #ffd34d; border: 1px solid #ffd34d; }
-body.retro .btn.secondary { background: transparent; color: #c8c8c8; border-color: #555; }
-body.retro .flash, body.retro .choice.on { background: #151515; border-color: #ffd34d; }
-body.retro .status, body.retro td, body.retro th { border-color: #333; }
-body.retro .bar { border-color: #555; background: #111; }
-body.retro .bar > i { background: #7fd16b; }
-body.retro .bar.foe > i { background: #ff6b5e; }
-body.retro .log p.good { color: #7fd16b; }
-body.retro .log p.bad { color: #ff6b5e; }
-body.retro .log p.gold { color: #ffd34d; }
-body.retro .log p.info { color: #9a9a9a; }
-body.retro .log p.warn { color: #6fc8d6; }
-body.retro .news p::before { color: #ffd34d; }
-body.retro input, body.retro textarea { background: #111; color: #c8c8c8; border-color: #555; }
-.retro-only { display: none; }
-.retro-hp { white-space: pre; }
+body.retro .rk { display: inline; color: var(--ega-yellow); margin-right: 0.5ch; }
+body.retro .theater-only, body.retro .woodcut, body.retro .vignette, body.retro .stage,
+body.retro .menu .num, body.retro .key, body.retro .ornament { display: none; }
+body.retro .page {
+  background: var(--ega-black);
+  color: var(--ega-grey);
+  font-family: var(--font-term);
+  font-size: 22px;
+  line-height: 1.2;
+  border: 4px double var(--ega-cyan);
+  border-radius: 0;
+  box-shadow: none;
+}
+body.retro h1, body.retro h2, body.retro h3, body.retro .brand, body.retro .btn, body.retro th,
+body.retro .choice strong, body.retro .stats b, body.retro .stage-hud, body.retro .dmg, body.retro .menu button, body.retro .tbtn {
+  font-family: var(--font-term); letter-spacing: 0.02em;
+}
+body.retro h1 { color: var(--ega-yellow); font-size: 34px; }
+body.retro h2 { color: var(--ega-lcyan); font-size: 28px; }
+body.retro h2::before { content: '═══ '; color: var(--ega-cyan); }
+body.retro h3 { color: var(--ega-lgreen); font-size: 24px; }
+body.retro .brand { color: var(--ega-yellow); font-size: 28px; }
+body.retro .sub, body.retro .status-day { color: var(--ega-dark); font-style: normal; color: #8a8a8a; }
+body.retro .stats b { color: var(--ega-lgreen); font-family: var(--font-term); }
+body.retro .stats span { color: var(--ega-white); }
+body.retro .status, body.retro td, body.retro th { border-color: var(--ega-dark); }
+body.retro .status { border-bottom: 2px solid var(--ega-cyan); }
+body.retro .bar { border-color: var(--ega-dark); background: var(--ega-black); height: 12px; }
+body.retro .bar > i { background: var(--ega-lgreen); }
+body.retro .bar.exp > i { background: var(--ega-yellow); }
+body.retro .prose .lead::first-letter { font-family: var(--font-term); color: var(--ega-yellow); font-size: 1em; float: none; padding: 0; }
+body.retro .lead { color: var(--ega-white); }
+
+body.retro .menu button, body.retro .choice { color: var(--ega-grey); border-color: #222; min-height: 44px; font-size: 22px; }
+body.retro .menu button:hover:not(:disabled), body.retro .choice:hover, body.retro .menu button:focus-visible { background: var(--ega-blue); color: var(--ega-white); }
+body.retro .menu button:disabled { color: var(--ega-dark); }
+body.retro .menu button:disabled .rk { color: var(--ega-dark); }
+body.retro .menu .hint { color: var(--ega-cyan); font-style: normal; font-size: 19px; }
+body.retro .btn { background: var(--ega-blue); color: var(--ega-white); border: 2px solid var(--ega-lcyan); border-radius: 0; font-size: 22px; }
+body.retro .btn:hover { background: #0000cc; }
+body.retro .btn.secondary { background: var(--ega-black); color: var(--ega-grey); border: 2px solid var(--ega-dark); }
+body.retro .btn.secondary:hover { border-color: var(--ega-cyan); color: var(--ega-white); }
+body.retro .tbtn { color: var(--ega-lcyan); border-color: var(--ega-cyan); border-radius: 0; background: transparent; font-size: 19px; }
+body.retro .flash, body.retro .choice.on { background: #0a0a2a; border-color: var(--ega-yellow); }
+body.retro .choice small { color: #8a8a8a; }
+body.retro .news p { color: var(--ega-grey); }
+body.retro .news p::before { content: '» '; color: var(--ega-yellow); }
+body.retro input, body.retro textarea { background: var(--ega-black); color: var(--ega-white); border: 2px solid var(--ega-dark); border-radius: 0; font-family: var(--font-term); font-size: 20px; }
+body.retro textarea { font-size: 15px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+body.retro tr.owned td { color: var(--ega-lgreen); }
+body.retro .log { font-size: 21px; }
+body.retro .log p.good { color: var(--ega-lgreen); }
+body.retro .log p.bad { color: var(--ega-lred); }
+body.retro .log p.gold { color: var(--ega-yellow); }
+body.retro .log p.info { color: var(--ega-grey); }
+body.retro .log p.warn { color: var(--ega-lcyan); }
+body.retro .log p:last-child { font-size: 21px; }
+body.retro .rhud { font-size: 20px; line-height: 1.1; }
+.retro-hp { white-space: pre; overflow: hidden; }
+body.retro .dmg { font-size: clamp(22px, 5vw, 38px); color: var(--ega-yellow); text-shadow: 2px 2px 0 #000; }
+body.retro .dmg.hero-dmg { color: var(--ega-lred); }
+body.retro .retro-title { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+body.retro .retro-title .logo { width: min(100%, 600px); height: auto; }
+
+/* Im Retro-Stil ruckeln Bewegungen in Stufen, wie damals */
+body.retro .astage .fig { animation-timing-function: steps(3, end) !important; }
+
+/* Röhrenbildschirm: feine Zeilen und ein Hauch Leuchten. Ein ruhendes Bild, kostet keine Rechenleistung. */
+body.retro.crt::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  background:
+    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.22) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.45) 100%);
+}
+body.retro.crt .page { text-shadow: 0 0 5px rgba(170, 170, 255, 0.25); }
+body.retro .actions .btn { padding: 10px 8px; overflow-wrap: anywhere; }
+@media (max-width: 520px) { body.retro .actions .btn.secondary { font-size: 19px; } }
+body.retro .stats, body.retro .hpline, body.retro .status-day { font-size: 20px; }
+@media (min-width: 720px) { body.retro .page { font-size: 24px; } body.retro .log, body.retro .log p:last-child { font-size: 23px; } }

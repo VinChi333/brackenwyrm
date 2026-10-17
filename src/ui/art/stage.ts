@@ -8,15 +8,15 @@ export const STAGE_H = 540;
 export const GROUND_Y = 472;
 
 // Feste "Zufalls"-Positionen, damit die Bühne bei jedem Aufbau gleich aussieht.
-const FAR = [20, 70, 118, 160, 214, 262, 318, 372, 590, 640, 694, 748, 800, 852, 902, 944];
-const MID = [-10, 64, 150, 820, 880, 950];
+export const FAR = [20, 70, 118, 160, 214, 262, 318, 372, 590, 640, 694, 748, 800, 852, 902, 944];
+export const MID = [-10, 64, 150, 820, 880, 950];
 
-function tree(x: number, base: number, h: number, w: number): string {
+export function tree(x: number, base: number, h: number, w: number): string {
   return `<polygon points="${x - w},${base} ${x},${base - h} ${x + w},${base}"/>
     <polygon points="${x - w * 0.8},${base - h * 0.35} ${x},${base - h * 1.05} ${x + w * 0.8},${base - h * 0.35}"/>`;
 }
 
-function frond(x: number, y: number, rot: number, len: number, flip = false): string {
+export function frond(x: number, y: number, rot: number, len: number, flip = false): string {
   let leaves = '';
   const n = 9;
   for (let i = 1; i <= n; i++) {
