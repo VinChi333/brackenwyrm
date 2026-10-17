@@ -39,6 +39,7 @@ export function newGame(name: string, specialty: SpecialtyId): GameState {
     fight: null,
     pendingDragonBonus: false,
     news: ['Du kommst in Moosgrund an. Hinter dem Dorf rauscht der Brackenwald.'],
+    bestiary: {},
     settings: { retro: false, reducedMotion: false },
   };
 }
@@ -291,6 +292,9 @@ function winFight(s: GameState): void {
     p.gold += f.goldReward;
     f.log.push({ t: m?.falls ?? 'Der Gegner fällt.', k: 'info' });
     f.log.push({ t: `Du erhältst ${f.goldReward} Gold und ${f.expReward} Erfahrung.`, k: 'gold' });
+    const before = s.bestiary[f.monsterId] ?? 0;
+    s.bestiary[f.monsterId] = before + 1;
+    if (!before) f.log.push({ t: `Neue Karte im Bestiarium: ${f.foe.name}!`, k: 'gold' });
     if (chance(GEM_DROP_CHANCE)) {
       p.gems += 1;
       f.log.push({ t: 'Im Farn glitzert etwas: ein Edelstein!', k: 'gold' });
@@ -305,6 +309,7 @@ function winFight(s: GameState): void {
   } else {
     p.dragonKills += 1;
     s.pendingDragonBonus = true;
+    s.bestiary.dragon = (s.bestiary.dragon ?? 0) + 1;
     f.log.push({ t: DRAGON.falls, k: 'info' });
     f.log.push({ t: 'Du hast den Brackenwyrm besiegt!', k: 'gold' });
   }

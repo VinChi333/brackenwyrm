@@ -39,6 +39,7 @@ function validate(x: unknown): GameState | null {
   if (s.v !== 1 || !s.player || typeof s.player.level !== 'number' || typeof s.day !== 'number') return null;
   s.settings = Object.assign({ retro: false, reducedMotion: false }, s.settings ?? {});
   s.news = Array.isArray(s.news) ? s.news : [];
+  s.bestiary = s.bestiary && typeof s.bestiary === 'object' ? s.bestiary : {};
   s.player.buffs = Array.isArray(s.player.buffs) ? s.player.buffs : [];
   return s;
 }
@@ -67,15 +68,13 @@ export function importCode(code: string): GameState | null {
 // ---------- Darstellung (gilt für das Gerät, nicht für den Spielstand) ----------
 
 export interface Prefs {
-  retro: boolean;         // Retro-Stil (BBS) statt Schattentheater
-  crt: boolean;           // Röhrenbildschirm-Effekt im Retro-Stil
   reducedMotion: boolean;
 }
 
 const PREFS_KEY = 'brackenwyrm.prefs';
 
 export function loadPrefs(): Prefs {
-  const base: Prefs = { retro: true, crt: true, reducedMotion: false };
+  const base: Prefs = { reducedMotion: false };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     return raw ? Object.assign(base, JSON.parse(raw)) : base;

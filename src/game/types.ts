@@ -116,5 +116,6 @@ export interface GameState {
   fight: Fight | null;
   pendingDragonBonus: boolean;
   news: string[];          // Kurze Meldungen für den Tag
+  bestiary: Record<string, number>; // besiegte Gegner je Art (bleibt über Drachenkills erhalten)
   settings: { retro: boolean; reducedMotion: boolean };
 }
