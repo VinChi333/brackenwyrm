@@ -7,9 +7,9 @@ Das Dorf Moosgrund liegt am Rand des Brackenwalds. Jeden Tag gibt es eine feste 
 Wer genug Erfahrung sammelt, fordert den Meister seiner Stufe heraus. Ab Stufe 15 wartet in der
 Farnschlucht der Brackenwyrm. Wer ihn besiegt, beginnt wieder bei Stufe 1 und behält einen Bonus.
 
-## Stand: Prototyp 0.6
+## Stand: Prototyp 0.7
 
-- 35 von 45 Gegnern illustriert: Stufe 1 bis 11 komplett, dazu Harpyie und Knochenritter (Originale in `art-source/`)
+- Alle 45 Waldgegner illustriert (Originale in `art-source/`)
 - 20 Waldereignisse, 7 davon mit Entscheidung (Moosfee, alte Truhe, Wunschbrunnen, leuchtender Pilz, Schrein, schlafender Söldner, verletzter Wanderer)
 - Ruhmeshalle: Rangliste der Drachentöter von Moosgrund mit Titeln und eigenen Rekorden
 - Gasthaus: Frieda gibt bis zu 3 Tipps am Tag, passend zum Spielstand; am Stammtisch reden die Gäste über dich
