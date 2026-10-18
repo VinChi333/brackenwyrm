@@ -64,7 +64,20 @@ export interface Buff {
 
 export interface LogLine {
   t: string;
-  k: 'good' | 'bad' | 'gold' | 'info' | 'warn';
+  k: 'good' | 'bad' | 'gold' | 'info' | 'warn' | 'crit' | 'special';
+  r?: number;           // Kampfrunde, 0 = Auftakt
+}
+
+/** Ein abgeschlossener Kampf für die Kampfchronik. */
+export interface ChronicleEntry {
+  day: number;
+  kind: FightKind;
+  monsterId: string;
+  foe: string;
+  result: 'win' | 'lose' | 'fled';
+  rounds: number;
+  topHit: number;
+  log: LogLine[];
 }
 
 export interface Fight {
@@ -85,6 +98,7 @@ export interface Fight {
   lastCrit: boolean;
   lastSpecial: boolean;
   seq: number;          // zählt jede Aktion, damit Animationen neu starten
+  topHit?: number;      // stärkster eigener Treffer in diesem Kampf
 }
 
 export interface Player {
@@ -122,6 +136,7 @@ export interface Stats {
   runStartDay: number;    // Spieltag, an dem der aktuelle Durchgang begann
   fastestDragon: number;  // wenigste Tage bis zum Drachenkill, 0 = noch keiner
   lastDeathDay: number;
+  bestHit: { dmg: number; foe: string; day: number };
 }
 
 /** Ein Waldereignis, das auf eine Entscheidung wartet. */
@@ -140,6 +155,7 @@ export interface GameState {
   news: string[];          // Kurze Meldungen für den Tag
   bestiary: Record<string, number>; // besiegte Gegner je Art (bleibt über Drachenkills erhalten)
   stats: Stats;
+  chronicle: ChronicleEntry[];  // die letzten Kämpfe, neuester zuerst
   pendingEvent: PendingEvent | null;
   settings: { retro: boolean; reducedMotion: boolean };
 }

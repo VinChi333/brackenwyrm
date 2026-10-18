@@ -7,7 +7,10 @@ Das Dorf Moosgrund liegt am Rand des Brackenwalds. Jeden Tag gibt es eine feste 
 Wer genug Erfahrung sammelt, fordert den Meister seiner Stufe heraus. Ab Stufe 15 wartet in der
 Farnschlucht der Brackenwyrm. Wer ihn besiegt, beginnt wieder bei Stufe 1 und behält einen Bonus.
 
-## Stand: Prototyp 0.9
+## Stand: Prototyp 0.10
+
+- Kampfbericht wie früher: jede Runde bleibt stehen, Volltreffer golden hervorgehoben, abwechslungsreiche Sätze passend zur Wucht des Treffers
+- Kampfchronik mit den letzten 10 Kämpfen zum Nachlesen; stärkster Treffer als Rekord in der Ruhmeshalle
 
 - Lebendige Karten: Bilder atmen leicht, Glühwürmchen, Funken oder Irrlichter schweben, Nebel zieht durch; Karten kippen mit der Maus oder der Neigung des Handys; epische und legendäre Karten haben einen Holo-Glanz. Abschaltbar über „Weniger Bewegung“.
 

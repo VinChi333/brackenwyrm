@@ -11,16 +11,16 @@ import { SPECIALTIES, SPECIALTY_ORDER } from '../content/specialties';
 import { MAX_LEVEL, healCostPerHp } from '../game/balance';
 import {
   attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
-  closeFight, defense, drinkHarzbier, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
+  CHRONICLE_SIZE, closeFight, defense, drinkHarzbier, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
   newGame, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
 } from '../game/engine';
 import type { DragonBonus, FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
-import type { GameState, Gender, LogLine, SpecialtyId } from '../game/types';
+import type { ChronicleEntry, GameState, Gender, LogLine, SpecialtyId } from '../game/types';
 import { cardBack, cardFor, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard } from './art/cards';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'settings' | 'shadows' | 'dragonBonus';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'settings' | 'shadows' | 'dragonBonus';
 
 interface Ui {
   screen: Screen;
@@ -32,12 +32,13 @@ interface Ui {
   confirmNew: boolean;
   importMsg: string;
   newCard: string | null;   // Karte, die gerade neu ins Bestiarium kam
+  fullLog: boolean;         // Kampfbericht ganz aufgeklappt
 }
 
 let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false,
 };
 let root: HTMLElement;
 
@@ -125,6 +126,22 @@ function layout(s: GameState, main: string, groups: Group[], cls = ''): string {
 
 const back: Item = { act: 'go:village', label: 'Zurück ins Dorf', key: 'd' };
 
+/** Kampfbericht im Stil von damals: Runde für Runde, nichts verschwindet. */
+function fightLogHtml(log: LogLine[]): string {
+  let out = '';
+  let round = -1;
+  for (const l of log) {
+    const r = l.r ?? round;
+    if (r !== round) {
+      if (round !== -1) out += '</div>';
+      out += `<div class="round">${r > 0 ? `<h4>Runde ${r}</h4>` : ''}`;
+      round = r;
+    }
+    out += `<p class="${l.k}">${esc(l.t)}</p>`;
+  }
+  return out + (round !== -1 ? '</div>' : '');
+}
+
 // ---------- Bildschirme ----------
 
 function titleScreen(): string {
@@ -140,7 +157,7 @@ function titleScreen(): string {
         ...(p ? [{ act: 'continue', label: `Weiterspielen: ${p.name}`, key: 'w', hint: `Stufe ${p.level} · Spieltag ${state!.day}` }] : []),
         { act: 'new', label: p && ui.confirmNew ? 'Wirklich neu beginnen? Der alte Spielstand geht verloren.' : 'Neues Spiel beginnen', key: 'n' },
       ] }])}</div>
-      <p class="fine">Prototyp 0.9 · Tastenkürzel am Computer, Tippen am Handy</p>
+      <p class="fine">Prototyp 0.10 · Tastenkürzel am Computer, Tippen am Handy</p>
     </div>
   </div>`;
 }
@@ -188,6 +205,7 @@ function villageScreen(s: GameState): string {
     { title: 'Sonstiges', items: [
       { act: 'go:bestiary', label: 'Bestiarium', key: 'b', hint: `${found} / ${MONSTERS.length}` },
       { act: 'go:fame', label: 'Ruhmeshalle', key: 'r' },
+      { act: 'go:chronicle', label: 'Kampfchronik', key: 'c', hint: s.chronicle.length ? `${s.chronicle.length} Kämpfe` : '' },
       { act: 'go:settings', label: 'Einstellungen', key: 'e' },
     ] },
   ]);
@@ -292,7 +310,8 @@ function fightScreen(s: GameState): string {
       <div class="arena ${f.kind}">${card.replace('</figure>', `${isNew ? '<div class="card-new">Neu</div>' : ''}</figure>`)}${fx}</div>
       <div class="battle-side">
         <h1 class="foe-title">${esc(f.foe.name)}</h1>
-        <div class="log" aria-live="polite">${f.log.slice(-6).map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}</div>
+        <div class="log fight-log ${ui.fullLog ? 'open' : ''}" aria-live="polite">${fightLogHtml(f.log)}</div>
+        ${f.round > 2 ? `<button type="button" class="log-toggle" data-act="fulllog">${ui.fullLog ? 'Bericht einklappen' : `Ganzen Kampf anzeigen (${f.round} Runden)`}</button>` : ''}
         ${actions}
       </div>
     </div>`;
@@ -440,6 +459,7 @@ function fameScreen(s: GameState): string {
     <div class="records">
       ${rec('Drachenkills', String(p.dragonKills))}
       ${rec('Schnellster Drachenkill', st.fastestDragon ? `${st.fastestDragon} Tage` : 'noch keiner')}
+      ${rec('Stärkster Treffer', st.bestHit.dmg ? `${st.bestHit.dmg} (${esc(st.bestHit.foe)}, Tag ${st.bestHit.day})` : 'noch keiner')}
       ${rec('Siege im Wald', String(st.kills))}
       ${rec('Besiegte Meister', String(st.masters))}
       ${rec('Karten im Bestiarium', `${found} / ${MONSTERS.length}`)}
@@ -447,6 +467,20 @@ function fameScreen(s: GameState): string {
       ${rec('Fahrten mit Morwen', String(st.deaths))}
       ${rec('Spieltage', String(s.day))}
     </div>`;
+  return layout(s, main, [{ title: 'Zurück', items: [back] }]);
+}
+
+const RESULT: Record<ChronicleEntry['result'], string> = { win: 'Sieg', lose: 'Niederlage', fled: 'Geflohen' };
+
+function chronicleScreen(s: GameState): string {
+  const list = s.chronicle.map((c, i) => `<details class="chron ${c.result}" ${i === 0 ? 'open' : ''}>
+      <summary><span class="chron-foe">${esc(c.foe)}</span>
+        <span class="chron-meta">Tag ${c.day} · ${RESULT[c.result]} in ${c.rounds} ${c.rounds === 1 ? 'Runde' : 'Runden'}${c.topHit ? ` · stärkster Treffer ${c.topHit}` : ''}</span></summary>
+      <div class="log fight-log open">${fightLogHtml(c.log)}</div>
+    </details>`).join('');
+  const main = `<h1>Kampfchronik</h1>
+    <p class="lead">Der Dorfschreiber notiert deine letzten ${CHRONICLE_SIZE} Kämpfe. Wort für Wort, auch die peinlichen.</p>
+    ${list || '<p class="muted">Noch keine Kämpfe. Der Wald wartet.</p>'}`;
   return layout(s, main, [{ title: 'Zurück', items: [back] }]);
 }
 
@@ -514,10 +548,13 @@ export function render(): void {
     title: titleScreen, create: createScreen,
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
-    bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!),
+    bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), chronicle: () => chronicleScreen(s!),
     settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!),
   };
   root.innerHTML = views[scr]();
+  // Der neueste Kampftext steht unten, also dorthin scrollen.
+  const fl = root.querySelector<HTMLElement>('.battle .fight-log');
+  if (fl) fl.scrollTop = fl.scrollHeight;
 }
 
 function go(screen: Screen): void {
@@ -577,7 +614,7 @@ function handle(act: string, el: HTMLElement): void {
       if (a === 'auto') {
         let guard = 0;
         while (s.fight && !s.fight.over && s.player.hp > maxHp(s.player) * 0.3 && guard++ < 60) fightAction(s, 'attack');
-        if (s.fight && !s.fight.over) s.fight.log.push({ t: 'Du hältst inne. Du bist angeschlagen, entscheide selbst, wie es weitergeht.', k: 'warn' });
+        if (s.fight && !s.fight.over) s.fight.log.push({ t: 'Du hältst inne. Du bist angeschlagen, entscheide selbst, wie es weitergeht.', k: 'warn', r: s.fight.round });
       } else {
         fightAction(s, a as FightAction);
       }
@@ -586,7 +623,9 @@ function handle(act: string, el: HTMLElement): void {
       commit();
       return;
     }
+    case 'fulllog': ui.fullLog = !ui.fullLog; render(); return;
     case 'after': {
+      ui.fullLog = false;
       closeFight(s);
       const target: Screen = a === 'forest' ? 'forest' : a === 'training' ? 'training' : a === 'shadows' ? 'shadows' : a === 'bonus' ? 'dragonBonus' : 'village';
       saveGame(s);

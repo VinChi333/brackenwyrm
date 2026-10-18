@@ -5,6 +5,7 @@ import { FRIEDA_TALKS_PER_DAY, friedaSays } from '../content/inn';
 import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
 import { DRAGON, MONSTERS, acc, monsterById, monstersOfLevel, nom } from '../content/monsters';
+import { say } from '../content/fighttext';
 import { SPECIALTIES } from '../content/specialties';
 import {
   DEATH_EXP_LOSS, EVENT_CHANCE, FOREST_FIGHTS_PER_DAY, GEM_DROP_CHANCE, HARZBIER_BUFF, MAX_LEVEL,
@@ -43,6 +44,7 @@ export function newGame(name: string, specialty: SpecialtyId, gender: Gender = '
     news: ['Du kommst in Moosgrund an. Hinter dem Dorf rauscht der Brackenwald.'],
     bestiary: {},
     stats: newStats(1),
+    chronicle: [],
     pendingEvent: null,
     settings: { retro: false, reducedMotion: false },
   };
@@ -94,7 +96,7 @@ function makeFight(kind: Fight['kind'], monsterId: string, name: string, stats: 
     foe: { name, ...stats },
     expReward, goldReward,
     round: 0,
-    log: [{ t: intro, k: 'warn' }],
+    log: [{ t: intro, k: 'warn', r: 0 }],
     over: '', bound: 0,
     lastHeroDmg: 0, lastFoeDmg: 0, lastHeroMiss: false, lastFoeMiss: false, lastCrit: false, lastSpecial: false,
     seq: 0,
@@ -225,11 +227,18 @@ export function canUseSpecial(p: Player): boolean {
   return p.specialUses > 0;
 }
 
+/** Hängt Zeilen an den Kampfbericht an und merkt sich die Runde. Der Bericht bleibt ganz erhalten. */
+function pushLog(f: Fight, lines: LogLine[]): void {
+  f.log.push(...lines);
+  for (const l of f.log) if (l.r === undefined) l.r = f.round;
+}
+
 export function fightAction(s: GameState, action: FightAction): void {
   const f = s.fight;
   const p = s.player;
   if (!f || f.over) return;
   const L = foeLabel(f);
+  const N = { a: L.a, N: L.N, hits: foeHits(f), move: SPECIALTIES[p.specialty].move };
   const log: LogLine[] = [];
   f.round += 1;
   f.seq += 1;
@@ -242,13 +251,13 @@ export function fightAction(s: GameState, action: FightAction): void {
     if (f.kind === 'master') {
       log.push({ t: `Du gibst auf. ${f.foe.name} nickt verständnisvoll.`, k: 'info' });
       f.over = 'fled';
-      f.log = [...f.log, ...log].slice(-8);
+      pushLog(f, log);
       return;
     }
     if (chance(odds)) {
       log.push({ t: f.kind === 'dragon' ? 'Du rennst, bis die Farnschlucht hinter dir liegt. Der Wyrm lacht dir nach.' : 'Du verschwindest im Dickicht. Diesmal war der Wald auf deiner Seite.', k: 'info' });
       f.over = 'fled';
-      f.log = [...f.log, ...log].slice(-8);
+      pushLog(f, log);
       return;
     }
     log.push({ t: 'Du versuchst zu fliehen, aber eine Wurzel hat andere Pläne.', k: 'warn' });
@@ -258,25 +267,25 @@ export function fightAction(s: GameState, action: FightAction): void {
     if (action === 'special' && canUseSpecial(p)) {
       p.specialUses -= 1;
       f.lastSpecial = true;
-      const sp = SPECIALTIES[p.specialty];
       if (p.specialty === 'klinge') {
         h = strike(atk, f.foe.def, { noMiss: true, mult: 1.9 });
-        log.push({ t: `${sp.move}! Du spaltest ${L.a} mit voller Wucht: ${h.dmg} Schaden.`, k: 'good' });
       } else if (p.specialty === 'wurzel') {
         h = strike(atk, f.foe.def, { noMiss: true, ignoreDef: true, mult: 1.1 });
         foeSkips = true;
-        log.push({ t: `${sp.move}! Wurzeln brechen aus dem Boden und fesseln ${L.a}: ${h.dmg} Schaden.`, k: 'good' });
       } else {
         h = strike(atk, f.foe.def, { noMiss: true, mult: 1.6 });
         foeSkips = true;
-        log.push({ t: `${sp.move}! Du tauchst in die Schatten und triffst ${L.a} von hinten: ${h.dmg} Schaden.`, k: 'good' });
       }
+      log.push({ t: say.special(N, h.dmg, p.specialty) + (h.crit ? ' Ein Volltreffer!' : ''), k: h.crit ? 'crit' : 'special' });
     } else {
       h = strike(atk, f.foe.def);
-      if (h.miss) log.push({ t: `Du verfehlst ${L.a}.`, k: 'info' });
-      else if (h.crit) log.push({ t: `Volltreffer! Du triffst ${L.a} für ${h.dmg} Schaden.`, k: 'good' });
-      else log.push({ t: `Du triffst ${L.a}: ${h.dmg} Schaden.`, k: 'good' });
+      if (h.miss) log.push({ t: say.heroMiss(N), k: 'info' });
+      else if (h.crit) log.push({ t: say.heroCrit(N, h.dmg, p.specialty), k: 'crit' });
+      else log.push({ t: say.heroHit(N, h.dmg, h.dmg / f.foe.maxHp), k: 'good' });
     }
+    f.topHit = Math.max(f.topHit ?? 0, h.dmg);
+    const best = s.stats.bestHit;
+    if (h.dmg > best.dmg) s.stats.bestHit = { dmg: h.dmg, foe: f.foe.name, day: s.day };
     f.lastHeroDmg = h.dmg;
     f.lastHeroMiss = h.miss;
     f.lastCrit = h.crit;
@@ -284,7 +293,7 @@ export function fightAction(s: GameState, action: FightAction): void {
     tickBuffs(p, log);
 
     if (f.foe.hp <= 0) {
-      f.log = [...f.log, ...log].slice(-8);
+      pushLog(f, log);
       winFight(s);
       return;
     }
@@ -292,16 +301,17 @@ export function fightAction(s: GameState, action: FightAction): void {
 
   // Gegenangriff
   if (foeSkips) {
-    log.push({ t: `${L.N} kommt nicht zum Gegenschlag.`, k: 'info' });
+    log.push({ t: say.foeSkips(N), k: 'info' });
   } else {
     const h = strike(f.foe.atk, defense(p));
     f.lastFoeDmg = h.dmg;
     f.lastFoeMiss = h.miss;
-    if (h.miss) log.push({ t: `${L.N} verfehlt dich.`, k: 'info' });
-    else log.push({ t: `${L.N} ${foeHits(f)}: ${h.dmg} Schaden.`, k: 'bad' });
+    if (h.miss) log.push({ t: say.foeMiss(N), k: 'info' });
+    else if (h.crit) log.push({ t: say.foeCrit(N, h.dmg), k: 'bad' });
+    else log.push({ t: say.foeHit(N, h.dmg, h.dmg / maxHp(p)), k: 'bad' });
     p.hp = Math.max(0, p.hp - h.dmg);
   }
-  f.log = [...f.log, ...log].slice(-8);
+  pushLog(f, log);
   if (p.hp <= 0) loseFight(s);
 }
 
@@ -340,7 +350,7 @@ function winFight(s: GameState): void {
     f.log.push({ t: DRAGON.falls, k: 'info' });
     f.log.push({ t: 'Du hast den Brackenwyrm besiegt!', k: 'gold' });
   }
-  f.log = f.log.slice(-8);
+  pushLog(f, []);
 }
 
 function loseFight(s: GameState): void {
@@ -364,11 +374,18 @@ function loseFight(s: GameState): void {
     f.log.push({ t: `Du verlierst ${lostGold} Gold und ${lostExp} Erfahrung.`, k: 'bad' });
     s.news.push(f.kind === 'dragon' ? 'Der Brackenwyrm hat dich besiegt.' : `Du bist im Wald gefallen.`);
   }
-  f.log = f.log.slice(-8);
+  pushLog(f, []);
 }
 
+export const CHRONICLE_SIZE = 10;
+
 export function closeFight(s: GameState): void {
-  if (s.fight && s.fight.over) s.fight = null;
+  const f = s.fight;
+  if (!f || !f.over) return;
+  const top = f.topHit ?? 0;
+  s.chronicle.unshift({ day: s.day, kind: f.kind, monsterId: f.monsterId, foe: f.foe.name, result: f.over, rounds: f.round, topHit: top, log: f.log });
+  s.chronicle = s.chronicle.slice(0, CHRONICLE_SIZE);
+  s.fight = null;
 }
 
 export type DragonBonus = 'atk' | 'def' | 'hp';

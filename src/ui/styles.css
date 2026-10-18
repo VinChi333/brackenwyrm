@@ -415,3 +415,32 @@ tr.owned td { color: var(--green); }
   .card-img, .card-fx, .card-fx *, .card-shine { animation: none !important; }
   .card-fx > i { display: none; }
 }
+
+/* ---------- Kampfbericht ---------- */
+.fight-log { gap: 0; max-height: 340px; overflow-y: auto; padding: 4px 12px 4px 0; scroll-behavior: smooth;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.fight-log.open { max-height: none; overflow: visible; }
+.chron .fight-log { border: 0; padding: 0; }
+.fight-log .round { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; }
+.fight-log .round + .round { border-top: 1px dashed rgba(255, 255, 255, 0.06); }
+.fight-log h4 { margin: 0; font-family: var(--display); font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.fight-log p { margin: 0; line-height: 1.45; }
+.fight-log .round:last-child p { animation: lineIn 0.35s ease both; }
+.log p.crit { color: var(--gold-hi); font-weight: 700; text-shadow: 0 0 12px rgba(255, 216, 138, 0.45); }
+.log p.crit::before { content: '★ '; }
+.log p.special { color: #c7a8ff; }
+@keyframes lineIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.log-toggle { align-self: flex-start; font: inherit; font-size: 14px; color: var(--cyan); background: none; border: 0; padding: 4px 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 699px) { .fight-log { max-height: 220px; } }
+.reduced .fight-log .round:last-child p { animation: none; }
+
+.chron { background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--muted); border-radius: 8px; padding: 10px 14px; }
+.chron.win { border-left-color: var(--green); }
+.chron.lose { border-left-color: var(--red); }
+.chron summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; list-style: none; }
+.chron summary::-webkit-details-marker { display: none; }
+.chron summary::before { content: '▸'; color: var(--gold); }
+.chron[open] summary::before { content: '▾'; }
+.chron-foe { font-family: var(--display); font-weight: 600; color: var(--gold-hi); font-size: 17px; }
+.chron-meta { color: var(--muted); font-size: 14px; }
+.chron .fight-log { margin-top: 6px; }

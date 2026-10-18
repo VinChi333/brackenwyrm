@@ -34,7 +34,7 @@ export function deleteGame(): void {
 }
 
 export function newStats(day: number): Stats {
-  return { kills: 0, deaths: 0, masters: 0, events: 0, runStartDay: day, fastestDragon: 0, lastDeathDay: 0 };
+  return { kills: 0, deaths: 0, masters: 0, events: 0, runStartDay: day, fastestDragon: 0, lastDeathDay: 0, bestHit: { dmg: 0, foe: '', day: 0 } };
 }
 
 function validate(x: unknown): GameState | null {
@@ -49,6 +49,7 @@ function validate(x: unknown): GameState | null {
   s.player.innTalks = typeof s.player.innTalks === 'number' ? s.player.innTalks : 0;
   s.stats = Object.assign(newStats(1), s.stats ?? {});
   s.pendingEvent = s.pendingEvent ?? null;
+  s.chronicle = Array.isArray(s.chronicle) ? s.chronicle : [];
   return s;
 }
 
