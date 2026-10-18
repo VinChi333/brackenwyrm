@@ -13,7 +13,7 @@ import {
 } from './balance';
 import { between, chance, pick, rand, roll } from './rng';
 import { newStats } from './storage';
-import type { Fight, GameState, LogLine, Player, SpecialtyId } from './types';
+import type { Fight, GameState, Gender, LogLine, Player, SpecialtyId } from './types';
 
 export function todayKey(d = new Date()): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -21,9 +21,9 @@ export function todayKey(d = new Date()): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
-export function newPlayer(name: string, specialty: SpecialtyId): Player {
+export function newPlayer(name: string, specialty: SpecialtyId, gender: Gender = 'm'): Player {
   const p: Player = {
-    name, specialty, level: 1, exp: 0, hp: 0, baseMaxHp: 0, bonusAtk: 0, bonusDef: 0,
+    name, specialty, gender, level: 1, exp: 0, hp: 0, baseMaxHp: 0, bonusAtk: 0, bonusDef: 0,
     weaponTier: 0, armorTier: 0, gold: 50, bank: 0, gems: 0, forestFights: FOREST_FIGHTS_PER_DAY,
     specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, innTalks: 0, buffs: [],
   };
@@ -32,10 +32,10 @@ export function newPlayer(name: string, specialty: SpecialtyId): Player {
   return p;
 }
 
-export function newGame(name: string, specialty: SpecialtyId): GameState {
+export function newGame(name: string, specialty: SpecialtyId, gender: Gender = 'm'): GameState {
   return {
     v: 1,
-    player: newPlayer(name, specialty),
+    player: newPlayer(name, specialty, gender),
     day: 1,
     lastRealDate: todayKey(),
     fight: null,

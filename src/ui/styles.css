@@ -344,3 +344,17 @@ tr.owned td { color: var(--green); }
   .foe-title { display: none; }
 }
 .flash.log p.info { color: var(--text); }
+
+/* Charaktererstellung mit Heldenbildern */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; align-self: flex-start; }
+.seg-btn { font: inherit; color: var(--muted); background: var(--panel-2); border: 0; padding: 8px 18px; min-height: 40px; cursor: pointer; }
+.seg-btn + .seg-btn { border-left: 1px solid var(--line); }
+.seg-btn.on { color: #1a1206; background: var(--gold); font-weight: 700; }
+.choice-art { position: relative; display: block; aspect-ratio: 3 / 4; border-radius: 7px; overflow: hidden; background: #12162a; margin: -4px -4px 4px; }
+.choice-art img, .choice-art svg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.choice:not(.on) .choice-art { filter: saturate(0.6) brightness(0.75); }
+@media (max-width: 640px) {
+  .choices { grid-template-columns: 1fr; }
+  .choice { display: grid; grid-template-columns: 96px 1fr; column-gap: 12px; align-items: start; }
+  .choice-art { grid-row: span 3; margin: 0; }
+}

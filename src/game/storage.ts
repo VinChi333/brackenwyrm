@@ -45,6 +45,7 @@ function validate(x: unknown): GameState | null {
   s.news = Array.isArray(s.news) ? s.news : [];
   s.bestiary = s.bestiary && typeof s.bestiary === 'object' ? s.bestiary : {};
   s.player.buffs = Array.isArray(s.player.buffs) ? s.player.buffs : [];
+  s.player.gender = s.player.gender === 'f' ? 'f' : 'm';
   s.player.innTalks = typeof s.player.innTalks === 'number' ? s.player.innTalks : 0;
   s.stats = Object.assign(newStats(1), s.stats ?? {});
   s.pendingEvent = s.pendingEvent ?? null;

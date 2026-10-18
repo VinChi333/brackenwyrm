@@ -4,7 +4,8 @@
 
 import { masterForLevel } from '../../content/masters';
 import { DRAGON, monsterById } from '../../content/monsters';
-import type { MonsterDef, PropId, ShapeId } from '../../game/types';
+import { SPECIALTIES } from '../../content/specialties';
+import type { Gender, MonsterDef, ShapeId, SpecialtyId } from '../../game/types';
 import { creature, humanoid } from './silhouettes';
 
 /**
@@ -97,9 +98,19 @@ export function masterCard(level: number): CardInfo {
   return { key: id, name: m.name, level, tier: 'gold', art: a.art, hasIllustration: a.real, flavor: m.greeting };
 }
 
-export function heroArt(prop: PropId, opts: { hood?: boolean; shield?: boolean; cape?: boolean }): string {
-  const a = artFor('hero', () => shadowArt(humanoid(prop, null, opts), 'humanoid', '#6fc8e0', true));
-  return a.art;
+function heroShadow(spec: SpecialtyId): string {
+  const opts = { hood: spec === 'schleich', shield: spec === 'klinge', cape: spec === 'wurzel' };
+  return shadowArt(humanoid(SPECIALTIES[spec].heroProp, null, opts), 'humanoid', '#6fc8e0', true);
+}
+
+/** Ganzes Heldenbild (Charaktererstellung). */
+export function heroArt(spec: SpecialtyId, gender: Gender): string {
+  return artFor(`hero-${spec}-${gender}`, () => heroShadow(spec)).art;
+}
+
+/** Kopf-und-Schultern-Ausschnitt für die Charakterleiste. */
+export function heroPortrait(spec: SpecialtyId, gender: Gender): string {
+  return artFor(`portrait-${spec}-${gender}`, () => heroShadow(spec)).art;
 }
 
 export function cardFor(key: string): CardInfo | null {

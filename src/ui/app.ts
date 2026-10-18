@@ -16,8 +16,8 @@ import {
 } from '../game/engine';
 import type { DragonBonus, FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
-import type { GameState, LogLine, SpecialtyId } from '../game/types';
-import { cardBack, cardFor, cardHtml, dragonCard, heroArt, masterCard, monsterCard } from './art/cards';
+import type { GameState, Gender, LogLine, SpecialtyId } from '../game/types';
+import { cardBack, cardFor, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard } from './art/cards';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'settings' | 'shadows' | 'dragonBonus';
@@ -27,6 +27,7 @@ interface Ui {
   flash: LogLine[];
   createName: string;
   createSpec: SpecialtyId;
+  createGender: Gender;
   confirmDelete: boolean;
   confirmNew: boolean;
   importMsg: string;
@@ -36,7 +37,7 @@ interface Ui {
 let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'klinge', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null,
 };
 let root: HTMLElement;
 
@@ -88,7 +89,7 @@ function vital(s: GameState): string {
   const need = expNeeded(p.level);
   return `<aside class="vital" aria-label="Charakter">
     <div class="vital-head">
-      <div class="portrait">${heroArt(sp.heroProp, { hood: p.specialty === 'schleich', shield: p.specialty === 'klinge', cape: p.specialty === 'wurzel' })}</div>
+      <div class="portrait">${heroPortrait(p.specialty, p.gender)}</div>
       <div><strong class="v-name">${esc(p.name)}</strong><span class="v-sub">Stufe ${p.level} · ${sp.name}</span>
         ${p.dragonKills ? `<span class="v-dk">Drachentöter ${p.dragonKills}×</span>` : ''}</div>
     </div>
@@ -139,7 +140,7 @@ function titleScreen(): string {
         ...(p ? [{ act: 'continue', label: `Weiterspielen: ${p.name}`, key: 'w', hint: `Stufe ${p.level} · Spieltag ${state!.day}` }] : []),
         { act: 'new', label: p && ui.confirmNew ? 'Wirklich neu beginnen? Der alte Spielstand geht verloren.' : 'Neues Spiel beginnen', key: 'n' },
       ] }])}</div>
-      <p class="fine">Prototyp 0.7 · Tastenkürzel am Computer, Tippen am Handy</p>
+      <p class="fine">Prototyp 0.8 · Tastenkürzel am Computer, Tippen am Handy</p>
     </div>
   </div>`;
 }
@@ -149,13 +150,16 @@ function createScreen(): string {
     <h1>Wer bist du?</h1>
     <p class="lead">Du kommst nach <span class="place">Moosgrund</span>, ein Dorf am Rand des Brackenwalds. In der Farnschlucht schläft ein Wyrm. Noch.</p>
     ${flashHtml()}
-    <label class="field">Dein Name<input type="text" id="name" maxlength="20" autocomplete="off" value="${esc(ui.createName)}" placeholder="z. B. Hilda"></label>
+    <label class="field">Dein Name<input type="text" id="name" maxlength="20" autocomplete="off" value="${esc(ui.createName)}" placeholder="${ui.createGender === 'f' ? 'z. B. Hilda' : 'z. B. Hagen'}"></label>
+    <div class="seg" role="radiogroup" aria-label="Held oder Heldin">
+      ${(['m', 'f'] as const).map((g) => `<button type="button" class="seg-btn ${ui.createGender === g ? 'on' : ''}" role="radio" aria-checked="${ui.createGender === g}" data-act="gender:${g}">${g === 'm' ? 'Held' : 'Heldin'}</button>`).join('')}
+    </div>
     <h2>Was hast du gelernt?</h2>
     <div class="choices" role="radiogroup" aria-label="Spezialfähigkeit">
       ${SPECIALTY_ORDER.map((id) => {
         const sp = SPECIALTIES[id];
         return `<button type="button" class="choice ${ui.createSpec === id ? 'on' : ''}" role="radio" aria-checked="${ui.createSpec === id}" data-act="spec:${id}">
-          <strong>${sp.name}</strong><span>${sp.blurb}</span><small>Fähigkeit: ${sp.move}. ${sp.moveBlurb}</small></button>`;
+          <span class="choice-art">${heroArt(id, ui.createGender)}</span><strong>${sp.name}</strong><span>${sp.blurb}</span><small>Fähigkeit: ${sp.move}. ${sp.moveBlurb}</small></button>`;
       }).join('')}
     </div>
     <div class="row"><button type="button" class="btn" data-act="create">Nach Moosgrund aufbrechen</button>
@@ -544,10 +548,15 @@ function handle(act: string, el: HTMLElement): void {
       if (input) ui.createName = input.value;
       ui.createSpec = a as SpecialtyId; render(); return;
     }
+    case 'gender': {
+      const input = document.getElementById('name') as HTMLInputElement | null;
+      if (input) ui.createName = input.value;
+      ui.createGender = a === 'f' ? 'f' : 'm'; render(); return;
+    }
     case 'create': {
       const name = ((document.getElementById('name') as HTMLInputElement | null)?.value ?? '').trim().slice(0, 20);
       if (!name) { say('Ohne Namen lässt dich der Torwächter nicht ins Dorf.', 'warn'); ui.createName = ''; render(); return; }
-      state = newGame(name, ui.createSpec);
+      state = newGame(name, ui.createSpec, ui.createGender);
       saveGame(state);
       go('village');
       return;

@@ -2,6 +2,9 @@
 
 export type SpecialtyId = 'klinge' | 'wurzel' | 'schleich';
 
+/** Für Heldenbild und Anrede. */
+export type Gender = 'm' | 'f';
+
 export type ShapeId =
   | 'rat' | 'bat' | 'goblin' | 'wolf' | 'beetle' | 'blob' | 'bird' | 'humanoid'
   | 'boar' | 'spider' | 'ghost' | 'serpent' | 'bear' | 'troll' | 'stag' | 'treant'
@@ -87,6 +90,7 @@ export interface Fight {
 export interface Player {
   name: string;
   specialty: SpecialtyId;
+  gender: Gender;
   level: number;
   exp: number;
   hp: number;
