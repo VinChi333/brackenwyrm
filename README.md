@@ -7,7 +7,9 @@ Das Dorf Moosgrund liegt am Rand des Brackenwalds. Jeden Tag gibt es eine feste 
 Wer genug Erfahrung sammelt, fordert den Meister seiner Stufe heraus. Ab Stufe 15 wartet in der
 Farnschlucht der Brackenwyrm. Wer ihn besiegt, beginnt wieder bei Stufe 1 und behält einen Bonus.
 
-## Stand: Prototyp 0.8
+## Stand: Prototyp 0.9
+
+- Lebendige Karten: Bilder atmen leicht, Glühwürmchen, Funken oder Irrlichter schweben, Nebel zieht durch; Karten kippen mit der Maus oder der Neigung des Handys; epische und legendäre Karten haben einen Holo-Glanz. Abschaltbar über „Weniger Bewegung“.
 
 - Alle 45 Waldgegner und der Brackenwyrm illustriert
 - Held oder Heldin wählbar: sechs Heldenbilder (je Fähigkeit männlich und weiblich), mit Porträt in der Charakterleiste (Originale in `art-source/`)

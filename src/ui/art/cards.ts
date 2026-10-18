@@ -72,7 +72,17 @@ export interface CardInfo {
   art: string;          // fertiges Markup für die Bildfläche
   hasIllustration: boolean;
   flavor: string;
+  glow: string;         // Farbe für Lichtschimmer und Funken
+  fx: FxKind;
 }
+
+/** Art der schwebenden Teilchen über dem Bild. */
+export type FxKind = 'motes' | 'embers' | 'wisps';
+const FX_KIND: Record<string, FxKind> = {
+  dragon: 'embers', wyrmling: 'embers', giftnatter: 'embers', wyrmwaechter: 'embers', steinwurm: 'embers',
+  irrlicht: 'wisps', grabwicht: 'wisps', geisterhirsch: 'wisps', farngeist: 'wisps', nachtmahr: 'wisps',
+  knochenritter: 'wisps', nebelweberin: 'wisps', waldhexe: 'wisps',
+};
 
 function artFor(id: string, fallback: () => string): { art: string; real: boolean } {
   const src = MONSTER_ART[id];
@@ -83,19 +93,19 @@ function artFor(id: string, fallback: () => string): { art: string; real: boolea
 export function monsterCard(m: MonsterDef): CardInfo {
   const glow = m.eyes ?? '#f3c06a';
   const a = artFor(m.id, () => shadowArt(creature(m.shape, glow, m.prop), m.shape, glow));
-  return { key: m.id, name: m.name, level: m.level, tier: tierFor(m.level), art: a.art, hasIllustration: a.real, flavor: m.intro };
+  return { key: m.id, name: m.name, level: m.level, tier: tierFor(m.level), art: a.art, hasIllustration: a.real, flavor: m.intro, glow, fx: FX_KIND[m.id] ?? 'motes' };
 }
 
 export function dragonCard(): CardInfo {
   const a = artFor('dragon', () => shadowArt(creature('dragon', DRAGON.eyes ?? '#ffcf5a'), 'dragon', '#7ee08a', false, -30));
-  return { key: 'dragon', name: DRAGON.name, level: DRAGON.level, tier: 'legend', art: a.art, hasIllustration: a.real, flavor: DRAGON.intro };
+  return { key: 'dragon', name: DRAGON.name, level: DRAGON.level, tier: 'legend', art: a.art, hasIllustration: a.real, flavor: DRAGON.intro, glow: '#8cff6a', fx: 'embers' };
 }
 
 export function masterCard(level: number): CardInfo {
   const m = masterForLevel(level)!;
   const id = `master-${level}`;
   const a = artFor(id, () => shadowArt(humanoid(m.prop, null, { cape: true }), 'humanoid', '#e3b25b'));
-  return { key: id, name: m.name, level, tier: 'gold', art: a.art, hasIllustration: a.real, flavor: m.greeting };
+  return { key: id, name: m.name, level, tier: 'gold', art: a.art, hasIllustration: a.real, flavor: m.greeting, glow: '#ffd88a', fx: 'motes' };
 }
 
 function heroShadow(spec: SpecialtyId): string {
@@ -122,11 +132,39 @@ export function cardFor(key: string): CardInfo | null {
 
 const TIER_LABEL: Record<Tier, string> = { bronze: 'Gewöhnlich', silver: 'Selten', gold: 'Episch', legend: 'Legendär' };
 
-/** Kartenmarkup. hp = null blendet den Lebensbalken aus (z. B. im Bestiarium). */
-export function cardHtml(c: CardInfo, opts: { hp?: [number, number, number] | null; cls?: string; count?: number; isNew?: boolean } = {}): string {
+/** Kleiner, fester Zufall aus einem Text, damit die Teilchen bei jedem Neuzeichnen gleich liegen. */
+function seeded(key: string): () => number {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    return ((h ^= h >>> 16) >>> 0) / 4294967296;
+  };
+}
+
+/** Lebendige Ebene über dem Bild: Lichtschimmer, Nebel, schwebende Teilchen. */
+function fxLayer(c: CardInfo, count: number): string {
+  const r = seeded(c.key);
+  const parts = Array.from({ length: count }, () => {
+    const x = Math.round(r() * 90 + 5);
+    const y = Math.round(r() * 60 + 30);
+    const d = (r() * 4 + (c.fx === 'embers' ? 3 : 6)).toFixed(1);
+    const delay = (-r() * 8).toFixed(1);
+    const size = (r() * 3 + (c.fx === 'wisps' ? 4 : 2)).toFixed(1);
+    const drift = Math.round((r() - 0.5) * 40);
+    return `<i style="left:${x}%;top:${y}%;--d:${d}s;--delay:${delay}s;--s:${size}px;--drift:${drift}px"></i>`;
+  }).join('');
+  return `<span class="card-fx fx-${c.fx}" style="--glow:${c.glow}" aria-hidden="true"><span class="fx-aura"></span><span class="fx-fog"></span>${parts}</span>`;
+}
+
+/** Kartenmarkup. hp = null blendet den Lebensbalken aus (z. B. im Bestiarium). fx = lebendige Effekte. */
+export function cardHtml(c: CardInfo, opts: { hp?: [number, number, number] | null; cls?: string; count?: number; isNew?: boolean; fx?: boolean } = {}): string {
   const hp = opts.hp;
-  return `<figure class="card tier-${c.tier} ${opts.cls ?? ''}">
-    <div class="card-art">${c.art}${c.hasIllustration ? '' : '<span class="card-tag">Illustration folgt</span>'}</div>
+  const live = c.hasIllustration;
+  const shine = live && (c.tier === 'gold' || c.tier === 'legend') ? '<span class="card-shine" aria-hidden="true"></span>' : '';
+  return `<figure class="card tier-${c.tier} ${live ? 'is-live' : ''} ${opts.fx ? 'has-fx' : ''} ${opts.cls ?? ''}" data-tilt>
+    <div class="card-art">${c.art}${live && opts.fx ? fxLayer(c, c.tier === 'legend' ? 16 : 10) : ''}${shine}${live ? '' : '<span class="card-tag">Illustration folgt</span>'}</div>
     <div class="card-level" title="Stufe">${c.level}</div>
     ${opts.isNew ? '<div class="card-new">Neu</div>' : ''}
     <figcaption class="card-plate"><span class="card-name">${c.name}</span><span class="card-tier">${TIER_LABEL[c.tier]}</span></figcaption>

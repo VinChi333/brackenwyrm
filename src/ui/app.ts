@@ -129,7 +129,7 @@ const back: Item = { act: 'go:village', label: 'Zurück ins Dorf', key: 'd' };
 
 function titleScreen(): string {
   const p = state?.player;
-  const showcase = ['borkenwolf', 'steintroll', 'irrlicht'].map((id, i) => cardHtml(cardFor(id)!, { cls: `fan fan-${i}` })).join('');
+  const showcase = ['borkenwolf', 'steintroll', 'irrlicht'].map((id, i) => cardHtml(cardFor(id)!, { cls: `fan fan-${i}`, fx: true })).join('');
   return `<div class="solo">
     <div class="solo-panel">
       <h1 class="title-logo">Brackenwyrm</h1>
@@ -140,7 +140,7 @@ function titleScreen(): string {
         ...(p ? [{ act: 'continue', label: `Weiterspielen: ${p.name}`, key: 'w', hint: `Stufe ${p.level} · Spieltag ${state!.day}` }] : []),
         { act: 'new', label: p && ui.confirmNew ? 'Wirklich neu beginnen? Der alte Spielstand geht verloren.' : 'Neues Spiel beginnen', key: 'n' },
       ] }])}</div>
-      <p class="fine">Prototyp 0.8 · Tastenkürzel am Computer, Tippen am Handy</p>
+      <p class="fine">Prototyp 0.9 · Tastenkürzel am Computer, Tippen am Handy</p>
     </div>
   </div>`;
 }
@@ -247,7 +247,7 @@ function fightScreen(s: GameState): string {
   ].join(' ');
   const sp = SPECIALTIES[p.specialty];
   const spKey = sp.move[0].toLowerCase();
-  const card = cardHtml(c, { hp: [f.foe.hp, f.foe.maxHp, from], cls });
+  const card = cardHtml(c, { hp: [f.foe.hp, f.foe.maxHp, from], cls, fx: true });
   const fx = `${heroAttacked ? `<div class="dmg dmg-foe ${f.lastCrit ? 'crit' : ''}">${f.lastHeroMiss ? 'Daneben' : '−' + f.lastHeroDmg}</div>` : ''}
     ${foeAttacked ? `<div class="dmg dmg-hero">${f.lastFoeMiss ? 'Ausgewichen' : '−' + f.lastFoeDmg + ' LP'}</div>` : ''}
     ${f.over === 'win' ? '<div class="stamp">Besiegt</div>' : ''}`;
@@ -309,7 +309,7 @@ function trainingScreen(s: GameState): string {
     text = '<p class="lead">Kein Meister in Moosgrund kann dir noch etwas beibringen. Nur einer wartet noch: der <span class="place">Brackenwyrm</span> in der Farnschlucht.</p>';
   } else {
     const line = st === 'ok' ? m.greeting : st === 'seen' ? `${m.name} winkt ab. „Für heute reicht’s. Komm morgen wieder.“` : m.notReady;
-    text = `<div class="speaker">${cardHtml(masterCard(p.level), { cls: 'mini' })}<div>
+    text = `<div class="speaker">${cardHtml(masterCard(p.level), { cls: 'mini', fx: true })}<div>
       <p class="lead">${esc(line)}</p>
       ${st === 'notReady' ? `<p class="muted">Dir fehlen noch ${need - p.exp} Erfahrungspunkte.</p>` : ''}</div></div>`;
   }
@@ -675,6 +675,59 @@ function checkDayTick(): void {
   }
 }
 
+// ---------- Karten kippen mit (Maus am Computer, Neigung am Handy) ----------
+
+function tiltCard(card: HTMLElement, nx: number, ny: number): void {
+  // nx, ny zwischen -1 und 1: Lage des Zeigers bzw. Neigung des Geräts
+  const max = 9;
+  const mag = Math.min(1, Math.hypot(nx, ny));
+  card.style.setProperty('--tilt', `${-ny} ${nx} 0 ${(mag * max).toFixed(2)}deg`);
+  card.style.setProperty('--px', `${(-nx * 2.2).toFixed(2)}%`);
+  card.style.setProperty('--py', `${(-ny * 2.2).toFixed(2)}%`);
+  card.style.setProperty('--mx', `${Math.round(50 + nx * 50)}%`);
+  card.classList.add('is-tilted');
+}
+
+function untilt(card: HTMLElement): void {
+  card.classList.remove('is-tilted');
+  for (const v of ['--tilt', '--px', '--py', '--mx']) card.style.removeProperty(v);
+}
+
+function setupTilt(): void {
+  root.addEventListener('pointermove', (e) => {
+    if (prefs.reducedMotion || e.pointerType === 'touch') return;
+    const card = (e.target as HTMLElement).closest<HTMLElement>('.card.is-live');
+    root.querySelectorAll<HTMLElement>('.card.is-tilted').forEach((c) => { if (c !== card) untilt(c); });
+    if (!card) return;
+    const b = card.getBoundingClientRect();
+    tiltCard(card, ((e.clientX - b.left) / b.width) * 2 - 1, ((e.clientY - b.top) / b.height) * 2 - 1);
+  });
+  root.addEventListener('pointerleave', () => root.querySelectorAll<HTMLElement>('.card.is-tilted').forEach(untilt));
+
+  // Handy: Neigung des Geräts bewegt die großen Karten (Kampf, Titel).
+  let base: [number, number] | null = null;
+  const onOrient = (e: DeviceOrientationEvent) => {
+    if (prefs.reducedMotion || e.beta == null || e.gamma == null) return;
+    if (!base) base = [e.beta, e.gamma];
+    const nx = Math.max(-1, Math.min(1, (e.gamma - base[1]) / 20));
+    const ny = Math.max(-1, Math.min(1, (e.beta - base[0]) / 20));
+    // Langsam zur aktuellen Haltung nachziehen, damit "gerade halten" immer die Mitte ist.
+    base = [base[0] + (e.beta - base[0]) * 0.01, base[1] + (e.gamma - base[1]) * 0.01];
+    root.querySelectorAll<HTMLElement>('.card.has-fx.is-live').forEach((c) => tiltCard(c, nx, ny));
+  };
+  const D = window.DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> } | undefined;
+  if (D && typeof D.requestPermission === 'function') {
+    // iPhone: Erlaubnis nur nach einem Tippen möglich.
+    const ask = () => {
+      D.requestPermission!().then((r) => { if (r === 'granted') window.addEventListener('deviceorientation', onOrient); }).catch(() => {});
+      root.removeEventListener('click', ask);
+    };
+    root.addEventListener('click', ask);
+  } else if (D) {
+    window.addEventListener('deviceorientation', onOrient);
+  }
+}
+
 export function start(el: HTMLElement): void {
   root = el;
   root.addEventListener('click', (e) => {
@@ -688,6 +741,7 @@ export function start(el: HTMLElement): void {
     if (target.tagName === 'INPUT' && target.dataset.act) handle(target.dataset.act, target);
   });
   window.addEventListener('keydown', onKey);
+  setupTilt();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDayTick(); });
   window.setInterval(checkDayTick, 60_000);
   render();
