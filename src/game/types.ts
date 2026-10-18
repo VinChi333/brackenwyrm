@@ -105,7 +105,25 @@ export interface Player {
   seenMaster: boolean;
   drankToday: boolean;
   songToday: boolean;
+  innTalks: number;       // Gespräche mit Frieda heute
   buffs: Buff[];
+}
+
+/** Zahlen für die Ruhmeshalle. Bleiben über Drachenkills erhalten. */
+export interface Stats {
+  kills: number;          // Siege im Wald
+  deaths: number;
+  masters: number;        // besiegte Meister
+  events: number;         // erlebte Waldereignisse
+  runStartDay: number;    // Spieltag, an dem der aktuelle Durchgang begann
+  fastestDragon: number;  // wenigste Tage bis zum Drachenkill, 0 = noch keiner
+  lastDeathDay: number;
+}
+
+/** Ein Waldereignis, das auf eine Entscheidung wartet. */
+export interface PendingEvent {
+  id: string;
+  lines: LogLine[];
 }
 
 export interface GameState {
@@ -117,5 +135,7 @@ export interface GameState {
   pendingDragonBonus: boolean;
   news: string[];          // Kurze Meldungen für den Tag
   bestiary: Record<string, number>; // besiegte Gegner je Art (bleibt über Drachenkills erhalten)
+  stats: Stats;
+  pendingEvent: PendingEvent | null;
   settings: { retro: boolean; reducedMotion: boolean };
 }

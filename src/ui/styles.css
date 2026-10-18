@@ -150,6 +150,25 @@ p { margin: 0; }
 .log p.gold { color: var(--gold); }
 .log p.info { color: var(--muted); }
 .log p.warn { color: var(--cyan); }
+.event-box { background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--cyan); border-radius: 8px; padding: 14px 16px; font-size: 18px; }
+.event-box p.warn { color: var(--text, #e8e6f2); }
+.choice-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.choice-row .tbtn small { color: var(--muted); font-size: 13px; margin-left: 4px; }
+.table-talk { display: flex; flex-direction: column; gap: 8px; background: var(--panel-2); border-radius: 8px; padding: 12px 16px; }
+.table-talk h2 { font-size: 15px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.fame { width: 100%; border-collapse: collapse; font-size: 16px; }
+.fame th { text-align: left; font-weight: 400; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.fame td { padding: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); vertical-align: middle; }
+.fame td small { display: block; color: var(--muted); font-size: 13px; }
+.fame .num { text-align: right; font-variant-numeric: tabular-nums; }
+.fame .rank { width: 2.5em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fame tr.me td { background: rgba(232, 184, 90, 0.1); }
+.fame tr.me strong { color: var(--gold-hi); }
+.fame tbody tr:nth-child(-n+3) .rank { color: var(--gold); font-weight: 700; }
+.records { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.rec { background: var(--panel-2); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.rec span { color: var(--muted); font-size: 13px; }
+.rec strong { font-size: 20px; color: var(--gold-hi); font-variant-numeric: tabular-nums; }
 
 /* Knöpfe & Formulare */
 .btn {
@@ -324,3 +343,4 @@ tr.owned td { color: var(--green); }
   .in-fight .nav { display: none; }
   .foe-title { display: none; }
 }
+.flash.log p.info { color: var(--text); }

@@ -1,6 +1,9 @@
 // Die Oberfläche im Aufbau von damals: Navigation links, Geschehen in der Mitte,
 // Charakterwerte rechts. Gegner erscheinen als illustrierte Karten.
 
+import { eventById } from '../content/events';
+import { fameTable, titleFor } from '../content/fame';
+import { FRIEDA_TALKS_PER_DAY, regularsSay } from '../content/inn';
 import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
 import { MONSTERS } from '../content/monsters';
@@ -9,7 +12,7 @@ import { MAX_LEVEL, healCostPerHp } from '../game/balance';
 import {
   attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
   closeFight, defense, drinkHarzbier, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
-  newGame, requestSong, startDragonFight, startMasterFight, startNewDay,
+  newGame, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
 } from '../game/engine';
 import type { DragonBonus, FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
@@ -17,7 +20,7 @@ import type { GameState, LogLine, SpecialtyId } from '../game/types';
 import { cardBack, cardFor, cardHtml, dragonCard, heroArt, masterCard, monsterCard } from './art/cards';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'settings' | 'shadows' | 'dragonBonus';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'settings' | 'shadows' | 'dragonBonus';
 
 interface Ui {
   screen: Screen;
@@ -136,7 +139,7 @@ function titleScreen(): string {
         ...(p ? [{ act: 'continue', label: `Weiterspielen: ${p.name}`, key: 'w', hint: `Stufe ${p.level} · Spieltag ${state!.day}` }] : []),
         { act: 'new', label: p && ui.confirmNew ? 'Wirklich neu beginnen? Der alte Spielstand geht verloren.' : 'Neues Spiel beginnen', key: 'n' },
       ] }])}</div>
-      <p class="fine">Prototyp 0.4 · Tastenkürzel am Computer, Tippen am Handy</p>
+      <p class="fine">Prototyp 0.5 · Tastenkürzel am Computer, Tippen am Handy</p>
     </div>
   </div>`;
 }
@@ -180,13 +183,31 @@ function villageScreen(s: GameState): string {
     ] },
     { title: 'Sonstiges', items: [
       { act: 'go:bestiary', label: 'Bestiarium', key: 'b', hint: `${found} / ${MONSTERS.length}` },
+      { act: 'go:fame', label: 'Ruhmeshalle', key: 'r' },
       { act: 'go:settings', label: 'Einstellungen', key: 'e' },
     ] },
   ]);
 }
 
+function eventScreen(s: GameState): string {
+  const pe = s.pendingEvent!;
+  const ev = eventById(pe.id);
+  const p = s.player;
+  const main = `<h1>Der Brackenwald</h1>
+    <div class="event-box log">${pe.lines.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}</div>
+    <p class="muted">Was tust du?</p>
+    <div class="choice-row">${(ev?.choices ?? []).map((c) => {
+      const ok = !c.available || c.available(p);
+      return `<button type="button" class="tbtn" data-act="event:${c.id}" ${ok ? '' : 'disabled'}>${esc(c.label)}${c.hint ? ` <small>${esc(c.hint(p))}</small>` : ''}</button>`;
+    }).join('')}</div>`;
+  return layout(s, main, [{ title: 'Entscheidung', items: (ev?.choices ?? []).map((c) => ({
+    act: `event:${c.id}`, label: c.label, key: c.key, hint: c.hint?.(p), disabled: !!c.available && !c.available(p),
+  })) }], 'in-fight');
+}
+
 function forestScreen(s: GameState): string {
   const p = s.player;
+  if (s.pendingEvent) return eventScreen(s);
   const low = p.hp < maxHp(p) * 0.4;
   const main = `<h1>Der Brackenwald</h1>
     <p class="lead">Zwischen den Stämmen ist es still. Farne reichen dir bis zur Hüfte, und irgendwo knackt ein Ast.</p>
@@ -366,9 +387,14 @@ function innScreen(s: GameState): string {
   const main = `<h1>Zum Schlafenden Wurm</h1>
     <p class="lead">Das Feuer knistert. Wirtin <span class="npc">Frieda</span> poliert ein Glas, das davon nicht sauberer wird. In der Ecke stimmt Barde <span class="npc">Florian</span> seine Laute.</p>
     <p class="rumor">${esc(RUMORS[s.day % RUMORS.length])}</p>
-    ${flashHtml()}`;
+    ${flashHtml()}
+    <section class="table-talk"><h2>Am Stammtisch</h2>
+      ${regularsSay(s).map((l) => `<p><span class="npc">${esc(l.who.charAt(0).toUpperCase() + l.who.slice(1))}:</span> ${esc(l.t)}</p>`).join('')}
+    </section>`;
+  const talksLeft = FRIEDA_TALKS_PER_DAY - p.innTalks;
   return layout(s, main, [
     { title: 'Gasthaus', items: [
+      { act: 'talk', label: 'Mit Frieda reden', key: 'f', hint: talksLeft > 0 ? `${talksLeft}× heute` : 'hat zu tun' },
       { act: 'inn:beer', label: 'Harzbier bestellen', key: 'h', hint: p.drankToday ? 'heute schon' : `${harzbierCost(p.level)} Gold`, disabled: p.drankToday },
       { act: 'inn:song', label: 'Lied wünschen', key: 'l', hint: p.songToday ? 'heute schon' : '1 Edelstein', disabled: p.songToday },
     ] },
@@ -392,6 +418,31 @@ function bestiaryScreen(s: GameState): string {
     <div class="progress">${bar(found, MONSTERS.length, 'xp')}</div>
     ${sections}
     <section class="b-level"><h2>Legende</h2><div class="card-grid">${dragon}</div></section>`;
+  return layout(s, main, [{ title: 'Zurück', items: [back] }]);
+}
+
+function fameScreen(s: GameState): string {
+  const p = s.player;
+  const st = s.stats;
+  const rows = fameTable(s).map((e, i) => `<tr class="${e.isPlayer ? 'me' : ''}"><td class="rank">${i + 1}.</td>
+    <td><strong>${esc(e.name)}</strong><small>${esc(e.title)}</small></td><td class="num">${e.dragonKills}</td><td class="num">${e.level}</td></tr>`).join('');
+  const found = Object.keys(s.bestiary).filter((k) => k !== 'dragon').length;
+  const rec = (label: string, value: string) => `<div class="rec"><span>${label}</span><strong>${value}</strong></div>`;
+  const main = `<h1>Ruhmeshalle</h1>
+    <p class="lead">An der Wand im Rathaus hängen die Namen aller, die dem Brackenwyrm gegenübergetreten sind. Manche sind frisch geschnitzt, andere kaum noch zu lesen.</p>
+    <table class="fame"><thead><tr><th></th><th>Held</th><th class="num">Drachen</th><th class="num">Stufe</th></tr></thead><tbody>${rows}</tbody></table>
+    <h2>Deine Geschichte</h2>
+    <p class="muted">Titel: <span class="gold">${esc(titleFor(p.dragonKills))}</span></p>
+    <div class="records">
+      ${rec('Drachenkills', String(p.dragonKills))}
+      ${rec('Schnellster Drachenkill', st.fastestDragon ? `${st.fastestDragon} Tage` : 'noch keiner')}
+      ${rec('Siege im Wald', String(st.kills))}
+      ${rec('Besiegte Meister', String(st.masters))}
+      ${rec('Karten im Bestiarium', `${found} / ${MONSTERS.length}`)}
+      ${rec('Waldereignisse', String(st.events))}
+      ${rec('Fahrten mit Morwen', String(st.deaths))}
+      ${rec('Spieltage', String(s.day))}
+    </div>`;
   return layout(s, main, [{ title: 'Zurück', items: [back] }]);
 }
 
@@ -459,7 +510,7 @@ export function render(): void {
     title: titleScreen, create: createScreen,
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
-    bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!),
+    bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!),
     settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!),
   };
   root.innerHTML = views[scr]();
@@ -542,6 +593,8 @@ function handle(act: string, el: HTMLElement): void {
       commit();
       return;
     }
+    case 'event': ui.flash = resolveEvent(s, a); commit(); return;
+    case 'talk': say(talkToFrieda(s), 'info'); commit(); return;
     case 'inn': say(a === 'beer' ? drinkHarzbier(s) : requestSong(s), 'good'); commit(); return;
     case 'bonus': chooseDragonBonus(s, a as DragonBonus); saveGame(s); go('village'); return;
     case 'toggle':

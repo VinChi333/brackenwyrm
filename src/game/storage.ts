@@ -1,7 +1,7 @@
 // Spielstand speichern und laden. Im Prototyp lokal im Browser,
 // später zusätzlich auf dem Server, damit Handy und PC denselben Stand haben.
 
-import type { GameState } from './types';
+import type { GameState, Stats } from './types';
 
 const KEY = 'brackenwyrm.save.v1';
 const CODE_PREFIX = 'BW1:';
@@ -33,6 +33,10 @@ export function deleteGame(): void {
   }
 }
 
+export function newStats(day: number): Stats {
+  return { kills: 0, deaths: 0, masters: 0, events: 0, runStartDay: day, fastestDragon: 0, lastDeathDay: 0 };
+}
+
 function validate(x: unknown): GameState | null {
   if (!x || typeof x !== 'object') return null;
   const s = x as GameState;
@@ -41,6 +45,9 @@ function validate(x: unknown): GameState | null {
   s.news = Array.isArray(s.news) ? s.news : [];
   s.bestiary = s.bestiary && typeof s.bestiary === 'object' ? s.bestiary : {};
   s.player.buffs = Array.isArray(s.player.buffs) ? s.player.buffs : [];
+  s.player.innTalks = typeof s.player.innTalks === 'number' ? s.player.innTalks : 0;
+  s.stats = Object.assign(newStats(1), s.stats ?? {});
+  s.pendingEvent = s.pendingEvent ?? null;
   return s;
 }
 

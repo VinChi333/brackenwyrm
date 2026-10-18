@@ -4,8 +4,9 @@
 import { ARMORS, WEAPONS, tradeIn } from '../src/content/items';
 import {
   bankDeposit, bankWithdraw, buyItem, canChallengeMaster, chooseDragonBonus, closeFight, fightAction, forestSearch,
-  heal, healCost, maxHp, newGame, startDragonFight, startMasterFight, startNewDay,
+  heal, healCost, maxHp, newGame, resolveEvent, startDragonFight, startMasterFight, startNewDay,
 } from '../src/game/engine';
+import { eventById } from '../src/content/events';
 import { MAX_LEVEL, expNeeded } from '../src/game/balance';
 import { seedRng } from '../src/game/rng';
 import type { GameState } from '../src/game/types';
@@ -93,6 +94,13 @@ for (let run = 0; run < RUNS; run++) {
       if (p.hp < maxHp(p) * 0.3) break;
       const startHp = p.hp;
       const r = forestSearch(s, 'normal');
+      if (r.type === 'choice' && s.pendingEvent) {
+        // Der Bot nimmt bei Entscheidungen die erste mögliche Wahl.
+        const ev = eventById(s.pendingEvent.id)!;
+        const c = ev.choices!.find((x) => !x.available || x.available(p))!;
+        resolveEvent(s, c.id);
+        continue;
+      }
       if (r.type !== 'fight') continue;
       const L = p.level;
       fightOut(s);

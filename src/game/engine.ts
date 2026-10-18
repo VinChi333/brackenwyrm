@@ -1,6 +1,7 @@
 // Die Spielregeln. Jede Aktion verändert den GameState; die Darstellung liest ihn nur.
 
-import { pickEvent } from '../content/events';
+import { eventById, pickEvent } from '../content/events';
+import { FRIEDA_TALKS_PER_DAY, friedaSays } from '../content/inn';
 import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
 import { DRAGON, MONSTERS, acc, monsterById, monstersOfLevel, nom } from '../content/monsters';
@@ -11,6 +12,7 @@ import {
   healCost, masterStats, maxHp, monsterStats, specialUsesPerDay,
 } from './balance';
 import { between, chance, pick, rand, roll } from './rng';
+import { newStats } from './storage';
 import type { Fight, GameState, LogLine, Player, SpecialtyId } from './types';
 
 export function todayKey(d = new Date()): string {
@@ -23,7 +25,7 @@ export function newPlayer(name: string, specialty: SpecialtyId): Player {
   const p: Player = {
     name, specialty, level: 1, exp: 0, hp: 0, baseMaxHp: 0, bonusAtk: 0, bonusDef: 0,
     weaponTier: 0, armorTier: 0, gold: 50, bank: 0, gems: 0, forestFights: FOREST_FIGHTS_PER_DAY,
-    specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, buffs: [],
+    specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, innTalks: 0, buffs: [],
   };
   p.hp = maxHp(p);
   p.specialUses = specialUsesPerDay(p);
@@ -40,6 +42,8 @@ export function newGame(name: string, specialty: SpecialtyId): GameState {
     pendingDragonBonus: false,
     news: ['Du kommst in Moosgrund an. Hinter dem Dorf rauscht der Brackenwald.'],
     bestiary: {},
+    stats: newStats(1),
+    pendingEvent: null,
     settings: { retro: false, reducedMotion: false },
   };
 }
@@ -61,6 +65,8 @@ export function startNewDay(s: GameState): void {
     s.news.push('Morwen, die Fährfrau der Schatten, setzt dich am Morgen wieder am Dorfrand ab. „Bis zum nächsten Mal“, sagt sie.');
   }
   s.fight = null;
+  s.pendingEvent = null;
+  p.innTalks = 0;
   p.hp = maxHp(p);
   p.forestFights = FOREST_FIGHTS_PER_DAY;
   p.specialUses = specialUsesPerDay(p);
@@ -97,18 +103,24 @@ function makeFight(kind: Fight['kind'], monsterId: string, name: string, stats: 
 
 export type ForestMode = 'normal' | 'easy' | 'hard';
 
-export type ForestResult = { type: 'fight' } | { type: 'event'; lines: LogLine[] } | { type: 'none'; reason: string };
+export type ForestResult = { type: 'fight' } | { type: 'event'; lines: LogLine[] } | { type: 'choice' } | { type: 'none'; reason: string };
 
 export function forestSearch(s: GameState, mode: ForestMode): ForestResult {
   const p = s.player;
   if (!p.alive) return { type: 'none', reason: 'Tote gehen nicht in den Wald. Sie spuken höchstens darin.' };
   if (p.forestFights <= 0) return { type: 'none', reason: 'Du bist zu müde für weitere Abenteuer. Morgen ist auch noch ein Tag.' };
   if (p.hp <= 0) return { type: 'none', reason: 'Du solltest erst zur Heilerin.' };
+  if (s.pendingEvent) return { type: 'choice' };
   p.forestFights -= 1;
 
   if (mode === 'normal' && rand() < EVENT_CHANCE) {
-    const ev = pickEvent();
-    return { type: 'event', lines: ev.run(p) };
+    const ev = pickEvent(p);
+    s.stats.events += 1;
+    if (ev.choices && ev.prompt) {
+      s.pendingEvent = { id: ev.id, lines: ev.prompt(p) };
+      return { type: 'choice' };
+    }
+    return { type: 'event', lines: ev.run ? ev.run(p) : [] };
   }
 
   let lvl = p.level;
@@ -125,6 +137,17 @@ export function forestSearch(s: GameState, mode: ForestMode): ForestResult {
   const goldR = Math.round(goldPerKill(m.level) * between(0.6, 1.4) * goldMult);
   s.fight = makeFight('forest', m.id, m.name, stats, expR, goldR, m.intro);
   return { type: 'fight' };
+}
+
+/** Löst ein wartendes Waldereignis mit der gewählten Möglichkeit auf. */
+export function resolveEvent(s: GameState, choiceId: string): LogLine[] {
+  const pe = s.pendingEvent;
+  const ev = pe ? eventById(pe.id) : undefined;
+  const choice = ev?.choices?.find((c) => c.id === choiceId);
+  if (!pe || !choice) { s.pendingEvent = null; return []; }
+  if (choice.available && !choice.available(s.player)) return [{ t: 'Das geht gerade nicht.', k: 'warn' }];
+  s.pendingEvent = null;
+  return choice.run(s.player);
 }
 
 export function canChallengeMaster(p: Player): 'ok' | 'notReady' | 'seen' | 'max' | 'dead' {
@@ -292,6 +315,7 @@ function winFight(s: GameState): void {
     p.gold += f.goldReward;
     f.log.push({ t: m?.falls ?? 'Der Gegner fällt.', k: 'info' });
     f.log.push({ t: `Du erhältst ${f.goldReward} Gold und ${f.expReward} Erfahrung.`, k: 'gold' });
+    s.stats.kills += 1;
     const before = s.bestiary[f.monsterId] ?? 0;
     s.bestiary[f.monsterId] = before + 1;
     if (!before) f.log.push({ t: `Neue Karte im Bestiarium: ${f.foe.name}!`, k: 'gold' });
@@ -301,6 +325,7 @@ function winFight(s: GameState): void {
     }
   } else if (f.kind === 'master') {
     const m = masterForLevel(p.level)!;
+    s.stats.masters += 1;
     p.level += 1;
     p.hp = maxHp(p);
     f.log.push({ t: m.victory, k: 'info' });
@@ -309,6 +334,8 @@ function winFight(s: GameState): void {
   } else {
     p.dragonKills += 1;
     s.pendingDragonBonus = true;
+    const days = s.day - s.stats.runStartDay + 1;
+    if (!s.stats.fastestDragon || days < s.stats.fastestDragon) s.stats.fastestDragon = days;
     s.bestiary.dragon = (s.bestiary.dragon ?? 0) + 1;
     f.log.push({ t: DRAGON.falls, k: 'info' });
     f.log.push({ t: 'Du hast den Brackenwyrm besiegt!', k: 'gold' });
@@ -331,6 +358,8 @@ function loseFight(s: GameState): void {
     p.exp -= lostExp;
     p.alive = false;
     p.buffs = [];
+    s.stats.deaths += 1;
+    s.stats.lastDeathDay = s.day;
     f.log.push({ t: 'Dir wird schwarz vor Augen. Du sinkst ins Moos …', k: 'bad' });
     f.log.push({ t: `Du verlierst ${lostGold} Gold und ${lostExp} Erfahrung.`, k: 'bad' });
     s.news.push(f.kind === 'dragon' ? 'Der Brackenwyrm hat dich besiegt.' : `Du bist im Wald gefallen.`);
@@ -362,6 +391,7 @@ export function chooseDragonBonus(s: GameState, bonus: DragonBonus): void {
   p.buffs = [];
   s.fight = null;
   s.pendingDragonBonus = false;
+  s.stats.runStartDay = s.day;
   s.news = [`Moosgrund feiert dich als Drachentöter. Es ist dein ${p.dragonKills}. Sieg über den Brackenwyrm. Doch Wyrme kehren wieder …`];
 }
 
@@ -422,6 +452,14 @@ export function drinkHarzbier(s: GameState): string {
   p.hp = Math.min(maxHp(p), p.hp + Math.round(maxHp(p) * 0.2));
   p.buffs.push({ ...HARZBIER_BUFF });
   return `Das Harzbier schmeckt nach Tannenzapfen und Mut. Du fühlst dich stärker. (${cost} Gold)`;
+}
+
+export function talkToFrieda(s: GameState): string {
+  const p = s.player;
+  if (p.innTalks >= FRIEDA_TALKS_PER_DAY) return 'Frieda hat gerade alle Hände voll zu tun. „Morgen wieder, Schätzchen.“';
+  const t = friedaSays(s, p.innTalks);
+  p.innTalks += 1;
+  return t;
 }
 
 export function requestSong(s: GameState): string {

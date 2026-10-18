@@ -7,9 +7,12 @@ Das Dorf Moosgrund liegt am Rand des Brackenwalds. Jeden Tag gibt es eine feste 
 Wer genug Erfahrung sammelt, fordert den Meister seiner Stufe heraus. Ab Stufe 15 wartet in der
 Farnschlucht der Brackenwyrm. Wer ihn besiegt, beginnt wieder bei Stufe 1 und behält einen Bonus.
 
-## Stand: Prototyp 0.4
+## Stand: Prototyp 0.5
 
-- Erste echte Illustrationen: Borkenwolf, Irrlicht, Steintroll (Originale in `art-source/`)
+- 18 Illustrationen: alle Gegner der Stufen 1 bis 5, dazu Rudelführer, Rindenspinne und Steintroll (Originale in `art-source/`)
+- 20 Waldereignisse, 7 davon mit Entscheidung (Moosfee, alte Truhe, Wunschbrunnen, leuchtender Pilz, Schrein, schlafender Söldner, verletzter Wanderer)
+- Ruhmeshalle: Rangliste der Drachentöter von Moosgrund mit Titeln und eigenen Rekorden
+- Gasthaus: Frieda gibt bis zu 3 Tipps am Tag, passend zum Spielstand; am Stammtisch reden die Gäste über dich
 
 - Aufbau wie die Browserspiele von damals, modern gestaltet: Navigation links mit hervorgehobenen Tastenkürzeln, Geschehen in der Mitte, Charakterwerte rechts; am Handy untereinander
 - Gegner als illustrierte Karten (Gewöhnlich, Selten, Episch, Legendär) mit Treffer-Effekten; bis die Illustrationen da sind, zeigen sie eine Schattenkarte
@@ -60,5 +63,5 @@ Texte und Gegner lassen sich in `src/content/` ändern, ohne die Spiellogik anzu
 ## Nächste Schritte
 
 1. Spielerkonto und Server-Speicherstand, damit Handy und PC denselben Stand teilen
-2. Mehr Ereignisse, Ruhmeshalle, Reittiere, Gasthaus-Gespräche
+2. Reittiere, Dorfplatz mit Nachrichten anderer Spieler, Illustrationen für Meister und Drachen
 3. Hüllen für Steam (Tauri) und App Stores (Capacitor)
