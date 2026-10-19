@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "simulate": "tsx scripts/simulate.ts",
-    "build:artifact": "npm run build && node scripts/artifact.mjs"
+    "build:artifact": "npm run build && node scripts/artifact.mjs",
+    "test": "tsx scripts/test-sync.ts"
   },
   "devDependencies": {
     "@fontsource/alegreya-sans": "5.1.0",

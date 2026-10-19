@@ -149,6 +149,7 @@ export interface PendingEvent {
 
 export interface GameState {
   v: 1;
+  savedAt?: number;        // Zeitpunkt des letzten Speicherns (ms), für den Abgleich mit dem Server
   player: Player;
   day: number;             // Spieltag-Zähler
   lastRealDate: string;    // YYYY-MM-DD, löst den echten neuen Tag aus

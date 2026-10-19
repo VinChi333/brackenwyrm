@@ -42,6 +42,10 @@ Farnschlucht der Brackenwyrm. Wer ihn besiegt, beginnt wieder bei Stufe 1 und be
 
 Auch `dragon.webp`, `master-<stufe>.webp` und `hero.webp` werden erkannt.
 
+## Spielerkonto (vorbereitet)
+
+Anmeldung per E-Mail-Code, Online-Spielstand mit Abgleich zwischen Geräten (bei Gleichstand fragt das Spiel) und Online-Ruhmeshalle. Eingeschaltet wird es über `.env`, siehe `server/README.md`. Ohne Einrichtung bleibt alles unsichtbar.
+
 ## Befehle
 
 ```bash
@@ -50,6 +54,7 @@ npm run dev             # Entwicklungsserver
 npm run build           # baut dist/index.html (eine einzige Datei, läuft offline)
 npm run build:artifact  # zusätzlich dist/brackenwyrm.html für die Vorschauseite auf claude.ai
 npm run simulate        # Balancing: ein Bot spielt viele Durchgänge bis zum Drachenkill
+npm test                # Tests für Spielerkonto und Abgleich
 ```
 
 ## Aufbau

@@ -6,7 +6,9 @@ import type { GameState, Stats } from './types';
 const KEY = 'brackenwyrm.save.v1';
 const CODE_PREFIX = 'BW1:';
 
-export function saveGame(s: GameState): boolean {
+/** keepTime: Zeitpunkt nicht erneuern (für einen vom Server geladenen Stand). */
+export function saveGame(s: GameState, keepTime = false): boolean {
+  if (!keepTime || !s.savedAt) s.savedAt = Date.now();
   try {
     localStorage.setItem(KEY, JSON.stringify(s));
     return true;
@@ -37,7 +39,8 @@ export function newStats(day: number): Stats {
   return { kills: 0, deaths: 0, masters: 0, events: 0, runStartDay: day, fastestDragon: 0, lastDeathDay: 0, bestHit: { dmg: 0, foe: '', day: 0 }, realDays: 1, firstPlayed: '' };
 }
 
-function validate(x: unknown): GameState | null {
+/** Prüft und ergänzt einen Spielstand aus beliebiger Quelle (Browser, Code, Server). */
+export function validate(x: unknown): GameState | null {
   if (!x || typeof x !== 'object') return null;
   const s = x as GameState;
   if (s.v !== 1 || !s.player || typeof s.player.level !== 'number' || typeof s.day !== 'number') return null;
@@ -79,13 +82,14 @@ export function importCode(code: string): GameState | null {
 export interface Prefs {
   reducedMotion: boolean;
   dev: boolean;           // Entwicklermodus: Testknöpfe sichtbar
+  lastSyncedAt: number;   // savedAt des Stands, der zuletzt mit dem Server übereinstimmte (0 = nie)
   welcomed: boolean;      // Tester-Begrüßung gesehen
 }
 
 const PREFS_KEY = 'brackenwyrm.prefs';
 
 export function loadPrefs(): Prefs {
-  const base: Prefs = { reducedMotion: false, dev: false, welcomed: false };
+  const base: Prefs = { reducedMotion: false, dev: false, welcomed: false, lastSyncedAt: 0 };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     return raw ? Object.assign(base, JSON.parse(raw)) : base;

@@ -18,11 +18,14 @@ import {
 } from '../game/engine';
 import type { DragonBonus, FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
+import { Cloud, CloudError } from '../game/cloud';
+import type { FameRow, RemoteSave } from '../game/cloud';
+import { decideSync } from '../game/sync';
 import type { ChronicleEntry, GameState, Gender, LogLine, SpecialtyId } from '../game/types';
 import { cardBack, cardFor, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard } from './art/cards';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login';
 
 const VERSION = 'Testversion 0.12';
 
@@ -42,12 +45,18 @@ interface Ui {
   fbFrom: Screen;           // Bildschirm, von dem aus die Rückmeldung geöffnet wurde
   fbMsg: string;
   devTaps: number;
+  acctEmail: string;        // Spielerkonto: eingegebene Adresse
+  acctStep: 'email' | 'code';
+  acctMsg: string;
+  conflict: RemoteSave | null;  // Server-Stand, wenn beide Geräte weitergespielt haben
+  fame: FameRow[] | null;       // echte Spieler aus der Online-Ruhmeshalle
 }
 
 let state: GameState | null = loadGame();
 const prefs = loadPrefs();
+const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0,
+  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, acctEmail: '', acctStep: 'email', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -165,10 +174,18 @@ function titleScreen(): string {
       <div class="solo-nav">${navHtml([{ title: 'Willkommen', items: [
         ...(p ? [{ act: 'continue', label: `Weiterspielen: ${p.name}`, key: 'w', hint: `Stufe ${p.level} · Spieltag ${state!.day}` }] : []),
         { act: 'new', label: p && ui.confirmNew ? 'Wirklich neu beginnen? Der alte Spielstand geht verloren.' : 'Neues Spiel beginnen', key: 'n' },
+        ...(cloud.enabled && !cloud.signedIn ? [{ act: 'go:login', label: 'Mit Spielerkonto anmelden', key: 'k', hint: 'auf einem anderen Gerät weiterspielen' }] : []),
       ] }])}</div>
       <p class="fine" data-act="devtap">${VERSION} · Tastenkürzel am Computer, Tippen am Handy${prefs.dev ? ' · Entwicklermodus' : ''}</p>
     </div>
   </div>`;
+}
+
+function loginScreen(): string {
+  return `<div class="solo"><div class="solo-panel">
+    ${accountHtml()}
+    <div class="row"><button type="button" class="btn ghost" data-act="go:title">Zurück</button></div>
+  </div></div>`;
 }
 
 function createScreen(): string {
@@ -471,6 +488,8 @@ function fameScreen(s: GameState): string {
   const main = `<h1>Ruhmeshalle</h1>
     <p class="lead">An der Wand im Rathaus hängen die Namen aller, die dem Brackenwyrm gegenübergetreten sind. Manche sind frisch geschnitzt, andere kaum noch zu lesen.</p>
     <table class="fame"><thead><tr><th></th><th>Held</th><th class="num">Drachen</th><th class="num">Stufe</th></tr></thead><tbody>${rows}</tbody></table>
+    ${ui.fame && ui.fame.length ? `<h2>Drachentöter aus aller Welt</h2>
+    <table class="fame"><thead><tr><th></th><th>Held</th><th class="num">Drachen</th><th class="num">Stufe</th></tr></thead><tbody>${ui.fame.map((e, i) => `<tr><td class="rank">${i + 1}.</td><td><strong>${esc(e.name)}</strong><small>${esc(titleFor(e.dragonKills))}</small></td><td class="num">${e.dragonKills}</td><td class="num">${e.level}</td></tr>`).join('')}</tbody></table>` : ''}
     <h2>Deine Geschichte</h2>
     <p class="muted">Titel: <span class="gold">${esc(titleFor(p.dragonKills))}</span></p>
     <div class="records">
@@ -531,10 +550,50 @@ function feedbackScreen(s: GameState): string {
   return layout(s, main, [{ title: 'Zurück', items: [{ act: `go:${ui.fbFrom === 'fight' ? 'village' : ui.fbFrom}`, label: 'Zurück', key: 'd' }] }]);
 }
 
+function accountHtml(): string {
+  const msg = ui.acctMsg ? `<p class="muted">${esc(ui.acctMsg)}</p>` : '';
+  if (cloud.signedIn) {
+    return `<h2>Spielerkonto</h2>
+      <p>Angemeldet als <strong>${esc(cloud.email)}</strong>. Dein Spielstand wird automatisch online gesichert, damit du auf Handy und Computer weiterspielen kannst.</p>
+      <div class="row"><button type="button" class="tbtn" data-act="acct:sync">Jetzt abgleichen</button><button type="button" class="tbtn" data-act="acct:out">Abmelden</button></div>${msg}`;
+  }
+  if (ui.acctStep === 'code') {
+    return `<h2>Spielerkonto</h2>
+      <p>Wir haben dir einen 6-stelligen Code an <strong>${esc(ui.acctEmail)}</strong> geschickt.</p>
+      <div class="row"><input type="text" id="acct-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" aria-label="Anmeldecode">
+        <button type="button" class="tbtn" data-act="acct:verify">Anmelden</button><button type="button" class="tbtn" data-act="acct:back">Andere Adresse</button></div>${msg}`;
+  }
+  return `<h2>Spielerkonto</h2>
+    <p class="muted">Mit einem Konto wird dein Spielstand online gesichert, und du spielst auf Handy und Computer mit demselben Helden. Kein Passwort: Du bekommst einen Code per E-Mail.</p>
+    <div class="row"><input type="email" id="acct-email" autocomplete="email" placeholder="deine@mail.at" aria-label="E-Mail-Adresse" value="${esc(ui.acctEmail)}">
+      <button type="button" class="tbtn" data-act="acct:code">Code schicken</button></div>${msg}`;
+}
+
+function summary(st: GameState): string {
+  const p = st.player;
+  const when = st.savedAt ? new Date(st.savedAt).toLocaleString('de-AT', { dateStyle: 'medium', timeStyle: 'medium' }) : 'unbekannt';
+  return `<strong>${esc(p.name)}</strong>, Stufe ${p.level}, Spieltag ${st.day}<br>${p.gold} Gold, ${p.exp} Erfahrung, ${p.forestFights} Waldkämpfe übrig, ${p.dragonKills} Drachenkills<br><span class="muted">gespeichert ${when}</span>`;
+}
+
+function syncConflictScreen(s: GameState): string {
+  const remote = ui.conflict!.state;
+  const main = `<h1>Zwei Spielstände</h1>
+    <p class="lead">Auf diesem Gerät und online wurde seit dem letzten Abgleich weitergespielt. Welcher Stand soll bleiben? Der andere geht verloren.</p>
+    <div class="records sync-choice">
+      <div class="rec"><span>Auf diesem Gerät</span><p>${summary(s)}</p></div>
+      <div class="rec"><span>Online gesichert</span><p>${summary(remote)}</p></div>
+    </div>`;
+  return layout(s, main, [{ title: 'Entscheiden', items: [
+    { act: 'conflict:local', label: 'Diesen Stand behalten', key: 'd' },
+    { act: 'conflict:remote', label: 'Online-Stand laden', key: 'o' },
+  ] }]);
+}
+
 function settingsScreen(s: GameState): string {
   const main = `<h1>Einstellungen</h1>
     ${flashHtml()}
     <label class="toggle"><input type="checkbox" id="opt-motion" data-act="toggle:motion" ${prefs.reducedMotion ? 'checked' : ''}> Weniger Bewegung im Kampf</label>
+    ${cloud.enabled ? accountHtml() : ''}
     <h2>Spielstand auf ein anderes Gerät mitnehmen</h2>
     <p class="muted">Im Prototyp liegt der Spielstand nur in diesem Browser. Kopiere den Code und füge ihn auf dem anderen Gerät ein. Später übernimmt das ein Spielerkonto automatisch.</p>
     <textarea id="exportcode" readonly aria-label="Spielstand-Code">${exportCode(s)}</textarea>
@@ -581,9 +640,11 @@ function dragonBonusScreen(s: GameState): string {
 // ---------- Steuerung ----------
 
 function currentScreen(): Screen {
-  if (!state) return ui.screen === 'create' ? 'create' : 'title';
+  if (!state) return ui.screen === 'create' || ui.screen === 'login' ? ui.screen : 'title';
   if (ui.screen === 'title' || ui.screen === 'create') return ui.screen;
+  if (ui.screen === 'login') return 'village';
   if (state.pendingDragonBonus && !state.fight) return 'dragonBonus';
+  if (ui.conflict) return 'syncConflict';
   if (state.fight) return 'fight';
   if (!state.player.alive && ui.screen !== 'settings' && ui.screen !== 'feedback') return 'shadows';
   return ui.screen;
@@ -594,10 +655,10 @@ export function render(): void {
   document.body.classList.toggle('reduced', prefs.reducedMotion);
   const scr = currentScreen();
   const views: Record<Screen, () => string> = {
-    title: titleScreen, create: createScreen,
+    title: titleScreen, create: createScreen, login: loginScreen,
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
-    bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
+    bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
     settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!),
   };
   root.innerHTML = views[scr]();
@@ -618,13 +679,64 @@ function go(screen: Screen): void {
 function commit(): void {
   if (state) saveGame(state);
   render();
+  scheduleSync();
+}
+
+// ---------- Abgleich mit dem Online-Spielstand ----------
+
+let syncTimer = 0;
+let syncing = false;
+
+/** Nach Änderungen kurz warten und dann abgleichen, damit nicht jeder Klick eine Anfrage auslöst. */
+function scheduleSync(delay = 8000): void {
+  if (!cloud.enabled || !cloud.signedIn) return;
+  window.clearTimeout(syncTimer);
+  syncTimer = window.setTimeout(() => void syncNow(), delay);
+}
+
+async function syncNow(): Promise<string> {
+  if (!cloud.signedIn || syncing || ui.conflict) return '';
+  syncing = true;
+  try {
+    const remote = await cloud.pull();
+    const local = state;
+    const d = decideSync({ local: local?.savedAt ?? null, remote: remote?.savedAt ?? null, lastSynced: prefs.lastSyncedAt });
+    if (d === 'push' && local) {
+      await cloud.push(local);
+      prefs.lastSyncedAt = local.savedAt ?? 0;
+    } else if (d === 'pull' && remote) {
+      if (local?.fight) return '';  // nie mitten im Kampf austauschen
+      state = remote.state;
+      localSaveWithoutTouch(state);
+      prefs.lastSyncedAt = remote.savedAt;
+      render();
+    } else if (d === 'conflict' && remote) {
+      ui.conflict = remote;
+      render();
+      return 'Zwei Spielstände gefunden.';
+    }
+    savePrefs(prefs);
+    return d === 'none' ? 'Alles aktuell.' : d === 'push' ? 'Online gesichert.' : 'Online-Stand geladen.';
+  } catch (e) {
+    return e instanceof CloudError ? e.message : 'Abgleich fehlgeschlagen.';
+  } finally {
+    syncing = false;
+  }
+}
+
+/** Speichert einen vom Server geladenen Stand, ohne seinen Zeitpunkt zu ändern. */
+function localSaveWithoutTouch(st: GameState): void {
+  saveGame(st, true);
 }
 
 function handle(act: string, el: HTMLElement): void {
   const [cmd, a, b] = act.split(':');
   const s = state;
   switch (cmd) {
-    case 'go': go(a as Screen); return;
+    case 'go':
+      if (a === 'fame' && cloud.enabled) cloud.hallOfFame().then((rows) => { ui.fame = rows; if (ui.screen === 'fame') render(); }, () => {});
+      go(a as Screen);
+      return;
     case 'devtap':
       if (++ui.devTaps >= 5) { ui.devTaps = 0; prefs.dev = !prefs.dev; savePrefs(prefs); render(); }
       return;
@@ -648,6 +760,26 @@ function handle(act: string, el: HTMLElement): void {
       state = newGame(name, ui.createSpec, ui.createGender);
       saveGame(state);
       go('village');
+      return;
+    }
+    case 'acct': {
+      const done = (m: string) => { ui.acctMsg = m; render(); };
+      if (a === 'code') {
+        const email = ((document.getElementById('acct-email') as HTMLInputElement | null)?.value ?? '').trim();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { done('Bitte eine gültige E-Mail-Adresse eingeben.'); return; }
+        ui.acctEmail = email;
+        cloud.requestCode(email).then(() => { ui.acctStep = 'code'; done(''); }, (e) => done(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'));
+      } else if (a === 'verify') {
+        const code = (document.getElementById('acct-code') as HTMLInputElement | null)?.value ?? '';
+        cloud.verifyCode(ui.acctEmail, code).then(async () => { ui.acctStep = 'email'; prefs.lastSyncedAt = 0; savePrefs(prefs); const m = await syncNow(); if (ui.screen === 'login') { if (state) { checkRealDay(state); saveGame(state, true); go('village'); return; } done('Für dieses Konto gibt es noch keinen Spielstand. Beginne ein neues Spiel, es wird dann automatisch gesichert.'); return; } done(m); }, (e) => done(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'));
+      } else if (a === 'back') {
+        ui.acctStep = 'email'; done('');
+      } else if (a === 'sync') {
+        done('Gleiche ab …');
+        syncNow().then(done);
+      } else if (a === 'out') {
+        cloud.signOut(); prefs.lastSyncedAt = 0; savePrefs(prefs); done('Abgemeldet. Der Spielstand bleibt auf diesem Gerät.');
+      }
       return;
     }
   }
@@ -706,6 +838,24 @@ function handle(act: string, el: HTMLElement): void {
         } catch {
           done('Kopieren ging nicht. Öffne unten die Vorschau und kopiere den Text von Hand.');
         }
+      }
+      return;
+    }
+    case 'conflict': {
+      const remote = ui.conflict;
+      ui.conflict = null;
+      if (!remote) return;
+      if (a === 'remote') {
+        state = remote.state;
+        localSaveWithoutTouch(state);
+        prefs.lastSyncedAt = remote.savedAt;
+        savePrefs(prefs);
+        go('village');
+      } else {
+        // Diesen Stand behalten: als neuester speichern und hochladen
+        saveGame(s);
+        cloud.push(s).then(() => { prefs.lastSyncedAt = s.savedAt ?? 0; savePrefs(prefs); }, () => {});
+        go('village');
       }
       return;
     }
@@ -871,6 +1021,7 @@ export function start(el: HTMLElement): void {
     if (target.tagName === 'INPUT' && target.dataset.act) handle(target.dataset.act, target);
   });
   window.addEventListener('keydown', onKey);
+  if (cloud.signedIn) void syncNow();
   setupTilt();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDayTick(); });
   window.setInterval(checkDayTick, 60_000);
