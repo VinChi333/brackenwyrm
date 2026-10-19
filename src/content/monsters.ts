@@ -98,9 +98,9 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'giftnatter', name: 'Aschenatter', level: 9, shape: 'serpent', scale: 1.05, eyes: '#ff8a6a',
     intro: 'Eine Aschenatter zischt. Wo sie kriecht, verdorrt das Gras.',
     hits: 'beißt dich mit glühenden Zähnen', falls: 'Die Aschenatter zerfällt zu grauem Staub.' },
-  { id: 'klingenwilderer', name: 'Klingenwilderer', level: 9, shape: 'humanoid', prop: 'daggers', scale: 1.0, eyes: '#f3c06a',
-    intro: 'Ein Klingenwilderer wirbelt zwei Messer. Er hat dich schon länger beobachtet.',
-    hits: 'schneidet dich mit seinen Messern', falls: 'Der Klingenwilderer verliert seine Messer und dann die Nerven.' },
+  { id: 'klingenwilderer', name: 'Klingenwilderin', level: 9, shape: 'humanoid', prop: 'daggers', scale: 1.0, eyes: '#f3c06a',
+    intro: 'Eine Klingenwilderin wirbelt zwei Messer. Sie hat dich schon länger beobachtet.',
+    hits: 'schneidet dich mit ihren Messern', falls: 'Die Klingenwilderin verliert ihre Messer und dann die Nerven.' },
 
   // Stufe 10
   { id: 'grabwicht', name: 'Grabwicht', level: 10, shape: 'ghost', scale: 1.0, eyes: '#bfe3ff',
@@ -195,7 +195,7 @@ const GENDER: Record<string, 'm' | 'f' | 'n'> = {
   sumpfkroete: 'f', kraehe: 'f', wilderer: 'm', keiler: 'm', nebelweberin: 'f', irrlicht: 'n',
   huegelkobold: 'm', moorschlange: 'f', eulenbaer: 'm', rudelfuehrer: 'm', rindenspinne: 'f',
   raeuberhauptmann: 'm', steintroll: 'm', geisterhirsch: 'm', sumpfschleim: 'm', schattenluchs: 'm',
-  riesenfledermaus: 'f', waldschrat: 'm', hoehlenbaer: 'm', giftnatter: 'f', klingenwilderer: 'm',
+  riesenfledermaus: 'f', waldschrat: 'm', hoehlenbaer: 'm', giftnatter: 'f', klingenwilderer: 'f',
   grabwicht: 'm', moortroll: 'm', eisenkaefer: 'm', nachtmahr: 'm', wurzelriese: 'm', felsenkeiler: 'm',
   harpyie: 'f', knochenritter: 'm', dornengolem: 'm', wyrmling: 'm', sturmrabe: 'm', waldhexe: 'f',
   eichenhueter: 'm', schattenwolf: 'm', steinwurm: 'm', farngeist: 'm', trollkoenig: 'm', wyrmwaechter: 'm',
