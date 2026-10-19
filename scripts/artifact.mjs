@@ -9,7 +9,8 @@ const title = head.match(/<title>[\s\S]*?<\/title>/)[0];
 const styles = [...head.matchAll(/<style[^>]*>[\s\S]*?<\/style>/g)].map((m) => m[0]).join('\n');
 const scripts = [...head.matchAll(/<script[^>]*>[\s\S]*?<\/script>/g)].map((m) => m[0]).join('\n');
 
-const out = `${title}
+const out = `<meta charset="utf-8">
+${title}
 <meta name="claude:viewport-fit-sides" content="cover">
 <meta name="theme-color" content="#241a12">
 ${styles}
