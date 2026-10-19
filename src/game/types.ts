@@ -137,6 +137,8 @@ export interface Stats {
   fastestDragon: number;  // wenigste Tage bis zum Drachenkill, 0 = noch keiner
   lastDeathDay: number;
   bestHit: { dmg: number; foe: string; day: number };
+  realDays: number;       // an wie vielen echten Kalendertagen gespielt wurde
+  firstPlayed: string;    // erster Spieltag (YYYY-MM-DD)
 }
 
 /** Ein Waldereignis, das auf eine Entscheidung wartet. */

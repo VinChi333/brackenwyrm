@@ -43,7 +43,7 @@ export function newGame(name: string, specialty: SpecialtyId, gender: Gender = '
     pendingDragonBonus: false,
     news: ['Du kommst in Moosgrund an. Hinter dem Dorf rauscht der Brackenwald.'],
     bestiary: {},
-    stats: newStats(1),
+    stats: { ...newStats(1), firstPlayed: todayKey() },
     chronicle: [],
     pendingEvent: null,
     settings: { retro: false, reducedMotion: false },
@@ -54,6 +54,7 @@ export function newGame(name: string, specialty: SpecialtyId, gender: Gender = '
 export function checkRealDay(s: GameState, today = todayKey()): boolean {
   if (s.lastRealDate === today) return false;
   s.lastRealDate = today;
+  s.stats.realDays += 1;
   startNewDay(s);
   return true;
 }

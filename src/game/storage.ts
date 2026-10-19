@@ -34,7 +34,7 @@ export function deleteGame(): void {
 }
 
 export function newStats(day: number): Stats {
-  return { kills: 0, deaths: 0, masters: 0, events: 0, runStartDay: day, fastestDragon: 0, lastDeathDay: 0, bestHit: { dmg: 0, foe: '', day: 0 } };
+  return { kills: 0, deaths: 0, masters: 0, events: 0, runStartDay: day, fastestDragon: 0, lastDeathDay: 0, bestHit: { dmg: 0, foe: '', day: 0 }, realDays: 1, firstPlayed: '' };
 }
 
 function validate(x: unknown): GameState | null {
@@ -78,12 +78,14 @@ export function importCode(code: string): GameState | null {
 
 export interface Prefs {
   reducedMotion: boolean;
+  dev: boolean;           // Entwicklermodus: Testknöpfe sichtbar
+  welcomed: boolean;      // Tester-Begrüßung gesehen
 }
 
 const PREFS_KEY = 'brackenwyrm.prefs';
 
 export function loadPrefs(): Prefs {
-  const base: Prefs = { reducedMotion: false };
+  const base: Prefs = { reducedMotion: false, dev: false, welcomed: false };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     return raw ? Object.assign(base, JSON.parse(raw)) : base;

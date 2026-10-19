@@ -449,3 +449,16 @@ tr.owned td { color: var(--green); }
 .speaker .card.mini { width: 220px; }
 .speaker .card.mini .card-name { white-space: normal; font-size: 15px; }
 @media (max-width: 640px) { .speaker .card.mini { width: 150px; } .speaker .card.mini .card-name { font-size: 13px; } }
+
+/* ---------- Testversion ---------- */
+.welcome { background: linear-gradient(160deg, #23203a, #171a2e); border: 1px solid var(--gold); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 0 30px rgba(232, 184, 90, 0.12); }
+.welcome h2 { color: var(--gold-hi); }
+.welcome .btn { align-self: flex-start; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: inherit; font-size: 15px; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; min-height: 38px; cursor: pointer; }
+.chip.on { color: #1a1206; background: var(--gold); border-color: var(--gold); font-weight: 700; }
+#fbtext, #fbpreview { width: 100%; font: inherit; font-size: 16px; color: var(--text); background: #0d1020; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; resize: vertical; }
+#fbpreview { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.send-row .btn { flex: 0 1 auto; }
+.fb-preview summary { cursor: pointer; color: var(--cyan); font-size: 14px; }
+.fine[data-act] { cursor: default; user-select: none; }

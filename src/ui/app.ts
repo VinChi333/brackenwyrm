@@ -2,6 +2,8 @@
 // Charakterwerte rechts. Gegner erscheinen als illustrierte Karten.
 
 import { eventById } from '../content/events';
+import { FEEDBACK_KINDS, feedbackMessage } from '../content/feedback';
+import type { FeedbackKind } from '../content/feedback';
 import { fameTable, titleFor } from '../content/fame';
 import { FRIEDA_TALKS_PER_DAY, regularsSay } from '../content/inn';
 import { ARMORS, WEAPONS, tradeIn } from '../content/items';
@@ -20,7 +22,9 @@ import type { ChronicleEntry, GameState, Gender, LogLine, SpecialtyId } from '..
 import { cardBack, cardFor, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard } from './art/cards';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'settings' | 'shadows' | 'dragonBonus';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus';
+
+const VERSION = 'Testversion 0.12';
 
 interface Ui {
   screen: Screen;
@@ -33,12 +37,17 @@ interface Ui {
   importMsg: string;
   newCard: string | null;   // Karte, die gerade neu ins Bestiarium kam
   fullLog: boolean;         // Kampfbericht ganz aufgeklappt
+  fbKinds: FeedbackKind[];  // Rückmeldung: gewählte Arten
+  fbText: string;
+  fbFrom: Screen;           // Bildschirm, von dem aus die Rückmeldung geöffnet wurde
+  fbMsg: string;
+  devTaps: number;
 }
 
 let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false,
+  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0,
 };
 let root: HTMLElement;
 
@@ -157,7 +166,7 @@ function titleScreen(): string {
         ...(p ? [{ act: 'continue', label: `Weiterspielen: ${p.name}`, key: 'w', hint: `Stufe ${p.level} · Spieltag ${state!.day}` }] : []),
         { act: 'new', label: p && ui.confirmNew ? 'Wirklich neu beginnen? Der alte Spielstand geht verloren.' : 'Neues Spiel beginnen', key: 'n' },
       ] }])}</div>
-      <p class="fine">Prototyp 0.11 · Tastenkürzel am Computer, Tippen am Handy</p>
+      <p class="fine" data-act="devtap">${VERSION} · Tastenkürzel am Computer, Tippen am Handy${prefs.dev ? ' · Entwicklermodus' : ''}</p>
     </div>
   </div>`;
 }
@@ -191,6 +200,13 @@ function villageScreen(s: GameState): string {
   const found = Object.keys(s.bestiary).filter((k) => k !== 'dragon').length;
   const main = `<h1>Moosgrund</h1>
     <p class="lead">Du stehst auf dem Dorfplatz von <span class="place">Moosgrund</span>. Rauch steigt aus den Kaminen, aus dem Gasthaus <span class="place">Zum Schlafenden Wurm</span> klingt Gelächter. Im Norden rauscht der <span class="place">Brackenwald</span>, und irgendwo dahinter schläft der Wyrm.</p>
+    ${prefs.welcomed ? '' : `<section class="welcome">
+      <h2>Danke, dass du testest!</h2>
+      <p>Brackenwyrm ist ein Nachfolger der Browserspiele von damals und noch in Arbeit. Spiel einfach so, wie du früher gespielt hast: <strong>jeden Tag ein bisschen</strong>. Um Mitternacht gibt es neue Waldkämpfe.</p>
+      <p>Wenn dir etwas auffällt, ob Fehler, Langeweile, zu schwer oder eine Idee, drück auf <strong>Rückmeldung geben</strong>. Dein Spielstand wird automatisch mitgeschickt, du musst nichts erklären.</p>
+      <p class="muted">Der Spielstand liegt in diesem Browser. Nicht im privaten Fenster spielen, sonst ist er weg.</p>
+      <button type="button" class="btn" data-act="welcome">Los geht’s</button>
+    </section>`}
     ${flashHtml()}
     ${s.news.length ? `<section class="news"><h2>Neuigkeiten</h2>${s.news.slice(-4).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}`;
   return layout(s, main, [
@@ -207,6 +223,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:fame', label: 'Ruhmeshalle', key: 'r' },
       { act: 'go:chronicle', label: 'Kampfchronik', key: 'c', hint: s.chronicle.length ? `${s.chronicle.length} Kämpfe` : '' },
       { act: 'go:settings', label: 'Einstellungen', key: 'e' },
+      { act: 'feedback', label: 'Rückmeldung geben', key: 'm' },
     ] },
   ]);
 }
@@ -484,6 +501,36 @@ function chronicleScreen(s: GameState): string {
   return layout(s, main, [{ title: 'Zurück', items: [back] }]);
 }
 
+const SCREEN_NAMES: Partial<Record<Screen, string>> = {
+  village: 'Dorfplatz', forest: 'Wald', fight: 'Kampf', training: 'Trainingsplatz', healer: 'Kräuterhütte', smith: 'Schmiede',
+  bank: 'Kontor', inn: 'Gasthaus', bestiary: 'Bestiarium', fame: 'Ruhmeshalle', chronicle: 'Kampfchronik', settings: 'Einstellungen',
+  shadows: 'Schattenreich', dragonBonus: 'Drachenkill',
+};
+
+function buildFeedback(s: GameState): string {
+  return feedbackMessage(s, VERSION, ui.fbKinds, ui.fbText, SCREEN_NAMES[ui.fbFrom] ?? ui.fbFrom);
+}
+
+function feedbackScreen(s: GameState): string {
+  const msg = buildFeedback(s);
+  const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const main = `<h1>Rückmeldung geben</h1>
+    <p class="lead">Was ist dir aufgefallen? Ein Satz reicht. Dein Spielstand wird unten automatisch angehängt.</p>
+    <div class="chips" role="group" aria-label="Art der Rückmeldung">
+      ${FEEDBACK_KINDS.map((k) => `<button type="button" class="chip ${ui.fbKinds.includes(k.id) ? 'on' : ''}" aria-pressed="${ui.fbKinds.includes(k.id)}" data-act="fbkind:${k.id}">${k.label}</button>`).join('')}
+    </div>
+    <label class="field">Deine Nachricht<textarea id="fbtext" rows="5" placeholder="z. B. Ab Stufe 6 sterbe ich ständig, oder: Ich hätte gern ein Haustier.">${esc(ui.fbText)}</textarea></label>
+    <div class="row send-row">
+      <button type="button" class="btn" data-act="fbsend:wa">Per WhatsApp senden</button>
+      ${canShare ? '<button type="button" class="btn alt" data-act="fbsend:share">Teilen …</button>' : ''}
+      <button type="button" class="btn ghost" data-act="fbsend:mail">Per E-Mail</button>
+      <button type="button" class="btn ghost" data-act="fbsend:copy">Text kopieren</button>
+    </div>
+    ${ui.fbMsg ? `<p class="flash">${esc(ui.fbMsg)}</p>` : ''}
+    <details class="fb-preview"><summary>So sieht die Nachricht aus</summary><textarea id="fbpreview" readonly rows="11" aria-label="Fertige Nachricht">${esc(msg)}</textarea></details>`;
+  return layout(s, main, [{ title: 'Zurück', items: [{ act: `go:${ui.fbFrom === 'fight' ? 'village' : ui.fbFrom}`, label: 'Zurück', key: 'd' }] }]);
+}
+
 function settingsScreen(s: GameState): string {
   const main = `<h1>Einstellungen</h1>
     ${flashHtml()}
@@ -495,8 +542,9 @@ function settingsScreen(s: GameState): string {
     <textarea id="importcode" placeholder="Code hier einfügen (beginnt mit BW1:)" aria-label="Code einfügen"></textarea>
     <div class="row"><button type="button" class="tbtn" data-act="importcode">Spielstand laden</button><span class="muted">${esc(ui.importMsg)}</span></div>`;
   return layout(s, main, [
-    { title: 'Testen', items: [
-      { act: 'testday', label: 'Neuer Tag (Testmodus)', key: 'n', hint: 'sonst um Mitternacht' },
+    { title: 'Spielstand', items: [
+      ...(prefs.dev ? [{ act: 'testday', label: 'Neuer Tag (Testmodus)', key: 'n', hint: 'sonst um Mitternacht' }] : []),
+      { act: 'feedback', label: 'Rückmeldung geben', key: 'm' },
       { act: 'delete', label: ui.confirmDelete ? 'Wirklich löschen? Nochmal drücken.' : 'Spielstand löschen', key: 'x' },
     ] },
     { title: 'Zurück', items: [back] },
@@ -513,7 +561,8 @@ function shadowsScreen(s: GameState): string {
     <p class="muted">Neuer Tag in ${Math.floor(mins / 60)} Std. ${mins % 60} Min. Gold im Kontor ist sicher.</p>
     ${flashHtml()}`;
   return layout(s, main, [{ title: 'Schattenreich', items: [
-    { act: 'testday', label: 'Neuer Tag (Testmodus)', key: 'n' },
+    ...(prefs.dev ? [{ act: 'testday', label: 'Neuer Tag (Testmodus)', key: 'n' }] : []),
+    { act: 'feedback', label: 'Rückmeldung geben', key: 'm' },
     { act: 'go:settings', label: 'Einstellungen', key: 'e' },
   ] }]);
 }
@@ -536,7 +585,7 @@ function currentScreen(): Screen {
   if (ui.screen === 'title' || ui.screen === 'create') return ui.screen;
   if (state.pendingDragonBonus && !state.fight) return 'dragonBonus';
   if (state.fight) return 'fight';
-  if (!state.player.alive && ui.screen !== 'settings') return 'shadows';
+  if (!state.player.alive && ui.screen !== 'settings' && ui.screen !== 'feedback') return 'shadows';
   return ui.screen;
 }
 
@@ -548,7 +597,7 @@ export function render(): void {
     title: titleScreen, create: createScreen,
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
-    bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), chronicle: () => chronicleScreen(s!),
+    bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
     settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!),
   };
   root.innerHTML = views[scr]();
@@ -576,6 +625,9 @@ function handle(act: string, el: HTMLElement): void {
   const s = state;
   switch (cmd) {
     case 'go': go(a as Screen); return;
+    case 'devtap':
+      if (++ui.devTaps >= 5) { ui.devTaps = 0; prefs.dev = !prefs.dev; savePrefs(prefs); render(); }
+      return;
     case 'continue': if (s) { checkRealDay(s); saveGame(s); go('village'); } return;
     case 'new':
       if (state && !ui.confirmNew) { ui.confirmNew = true; render(); return; }
@@ -621,6 +673,40 @@ function handle(act: string, el: HTMLElement): void {
       const f = s.fight;
       if (f && f.over === 'win' && f.kind === 'forest' && s.bestiary[f.monsterId] === 1) ui.newCard = f.monsterId;
       commit();
+      return;
+    }
+    case 'welcome': prefs.welcomed = true; savePrefs(prefs); render(); return;
+    case 'feedback': {
+      const from = currentScreen();
+      ui.fbFrom = from === 'feedback' ? ui.fbFrom : from;
+      ui.fbMsg = '';
+      go('feedback');
+      return;
+    }
+    case 'fbkind': {
+      readFbText();
+      const k = a as FeedbackKind;
+      ui.fbKinds = ui.fbKinds.includes(k) ? ui.fbKinds.filter((x) => x !== k) : [...ui.fbKinds, k];
+      render();
+      return;
+    }
+    case 'fbsend': {
+      readFbText();
+      const msg = buildFeedback(s);
+      const done = (t: string) => { ui.fbMsg = t; render(); };
+      if (a === 'wa' || a === 'mail') {
+        const url = a === 'wa' ? `https://wa.me/?text=${encodeURIComponent(msg)}` : `mailto:?subject=${encodeURIComponent('Brackenwyrm-Rückmeldung')}&body=${encodeURIComponent(msg)}`;
+        const w = window.open(url, '_blank', 'noopener');
+        done(w || a === 'mail' ? 'Danke! Falls sich nichts geöffnet hat, nimm „Text kopieren“ und schick ihn selbst.' : 'Das Fenster wurde blockiert. Nimm „Text kopieren“ und schick den Text selbst.');
+      } else if (a === 'share') {
+        navigator.share({ title: 'Brackenwyrm-Rückmeldung', text: msg }).then(() => done('Danke für deine Rückmeldung!'), () => done(''));
+      } else {
+        try {
+          navigator.clipboard.writeText(msg).then(() => done('Kopiert. Jetzt einfach in WhatsApp oder eine E-Mail einfügen.'), () => done('Kopieren ging nicht. Öffne unten die Vorschau und kopiere den Text von Hand.'));
+        } catch {
+          done('Kopieren ging nicht. Öffne unten die Vorschau und kopiere den Text von Hand.');
+        }
+      }
       return;
     }
     case 'fulllog': ui.fullLog = !ui.fullLog; render(); return;
@@ -690,6 +776,11 @@ function handle(act: string, el: HTMLElement): void {
       go('title');
       return;
   }
+}
+
+function readFbText(): void {
+  const t = document.getElementById('fbtext') as HTMLTextAreaElement | null;
+  if (t) ui.fbText = t.value;
 }
 
 function onKey(e: KeyboardEvent): void {
