@@ -7,7 +7,10 @@ Das Dorf Moosgrund liegt am Rand des Brackenwalds. Jeden Tag gibt es eine feste 
 Wer genug Erfahrung sammelt, fordert den Meister seiner Stufe heraus. Ab Stufe 15 wartet in der
 Farnschlucht der Brackenwyrm. Wer ihn besiegt, beginnt wieder bei Stufe 1 und behält einen Bonus.
 
-## Stand: Testversion 0.12
+## Stand: Testversion 0.13
+
+- Befehle verrutschen nicht mehr: am Computer stehen sie links (wie früher, Hauptbefehl golden), am Handy in einer festen Leiste unten, der Hauptbefehl immer an derselben Stelle; restliches Menü fährt am Handy von unten herein
+- Handy im Kampf: kompakte Lebenspunkte-Anzeige und kleinere Karte, damit der Kampfbericht sichtbar bleibt
 
 - Für Tester: Begrüßung beim ersten Start, Seite „Rückmeldung geben“ (Art wählen, Text, automatisch angehängter Spielstand; senden per WhatsApp, Teilen, E-Mail oder Kopieren), Zählung der echten Spieltage
 - Testknopf „Neuer Tag“ nur im Entwicklermodus: auf dem Startbildschirm fünfmal auf die Versionszeile tippen

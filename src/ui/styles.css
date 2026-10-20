@@ -462,3 +462,56 @@ tr.owned td { color: var(--green); }
 .send-row .btn { flex: 0 1 auto; }
 .fb-preview summary { cursor: pointer; color: var(--cyan); font-size: 14px; }
 .fine[data-act] { cursor: default; user-select: none; }
+
+/* ---------- Befehle: links am Computer, feste Leiste unten am Handy ---------- */
+.nav-link.primary { background: linear-gradient(180deg, #f2c46a, #d9a443); color: #1a1206; font-weight: 700; }
+.nav-link.primary .hk { color: #1a1206; }
+.nav-link.primary small { color: #3b2a0c; }
+.nav-link.primary:hover:not(:disabled) { background: linear-gradient(180deg, #ffd27c, #e3ad4b); color: #1a1206; }
+.nav-link.primary:disabled { background: #2a2b3d; color: #5d5a73; }
+.hint-desk { font-size: 14px; color: var(--muted); border-left: 2px solid var(--gold); padding-left: 10px; }
+@media (min-width: 700px) { .battle .fight-log:not(.open) { height: 360px; max-height: none; } }
+.dock, .nav-backdrop { display: none; }
+@media (max-width: 979px) {
+  .hint-desk { display: none; }
+  .shell.has-dock { padding-bottom: calc(var(--dock-rows, 1) * 60px + 26px + env(safe-area-inset-bottom)); }
+  .dock { display: flex; flex-direction: column; gap: 8px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); background: rgba(11, 13, 24, 0.94); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4); }
+  .dock-btn { font: inherit; font-size: 16px; font-weight: 700; min-height: 52px; padding: 4px 8px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; line-height: 1.15; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  .dock-btn .hk { color: var(--gold-hi); }
+  .dock-btn small { font-weight: 400; font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .dock-btn.primary { background: linear-gradient(180deg, #f2c46a, #d9a443); color: #1a1206; border-color: transparent; box-shadow: 0 2px 0 #8a6420; }
+  .dock-btn.primary .hk { color: #1a1206; }
+  .dock-btn.primary small { color: #3b2a0c; }
+  .dock-btn:active:not(:disabled) { transform: translateY(1px); filter: brightness(0.95); }
+  .dock-btn:disabled { opacity: 0.4; }
+  .dock-btn.menu { color: var(--gold-hi); }
+  .dock-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .dock-row .dock-btn { flex: 1 1 28%; min-width: 0; min-height: 48px; font-size: 14px; }
+  .dock > .dock-btn.primary { min-height: 56px; font-size: 19px; }
+  /* Menü fährt von unten herein */
+  .shell.has-dock .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; max-height: 78vh; overflow-y: auto; border-radius: 16px 16px 0 0;
+    padding: 12px 12px calc(16px + env(safe-area-inset-bottom)); transform: translateY(105%); transition: transform 0.22s ease; box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.6); }
+  .shell.menu-open .nav { transform: none; }
+  .shell.menu-open .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 45; background: rgba(0, 0, 0, 0.55); }
+  .in-fight .nav { display: none; }
+  .battle .arena .card { max-width: 210px; }
+}
+.reduced .shell .nav { transition: none; }
+/* Handy im Kampf: kompakte Charakterleiste (nur Lebenspunkte) und kleinere Karte, damit der Bericht sichtbar bleibt */
+@media (max-width: 979px) {
+  .in-fight .vital-list { grid-template-columns: 1fr; }
+  .in-fight .vital-list > .v-row:not(:first-child) { display: none; }
+  .in-fight .vital-list > .v-row:first-child { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+  .in-fight .vital-head { margin-bottom: 4px; }
+  .in-fight .portrait { width: 34px; height: 44px; }
+  .in-fight .topbar { padding: 8px 14px; }
+  .in-fight .logo { font-size: 18px; }
+  .in-fight .main { padding: 14px 14px 16px; }
+  .in-fight .battle { gap: 10px; }
+  .in-fight .battle .arena .card { max-width: 150px; }
+  .in-fight .fight-log { max-height: 240px; }
+}

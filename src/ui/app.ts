@@ -27,7 +27,7 @@ import { cardBack, cardFor, cardHtml, dragonCard, heroArt, heroPortrait, masterC
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login';
 
-const VERSION = 'Testversion 0.12';
+const VERSION = 'Testversion 0.13';
 
 interface Ui {
   screen: Screen;
@@ -45,6 +45,7 @@ interface Ui {
   fbFrom: Screen;           // Bildschirm, von dem aus die Rückmeldung geöffnet wurde
   fbMsg: string;
   devTaps: number;
+  menuOpen: boolean;        // Handy: Menü von unten aufgeklappt
   acctEmail: string;        // Spielerkonto: eingegebene Adresse
   acctStep: 'email' | 'code';
   acctMsg: string;
@@ -56,7 +57,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, acctEmail: '', acctStep: 'email', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, acctEmail: '', acctStep: 'email', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -70,7 +71,7 @@ function pct(a: number, b: number): number {
   return Math.max(0, Math.min(100, Math.round((100 * a) / Math.max(1, b))));
 }
 
-interface Item { act: string; label: string; key?: string; hint?: string; disabled?: boolean }
+interface Item { act: string; label: string; key?: string; hint?: string; disabled?: boolean; primary?: boolean }
 interface Group { title: string; items: Item[] }
 
 /** Tastenkürzel im Wort hervorheben, wie damals: "[W]ald" → W unterstrichen und farbig. */
@@ -83,7 +84,7 @@ function hotLabel(label: string, key?: string): string {
 
 function navHtml(groups: Group[]): string {
   return groups.map((g) => `<section class="nav-group"><h3>${esc(g.title)}</h3>
-    ${g.items.map((it) => `<button type="button" class="nav-link" data-act="${it.act}" ${it.key ? `data-hotkey="${it.key}"` : ''} ${it.disabled ? 'disabled' : ''}>
+    ${g.items.map((it) => `<button type="button" class="nav-link ${it.primary ? 'primary' : ''}" data-act="${it.act}" ${it.key ? `data-hotkey="${it.key}"` : ''} ${it.disabled ? 'disabled' : ''}>
       <span>${hotLabel(it.label, it.key)}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}</button>`).join('')}
   </section>`).join('');
 }
@@ -134,11 +135,43 @@ function topbar(s: GameState | null): string {
 }
 
 /** Das Grundgerüst jeder Spielseite. */
+/**
+ * Aktionsleiste für das Handy: fest am unteren Rand, damit die wichtigsten Befehle nie verrutschen.
+ * Standard: die erste Gruppe der Navigation (wenn kurz) plus "Zurück"; alles Weitere steckt im Menü.
+ */
+function dockItems(groups: Group[]): Item[] {
+  const all = groups.flatMap((g) => g.items).filter((i) => i.act !== 'delete');
+  const first = groups[0]?.items.filter((i) => i.act !== 'delete') ?? [];
+  const picked = first.length <= 4 ? [...first] : [];
+  const backItem = all.find((i) => i.act === 'go:village' || i.act === 'after:village');
+  if (backItem && !picked.includes(backItem) && picked.length < 5) picked.push(backItem);
+  return picked;
+}
+
+function dockHtml(items: Item[], needMenu: boolean): string {
+  const btn = (it: Item, primary: boolean) => `<button type="button" class="dock-btn ${primary ? 'primary' : ''}" data-act="${it.act}" ${it.disabled ? 'disabled' : ''}>
+      <span>${hotLabel(it.label, it.key)}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}</button>`;
+  const [main, ...rest] = items;
+  const sec = rest.map((it) => btn(it, false));
+  if (needMenu) sec.push(`<button type="button" class="dock-btn menu" data-act="menu" aria-expanded="${ui.menuOpen}">☰ Menü</button>`);
+  // Der Hauptbefehl steht immer ganz unten über die volle Breite: Angreifen, Weiter, Herumstreifen …
+  // So bleibt er für den Daumen an derselben Stelle, egal wie viele andere Knöpfe es gibt.
+  return `<div class="dock" role="toolbar" aria-label="Aktionen">
+    ${sec.length ? `<div class="dock-row">${sec.join('')}</div>` : ''}
+    ${main ? btn(main, true) : ''}
+  </div>`;
+}
+
 function layout(s: GameState, main: string, groups: Group[], cls = ''): string {
-  return `<div class="shell ${cls}">${topbar(s)}
+  const dock = dockItems(groups);
+  const needMenu = groups.flatMap((g) => g.items).some((i) => !dock.includes(i));
+  const n = dock.length + (needMenu ? 1 : 0);
+  const rows = (n > 1 ? Math.ceil((n - 1) / 3) : 0) + (n ? 1 : 0);
+  return `<div class="shell ${cls} ${n ? 'has-dock' : ''} ${ui.menuOpen ? 'menu-open' : ''}" style="--dock-rows:${rows}">${topbar(s)}
     <nav class="nav" aria-label="Navigation">${navHtml(groups)}</nav>
     <main class="main">${main}</main>
     ${vital(s)}
+    ${n ? `<div class="nav-backdrop" data-act="menu"></div>${dockHtml(dock, needMenu)}` : ''}
   </div>`;
 }
 
@@ -251,13 +284,9 @@ function eventScreen(s: GameState): string {
   const p = s.player;
   const main = `<h1>Der Brackenwald</h1>
     <div class="event-box log">${pe.lines.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}</div>
-    <p class="muted">Was tust du?</p>
-    <div class="choice-row">${(ev?.choices ?? []).map((c) => {
-      const ok = !c.available || c.available(p);
-      return `<button type="button" class="tbtn" data-act="event:${c.id}" ${ok ? '' : 'disabled'}>${esc(c.label)}${c.hint ? ` <small>${esc(c.hint(p))}</small>` : ''}</button>`;
-    }).join('')}</div>`;
-  return layout(s, main, [{ title: 'Entscheidung', items: (ev?.choices ?? []).map((c) => ({
-    act: `event:${c.id}`, label: c.label, key: c.key, hint: c.hint?.(p), disabled: !!c.available && !c.available(p),
+    <p class="muted">Was tust du?</p>`;
+  return layout(s, main, [{ title: 'Entscheidung', items: (ev?.choices ?? []).map((c, i) => ({
+    act: `event:${c.id}`, label: c.label, key: c.key, hint: c.hint?.(p), disabled: !!c.available && !c.available(p), primary: i === 0,
   })) }], 'in-fight');
 }
 
@@ -273,7 +302,7 @@ function forestScreen(s: GameState): string {
   const none = p.forestFights <= 0;
   return layout(s, main, [
     { title: 'Wald', items: [
-      { act: 'forest:normal', label: 'Herumstreifen', key: 'h', hint: 'Gegner deiner Stufe', disabled: none },
+      { act: 'forest:normal', label: 'Herumstreifen', key: 'h', hint: 'Gegner deiner Stufe', disabled: none, primary: true },
       { act: 'forest:easy', label: 'Leichte Beute suchen', key: 'l', hint: 'schwächer, weniger Lohn', disabled: none },
       { act: 'forest:hard', label: 'Nervenkitzel suchen', key: 'n', hint: 'stärker, mehr Lohn', disabled: none },
       ...(p.level >= MAX_LEVEL ? [{ act: 'dragon', label: 'Den Brackenwyrm suchen', key: 'b', hint: 'Endkampf', disabled: !canSeekDragon(p) }] : []),
@@ -305,17 +334,10 @@ function fightScreen(s: GameState): string {
     ${f.over === 'win' ? '<div class="stamp">Besiegt</div>' : ''}`;
   const isNew = f.over === 'win' && f.kind === 'forest' && s.bestiary[f.monsterId] === 1;
 
-  let actions = '';
   let groups: Group[] = [];
   if (!f.over) {
-    actions = `<div class="actions">
-      <button type="button" class="btn big" data-act="fight:attack" data-hotkey="a">${hotLabel('Angreifen', 'a')}</button>
-      <button type="button" class="btn alt" data-act="fight:special" data-hotkey="${spKey}" ${p.specialUses <= 0 ? 'disabled' : ''}>${hotLabel(sp.move, spKey)} <small>${p.specialUses}×</small></button>
-      <button type="button" class="btn ghost" data-act="fight:flee" data-hotkey="f">${hotLabel(f.kind === 'master' ? 'Aufgeben' : 'Fliehen', f.kind === 'master' ? 'u' : 'f')}</button>
-      ${f.kind !== 'master' ? `<button type="button" class="btn ghost" data-act="fight:auto" data-hotkey="k">${hotLabel('Kämpfen bis zum Ende', 'k')}</button>` : ''}
-    </div>`;
     groups = [{ title: 'Kampf', items: [
-      { act: 'fight:attack', label: 'Angreifen', key: 'a' },
+      { act: 'fight:attack', label: 'Angreifen', key: 'a', primary: true },
       { act: 'fight:special', label: sp.move, key: spKey, disabled: p.specialUses <= 0, hint: `${p.specialUses}× übrig` },
       ...(f.kind !== 'master' ? [{ act: 'fight:auto', label: 'Kämpfen bis zum Ende', key: 'k' }] : []),
       { act: 'fight:flee', label: f.kind === 'master' ? 'Aufgeben' : 'Fliehen', key: f.kind === 'master' ? 'u' : 'f' },
@@ -336,8 +358,8 @@ function fightScreen(s: GameState): string {
     } else {
       items.push({ act: 'after:shadows', label: 'Ins Schattenreich', key: 'w' });
     }
+    if (items[0]) items[0].primary = true;
     groups = [{ title: 'Weiter', items }];
-    actions = `<div class="actions after">${items.map((it, i) => `<button type="button" class="btn ${i ? 'ghost' : 'big'}" data-act="${it.act}" ${it.disabled ? 'disabled' : ''}>${hotLabel(it.label, it.key)}</button>`).join('')}</div>`;
   }
 
   const main = `<div class="battle">
@@ -346,7 +368,7 @@ function fightScreen(s: GameState): string {
         <h1 class="foe-title">${esc(f.foe.name)}</h1>
         <div class="log fight-log ${ui.fullLog ? 'open' : ''}" aria-live="polite">${fightLogHtml(f.log)}</div>
         ${f.round > 2 ? `<button type="button" class="log-toggle" data-act="fulllog">${ui.fullLog ? 'Bericht einklappen' : `Ganzen Kampf anzeigen (${f.round} Runden)`}</button>` : ''}
-        ${actions}
+        ${prefs.fightHint ? '' : '<p class="hint-desk">Deine Befehle stehen links, wie früher. Taste <b class="hk">A</b> greift an, <b class="hk">K</b> kämpft bis zum Ende.</p>'}
       </div>
     </div>`;
   return layout(s, main, groups, 'in-fight');
@@ -669,6 +691,7 @@ export function render(): void {
 
 function go(screen: Screen): void {
   ui.screen = screen;
+  ui.menuOpen = false;
   ui.flash = [];
   ui.confirmDelete = false;
   ui.confirmNew = false;
@@ -733,6 +756,7 @@ function handle(act: string, el: HTMLElement): void {
   const [cmd, a, b] = act.split(':');
   const s = state;
   switch (cmd) {
+    case 'menu': ui.menuOpen = !ui.menuOpen; render(); return;
     case 'go':
       if (a === 'fame' && cloud.enabled) cloud.hallOfFame().then((rows) => { ui.fame = rows; if (ui.screen === 'fame') render(); }, () => {});
       go(a as Screen);
@@ -862,6 +886,7 @@ function handle(act: string, el: HTMLElement): void {
     case 'fulllog': ui.fullLog = !ui.fullLog; render(); return;
     case 'after': {
       ui.fullLog = false;
+      if (!prefs.fightHint) { prefs.fightHint = true; savePrefs(prefs); }
       closeFight(s);
       const target: Screen = a === 'forest' ? 'forest' : a === 'training' ? 'training' : a === 'shadows' ? 'shadows' : a === 'bonus' ? 'dragonBonus' : 'village';
       saveGame(s);
@@ -940,6 +965,7 @@ function onKey(e: KeyboardEvent): void {
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'name') handle('create', t);
     return;
   }
+  if (e.key === 'Escape' && ui.menuOpen) { ui.menuOpen = false; render(); return; }
   const key = e.key.toLowerCase();
   const btn = root.querySelector<HTMLButtonElement>(`[data-hotkey="${CSS.escape(key)}"]:not(:disabled)`);
   if (btn) { e.preventDefault(); btn.click(); }

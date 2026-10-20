@@ -84,12 +84,13 @@ export interface Prefs {
   dev: boolean;           // Entwicklermodus: Testknöpfe sichtbar
   lastSyncedAt: number;   // savedAt des Stands, der zuletzt mit dem Server übereinstimmte (0 = nie)
   welcomed: boolean;      // Tester-Begrüßung gesehen
+  fightHint: boolean;     // Hinweis "Befehle stehen links" schon gesehen
 }
 
 const PREFS_KEY = 'brackenwyrm.prefs';
 
 export function loadPrefs(): Prefs {
-  const base: Prefs = { reducedMotion: false, dev: false, welcomed: false, lastSyncedAt: 0 };
+  const base: Prefs = { reducedMotion: false, dev: false, welcomed: false, fightHint: false, lastSyncedAt: 0 };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     return raw ? Object.assign(base, JSON.parse(raw)) : base;
