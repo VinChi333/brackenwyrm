@@ -2,7 +2,7 @@
 // Ohne VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY ist alles abgeschaltet und das Spiel läuft rein lokal.
 
 import { validate } from './storage';
-import type { GameState } from './types';
+import type { GameState, Gender, SpecialtyId } from './types';
 
 const URL_ = (import.meta.env?.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 const KEY_ = (import.meta.env?.VITE_SUPABASE_ANON_KEY as string | undefined) ?? '';
@@ -11,9 +11,20 @@ const SESSION_KEY = 'brackenwyrm.session';
 export interface Session { accessToken: string; refreshToken: string; expiresAt: number; userId: string; email: string }
 export interface RemoteSave { state: GameState; savedAt: number }
 export interface FameRow { name: string; dragonKills: number; level: number; title?: string }
+export interface PvpTarget { userId: string; name: string; level: number; specialty: SpecialtyId; gender: Gender; dragonKills: number; attackable: boolean; note: string }
+export interface PvpResult {
+  won: boolean;
+  rounds: [number, number][];       // [Schaden des Angreifers, Schaden des Opfers] je Runde, 0 = daneben
+  hero: { hp: number; max: number };
+  foe: { name: string; level: number; specialty: SpecialtyId; gender: Gender; hp: number; max: number; weapon_tier: number };
+  gold: number; exp_win: number; exp_lose: number; fights_left: number;
+}
+export interface PvpEvent { id: number; kind: 'slain' | 'defended'; other_name: string; place: string; gold: number; exp: number; created_at: string }
+export interface NewsRow { created_at: string; body: string }
+export interface CommentRow { id: number; created_at: string; name: string; body: string }
 
 export class CloudError extends Error {
-  constructor(public code: 'offline' | 'auth' | 'server' | 'bad_code' | 'bad_login' | 'exists' | 'weak' | 'confirm', message: string) { super(message); }
+  constructor(public code: 'offline' | 'auth' | 'server' | 'bad_code' | 'bad_login' | 'exists' | 'weak' | 'confirm' | 'rule', message: string) { super(message); }
 }
 
 type Fetch = typeof fetch;
@@ -104,6 +115,87 @@ export class Cloud {
       prefer: 'resolution=merge-duplicates,return=minimal',
       body: { user_id: s.userId, name: p.name, level: p.level, dragon_kills: p.dragonKills },
     });
+    await this.pushFighter(state);
+  }
+
+  /** Kampfwerte für Spieler gegen Spieler. Nur wenn Teil 2 der Datenbank eingerichtet ist; sonst still überspringen. */
+  async pushFighter(state: GameState): Promise<void> {
+    const s = await this.ensureSession();
+    const p = state.player;
+    try {
+      await this.call('/rest/v1/fighters', {
+        method: 'POST',
+        prefer: 'resolution=merge-duplicates,return=minimal',
+        body: {
+          user_id: s.userId, name: p.name, specialty: p.specialty, gender: p.gender, level: p.level, exp: Math.max(0, Math.round(p.exp)),
+          gold: Math.max(0, p.gold), hp: Math.max(0, p.hp), base_max_hp: p.baseMaxHp, bonus_atk: p.bonusAtk, bonus_def: p.bonusDef,
+          weapon_tier: p.weaponTier, armor_tier: p.armorTier, dragon_kills: p.dragonKills, days_played: state.stats.realDays,
+          alive: p.alive, in_inn: p.alive && p.innRoom,
+        },
+      });
+    } catch (e) {
+      if (e instanceof CloudError && /404|42P01|PGRST205/.test(e.message)) return;  // Tabelle gibt es (noch) nicht
+      throw e;
+    }
+  }
+
+  // ---------- Spieler gegen Spieler ----------
+
+  /** Ungelesene Nachrichten ("Du wurdest im Schlaf angegriffen"). */
+  async pvpEvents(): Promise<PvpEvent[]> {
+    await this.ensureSession();
+    try {
+      const rows = await this.call('/rest/v1/pvp_events?select=id,kind,other_name,place,gold,exp,created_at&applied=eq.false&order=id', { method: 'GET' });
+      return Array.isArray(rows) ? rows : [];
+    } catch (e) {
+      if (e instanceof CloudError && /404|42P01|PGRST205/.test(e.message)) return [];
+      throw e;
+    }
+  }
+
+  async ackEvents(ids: number[]): Promise<void> {
+    if (!ids.length) return;
+    await this.call(`/rest/v1/pvp_events?id=in.(${ids.map(Number).join(',')})`, { method: 'PATCH', prefer: 'return=minimal', body: { applied: true } });
+  }
+
+  async pvpTargets(place: 'felder' | 'gasthaus'): Promise<PvpTarget[]> {
+    await this.ensureSession();
+    const rows = await this.call('/rest/v1/rpc/pvp_targets', { method: 'POST', body: { place } });
+    return (Array.isArray(rows) ? rows : []).map((r: { user_id: string; name: string; level: number; specialty: SpecialtyId; gender: Gender; dragon_kills: number; attackable: boolean; note: string }) => ({
+      userId: r.user_id, name: r.name, level: r.level, specialty: r.specialty, gender: r.gender, dragonKills: r.dragon_kills, attackable: r.attackable, note: r.note,
+    }));
+  }
+
+  async pvpStatus(): Promise<{ fights_left: number; immune: boolean } | null> {
+    await this.ensureSession();
+    return await this.call('/rest/v1/rpc/pvp_status', { method: 'POST', body: {} });
+  }
+
+  async pvpAttack(target: string, place: 'felder' | 'gasthaus'): Promise<PvpResult> {
+    await this.ensureSession();
+    return await this.call('/rest/v1/rpc/pvp_attack', { method: 'POST', body: { target, place } });
+  }
+
+  // ---------- Dorfplatz und Neuigkeiten ----------
+
+  async news(limit = 30): Promise<NewsRow[]> {
+    const rows = await this.call(`/rest/v1/news?select=created_at,body&order=created_at.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async postNews(body: string): Promise<void> {
+    await this.ensureSession();
+    await this.call('/rest/v1/news', { method: 'POST', prefer: 'return=minimal', body: { body: body.slice(0, 200) } });
+  }
+
+  async comments(section = 'dorfplatz', limit = 25): Promise<CommentRow[]> {
+    const rows = await this.call(`/rest/v1/commentary?select=id,created_at,name,body&section=eq.${encodeURIComponent(section)}&order=created_at.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async postComment(body: string, section = 'dorfplatz'): Promise<void> {
+    await this.ensureSession();
+    await this.call('/rest/v1/commentary', { method: 'POST', prefer: 'return=minimal', body: { section, body: body.slice(0, 200) } });
   }
 
   /** Die besten Drachentöter aller Spieler für die Ruhmeshalle. */
@@ -144,7 +236,10 @@ export class Cloud {
     if (!res.ok) {
       // Die genaue Meldung des Servers mitgeben, damit sich Fehler finden lassen.
       let detail = '';
-      try { const d = JSON.parse(await res.text()); detail = [d.code, d.message, d.hint].filter(Boolean).join(' – '); } catch { /* keine Details */ }
+      let d: { code?: string; message?: string; hint?: string } = {};
+      try { d = JSON.parse(await res.text()); detail = [d.code, d.message, d.hint].filter(Boolean).join(' – '); } catch { /* keine Details */ }
+      // Spielregeln vom Server ("Du hast heute schon 3 Spielerkämpfe gehabt.") direkt so anzeigen
+      if (d.code === 'P0001' && d.message) throw new CloudError('rule', d.message);
       const where = path.split('?')[0].replace('/rest/v1/', '');
       throw new CloudError('server', `Server-Fehler ${res.status} bei ${where}${detail ? `: ${detail}` : ''}`);
     }

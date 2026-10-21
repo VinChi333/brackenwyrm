@@ -16,20 +16,22 @@ import {
   attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
   CHRONICLE_SIZE, closeFight, defense, drinkHarzbier, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
   graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost,
-  newGame, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
+  newGame, rentRoom, roomCost, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
 } from '../game/engine';
 import type { DragonBonus, FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
-import type { FameRow, RemoteSave } from '../game/cloud';
+import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
 import type { ChronicleEntry, GameState, Gender, LogLine, SpecialtyId } from '../game/types';
-import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard } from './art/cards';
+import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard, tierFor } from './art/cards';
+import type { CardInfo } from './art/cards';
+import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news';
 
-const VERSION = 'Testversion 0.17';
+const VERSION = 'Testversion 0.18';
 
 interface Ui {
   screen: Screen;
@@ -48,6 +50,10 @@ interface Ui {
   fbMsg: string;
   devTaps: number;
   menuOpen: boolean;        // Handy: Menü von unten aufgeklappt
+  pvp: { targets: PvpTarget[] | null; loading: boolean; busy: boolean; error: string; fightsLeft: number | null; immune: boolean };
+  square: { comments: CommentRow[] | null; loading: boolean; at: number; error: string };
+  newsRows: NewsRow[] | null;
+  sayText: string;
   acctEmail: string;        // Spielerkonto: eingegebene Adresse
   acctMsg: string;
   conflict: RemoteSave | null;  // Server-Stand, wenn beide Geräte weitergespielt haben
@@ -58,7 +64,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, acctEmail: '', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, square: { comments: null, loading: false, at: 0, error: '' }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -263,9 +269,13 @@ function villageScreen(s: GameState): string {
       <button type="button" class="btn" data-act="welcome">Los geht’s</button>
     </section>`}
     ${flashHtml()}
-    ${s.news.length ? `<section class="news"><h2>Neuigkeiten</h2>${s.news.slice(-4).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}`;
+    ${s.news.length ? `<section class="news"><h2>Neuigkeiten</h2>${s.news.slice(-4).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}
+    ${cloud.enabled ? squareHtml() : ''}`;
   return layout(s, main, [
-    { title: 'Stadttor', items: [{ act: 'go:forest', label: 'Wald', key: 'w', hint: `${p.forestFights} Kämpfe übrig` }] },
+    { title: 'Stadttor', items: [
+      { act: 'go:forest', label: 'Wald', key: 'w', hint: `${p.forestFights} Kämpfe übrig` },
+      ...(cloud.enabled ? [{ act: 'go:fields', label: 'Felder vor dem Tor', key: 'f', hint: cloud.signedIn ? 'schlafende Helden' : 'nur mit Spielerkonto', disabled: !cloud.signedIn }] : []),
+    ] },
     { title: 'Dorf', items: [
       { act: 'go:training', label: 'Trainingsplatz', key: 't', hint: mstate === 'ok' ? `${m?.name} wartet!` : '' },
       { act: 'go:healer', label: 'Mirlas Kräuterhütte', key: 'h', hint: p.hp < maxHp(p) ? `${maxHp(p) - p.hp} LP fehlen` : '' },
@@ -275,6 +285,7 @@ function villageScreen(s: GameState): string {
     ] },
     { title: 'Sonstiges', items: [
       { act: 'go:bestiary', label: 'Bestiarium', key: 'b', hint: `${found} / ${MONSTERS.length}` },
+      ...(cloud.enabled ? [{ act: 'go:news', label: 'Tagesneuigkeiten', key: 'n' }] : []),
       { act: 'go:fame', label: 'Ruhmeshalle', key: 'r' },
       { act: 'go:chronicle', label: 'Kampfchronik', key: 'c', hint: s.chronicle.length ? `${s.chronicle.length} Kämpfe` : '' },
       { act: 'go:settings', label: 'Einstellungen', key: 'e' },
@@ -319,7 +330,8 @@ function forestScreen(s: GameState): string {
 function fightScreen(s: GameState): string {
   const f = s.fight!;
   const p = s.player;
-  const c = f.kind === 'dragon' ? dragonCard() : f.kind === 'master' ? masterCard(f.foe.level) : f.kind === 'grave' ? shadeCard(f.monsterId)! : cardFor(f.monsterId)!;
+  const c = f.kind === 'dragon' ? dragonCard() : f.kind === 'master' ? masterCard(f.foe.level) : f.kind === 'grave' ? shadeCard(f.monsterId)!
+    : f.kind === 'pvp' ? pvpCard(f.foe.name, f.foe.level, f.foeSpec ?? 'klinge', f.foeGender ?? 'm') : cardFor(f.monsterId)!;
   const acted = f.seq > 0;
   const heroAttacked = acted && (f.lastHeroDmg > 0 || f.lastHeroMiss);
   const foeAttacked = acted && (f.lastFoeDmg > 0 || f.lastFoeMiss);
@@ -349,7 +361,14 @@ function fightScreen(s: GameState): string {
     ] }];
   } else {
     const items: Item[] = [];
-    if (f.kind === 'grave') {
+    if (f.kind === 'pvp') {
+      if (f.over === 'win') {
+        items.push(f.pvpPlace === 'gasthaus' ? { act: 'after:inn', label: 'Zurück in die Gaststube', key: 'g' } : { act: 'after:fields', label: 'Zurück auf die Felder', key: 'f' });
+        items.push({ act: 'after:village', label: 'Zurück ins Dorf', key: 'd' });
+      } else {
+        items.push({ act: 'after:shadows', label: 'Ins Schattenreich', key: 'w' });
+      }
+    } else if (f.kind === 'grave') {
       if (f.over === 'win') items.push({ act: 'after:grave', label: 'Weiter am Nebelfluss', key: 'w', hint: `${p.graveFights} Schattenkämpfe`, disabled: p.graveFights <= 0 });
       items.push({ act: 'after:shadows', label: 'Zurück zu Morwen', key: 'm' });
     } else if (f.kind === 'forest' && f.over !== 'lose') {
@@ -475,6 +494,7 @@ function innScreen(s: GameState): string {
     <p class="lead">Das Feuer knistert. Wirtin <span class="npc">Frieda</span> poliert ein Glas, das davon nicht sauberer wird. In der Ecke stimmt Barde <span class="npc">Florian</span> seine Laute.</p>
     <p class="rumor">${esc(RUMORS[s.day % RUMORS.length])}</p>
     ${flashHtml()}
+    ${cloud.enabled && p.innRoom ? '<p class="muted">Du hast für heute ein Zimmer. Wenn du jetzt aufhörst zu spielen, schläfst du hier sicherer als draußen auf den Feldern.</p>' : ''}
     <section class="table-talk"><h2>Am Stammtisch</h2>
       ${regularsSay(s).map((l) => `<p><span class="npc">${esc(l.who.charAt(0).toUpperCase() + l.who.slice(1))}:</span> ${esc(l.t)}</p>`).join('')}
     </section>`;
@@ -484,6 +504,10 @@ function innScreen(s: GameState): string {
       { act: 'talk', label: 'Mit Frieda reden', key: 'f', hint: talksLeft > 0 ? `${talksLeft}× heute` : 'hat zu tun' },
       { act: 'inn:beer', label: 'Harzbier bestellen', key: 'h', hint: p.drankToday ? 'heute schon' : `${harzbierCost(p.level)} Gold`, disabled: p.drankToday },
       { act: 'inn:song', label: 'Lied wünschen', key: 'l', hint: p.songToday ? 'heute schon' : '1 Edelstein', disabled: p.songToday },
+      ...(cloud.enabled ? [
+        { act: 'room', label: 'Zimmer mieten', key: 'z', hint: p.innRoom ? 'gemietet' : `${roomCost(p.level)} Gold`, disabled: p.innRoom },
+        { act: 'bribe', label: 'Frieda bestechen', key: 'b', hint: cloud.signedIn ? '1 Edelstein' : 'nur mit Spielerkonto', disabled: !cloud.signedIn || p.gems < 1 },
+      ] : []),
     ] },
     { title: 'Zurück', items: [back] },
   ]);
@@ -620,6 +644,95 @@ function syncConflictScreen(s: GameState): string {
   ] }]);
 }
 
+// ---------- Spieler gegen Spieler, Dorfplatz, Neuigkeiten ----------
+
+const SPEC_NAME: Record<string, string> = { klinge: 'Klingenkunst', wurzel: 'Wurzelmagie', schleich: 'Schleichpfad' };
+
+function targetsHtml(place: 'felder' | 'gasthaus'): string {
+  const pv = ui.pvp;
+  if (pv.loading) return '<p class="muted">Du schaust dich um …</p>';
+  if (pv.error) return `<p class="warn-box">${esc(pv.error)}</p>`;
+  if (!pv.targets) return '';
+  if (!pv.targets.length) return `<p class="muted">${place === 'gasthaus' ? 'Frieda zuckt mit den Schultern. Heute Nacht schläft hier niemand, an den du herankommst.' : 'Auf den Feldern schläft gerade niemand in deiner Reichweite.'}</p>`;
+  const none = (pv.fightsLeft ?? 1) <= 0 || pv.busy;
+  return `<ul class="targets">${pv.targets.map((t) => `<li class="target">
+      <span class="t-portrait">${heroPortrait(t.specialty, t.gender)}</span>
+      <span class="t-info"><strong>${esc(t.name)}</strong><small>Stufe ${t.level} · ${SPEC_NAME[t.specialty] ?? ''}${t.dragonKills ? ` · Drachentöter ${t.dragonKills}×` : ''}${t.note ? ` · ${esc(t.note)}` : ''}</small></span>
+      <button type="button" class="tbtn" data-act="pvp:${t.userId}:${place}" ${!t.attackable || none ? 'disabled' : ''}>Angreifen</button>
+    </li>`).join('')}</ul>`;
+}
+
+function pvpIntro(): string {
+  const pv = ui.pvp;
+  const left = pv.fightsLeft === null ? '' : `<p>Spielerkämpfe heute: <span class="gold">${pv.fightsLeft} von 3</span>.</p>`;
+  const immune = pv.immune ? '<p class="warn-box">Du stehst noch unter dem Schutz der Neulinge. Greifst du jemanden an, verlierst du diesen Schutz für immer.</p>' : '';
+  return `${left}${immune}<p class="muted">Gewinnst du, bekommst du das Gold, das dein Gegner bei sich trägt, und etwas von seiner Erfahrung. Verlierst du, landest du bei Morwen und dein Gold wechselt den Besitzer.</p>`;
+}
+
+function fieldsScreen(s: GameState): string {
+  const main = `<h1>Die Felder vor dem Tor</h1>
+    <p class="lead">Wer abends nicht ins Gasthaus will, legt sich hier ins hohe Gras. Manche schnarchen. Manche tun nur so.</p>
+    ${pvpIntro()}${flashHtml()}${targetsHtml('felder')}`;
+  return layout(s, main, [{ title: 'Felder', items: [{ act: 'reload:felder', label: 'Nochmal umsehen', key: 'u' }] }, { title: 'Zurück', items: [back] }]);
+}
+
+function innGuestsScreen(s: GameState): string {
+  const main = `<h1>Die Gästezimmer</h1>
+    <p class="lead">Frieda lässt den Edelstein in ihrer Schürze verschwinden und schiebt dir das Gästebuch hin. „Ich hab nichts gesehen“, sagt sie und poliert weiter.</p>
+    ${pvpIntro()}${flashHtml()}${targetsHtml('gasthaus')}`;
+  return layout(s, main, [{ title: 'Gasthaus', items: [{ act: 'go:inn', label: 'Zurück in die Gaststube', key: 'g' }] }, { title: 'Zurück', items: [back] }]);
+}
+
+function when(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const same = d.toDateString() === today.toDateString();
+  return same ? d.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString('de-AT', { day: 'numeric', month: 'short' }) + ', ' + d.toLocaleTimeString('de-AT', { hour: '2-digit', minute: '2-digit' });
+}
+
+function newsScreen(s: GameState): string {
+  const rows = ui.newsRows;
+  const main = `<h1>Tagesneuigkeiten</h1>
+    <p class="lead">Am Brunnen hängt ein Brett. Darauf nagelt der Dorfschreiber alles, was in Moosgrund und im Brackenwald passiert.</p>
+    ${rows === null ? '<p class="muted">Der Dorfschreiber sucht seine Brille …</p>' : rows.length ? `<ul class="newsboard">${rows.map((n) => `<li><time>${when(n.created_at)}</time> ${esc(n.body)}</li>`).join('')}</ul>` : '<p class="muted">Noch ist nichts passiert. Das ändert sich bestimmt bald.</p>'}`;
+  return layout(s, main, [{ title: 'Zurück', items: [back] }]);
+}
+
+function squareHtml(): string {
+  const sq = ui.square;
+  const list = sq.comments === null ? '<p class="muted">…</p>'
+    : sq.comments.length ? sq.comments.slice().reverse().map((c) => `<p class="say"><span class="npc">${esc(c.name)}</span> <span class="muted">${when(c.created_at)}</span><br>${esc(c.body)}</p>`).join('')
+    : '<p class="muted">Auf dem Dorfplatz ist es still. Sag doch was.</p>';
+  const input = cloud.signedIn
+    ? `<div class="row say-row"><input type="text" id="say" maxlength="200" placeholder="Sag etwas …" value="${esc(ui.sayText)}" aria-label="Spruch für den Dorfplatz"><button type="button" class="tbtn" data-act="say">Sagen</button></div>`
+    : '<p class="muted">Mit einem Spielerkonto kannst du hier mitreden (Einstellungen).</p>';
+  return `<section class="square"><h2>Auf dem Dorfplatz</h2>${list}${sq.error ? `<p class="warn">${esc(sq.error)}</p>` : ''}${input}</section>`;
+}
+
+function loadSquare(force = false): void {
+  const sq = ui.square;
+  if (!cloud.enabled || sq.loading || (!force && Date.now() - sq.at < 20_000)) return;
+  sq.loading = true;
+  cloud.comments('dorfplatz', 12).then((rows) => { sq.comments = rows; sq.error = ''; }, () => { sq.comments = sq.comments ?? []; })
+    .finally(() => { sq.loading = false; sq.at = Date.now(); if (currentScreen() === 'village') render(); });
+}
+
+function loadTargets(place: 'felder' | 'gasthaus'): void {
+  const pv = ui.pvp;
+  pv.loading = true; pv.error = ''; pv.targets = null;
+  render();
+  Promise.all([cloud.pvpTargets(place), cloud.pvpStatus().catch(() => null)]).then(([t, st]) => {
+    pv.targets = t;
+    if (st) { pv.fightsLeft = st.fights_left; pv.immune = st.immune; }
+  }, (e) => { pv.error = e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'; })
+    .finally(() => { pv.loading = false; render(); });
+}
+
+/** Spielerkarte für den Kampf: das Heldenbild des anderen Spielers. */
+function pvpCard(name: string, level: number, spec: SpecialtyId, gender: Gender): CardInfo {
+  return { key: `pvp:${name}`, name, level, tier: tierFor(level), art: heroArt(spec, gender), hasIllustration: true, flavor: '', glow: '#ffd88a', fx: 'motes', tierLabel: gender === 'f' ? 'Heldin' : 'Held' };
+}
+
 function settingsScreen(s: GameState): string {
   const main = `<h1>Einstellungen</h1>
     ${flashHtml()}
@@ -650,6 +763,7 @@ function shadowsScreen(s: GameState): string {
   const cost = soulRestoreCost(p);
   const canBack = p.favor >= RESURRECT_FAVOR;
   const main = `<h1 class="shadow-title">Das Schattenreich</h1>
+    ${s.news.length ? `<section class="news"><h2>Neuigkeiten</h2>${s.news.slice(-3).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}
     <p class="lead">Grauer Nebel, ein stiller Fluss. <span class="npc">Morwen</span> stakt ihr Boot heran. „Du schon wieder“, sagt sie. „Setz dich. Bei Sonnenaufgang bringe ich dich zurück.“</p>
     <p>Am Ufer treiben verirrte Seelen. „Wenn du mir ein paar davon vom Hals schaffst“, sagt Morwen, „fahre ich dich vielleicht früher zurück.“
       ${canBack ? '<span class="place">Du hast genug Gunst für die Rückkehr.</span>' : `Dafür brauchst du <span class="gem">${RESURRECT_FAVOR} Gunst</span>, du hast ${p.favor}.`}</p>
@@ -698,10 +812,11 @@ export function render(): void {
     title: titleScreen, create: createScreen, login: loginScreen,
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
-    bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
+    bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
     settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!),
   };
   root.innerHTML = views[scr]();
+  if (scr === 'village') loadSquare();
   // Der neueste Kampftext steht unten, also dorthin scrollen.
   const fl = root.querySelector<HTMLElement>('.battle .fight-log');
   if (fl) fl.scrollTop = fl.scrollHeight;
@@ -740,27 +855,50 @@ async function syncNow(): Promise<string> {
   syncing = true;
   try {
     const remote = await cloud.pull();
-    const local = state;
+    let local = state;
     const d = decideSync({ local: local?.savedAt ?? null, remote: remote?.savedAt ?? null, lastSynced: prefs.lastSyncedAt });
-    if (d === 'push' && local) {
-      const pushedAt = local.savedAt ?? 0;  // merken, was wirklich hochging (während des Hochladens kann weitergespielt werden)
-      await cloud.push(JSON.parse(JSON.stringify(local)) as GameState);
-      prefs.lastSyncedAt = pushedAt;
-    } else if ((d === 'pull' || d === 'conflict') && local?.fight) {
+    if ((d === 'pull' || d === 'conflict') && local?.fight) {
       scheduleSync(15000);  // nie mitten im Kampf austauschen oder nachfragen: nach dem Kampf erneut versuchen
       return '';
-    } else if (d === 'pull' && remote) {
-      state = remote.state;
-      localSaveWithoutTouch(state);
-      prefs.lastSyncedAt = remote.savedAt;
-      render();
-    } else if (d === 'conflict' && remote) {
+    }
+    if (d === 'conflict' && remote) {
       ui.conflict = remote;
       render();
       return 'Zwei Spielstände gefunden.';
     }
+    if (d === 'pull' && remote) {
+      state = remote.state;
+      local = state;
+      localSaveWithoutTouch(state);
+      prefs.lastSyncedAt = remote.savedAt;
+    }
+    let changed = false;
+    if (local && !local.fight) {
+      // Was ist passiert, während ich geschlafen habe? (Überfälle anderer Spieler)
+      const events = await cloud.pvpEvents();
+      if (events.length) {
+        const lines = applyPvpEvents(local, events);
+        saveGame(local);
+        await cloud.ackEvents(events.map((e) => e.id));
+        ui.flash = lines.map((t) => ({ t, k: 'warn' as const }));
+        changed = true;
+      }
+      // Eigene Meldungen für die Tagesneuigkeiten verschicken (vor dem Hochladen leeren, damit nichts doppelt kommt)
+      if (local.outbox.length) {
+        const out = local.outbox.splice(0);
+        saveGame(local);
+        for (const t of out) await cloud.postNews(t).catch(() => {});
+        changed = true;
+      }
+    }
+    if (local && (d === 'push' || changed || (local.savedAt ?? 0) > prefs.lastSyncedAt)) {
+      const pushedAt = local.savedAt ?? 0;  // merken, was wirklich hochging (während des Hochladens kann weitergespielt werden)
+      await cloud.push(JSON.parse(JSON.stringify(local)) as GameState);
+      prefs.lastSyncedAt = pushedAt;
+    }
     savePrefs(prefs);
-    return d === 'none' ? 'Alles aktuell.' : d === 'push' ? 'Online gesichert.' : 'Online-Stand geladen.';
+    if (d === 'pull' || changed) render();
+    return d === 'none' && !changed ? 'Alles aktuell.' : d === 'pull' ? 'Online-Stand geladen.' : 'Online gesichert.';
   } catch (e) {
     return e instanceof CloudError ? e.message : 'Abgleich fehlgeschlagen.';
   } finally {
@@ -779,6 +917,8 @@ function handle(act: string, el: HTMLElement): void {
   switch (cmd) {
     case 'menu': ui.menuOpen = !ui.menuOpen; render(); return;
     case 'go':
+      if (a === 'fields' && cloud.signedIn) { go('fields'); loadTargets('felder'); return; }
+      if (a === 'news' && cloud.enabled) { ui.newsRows = null; cloud.news(40).then((r) => { ui.newsRows = r; }, () => { ui.newsRows = []; }).finally(() => { if (ui.screen === 'news') render(); }); }
       if (a === 'fame' && cloud.enabled) cloud.hallOfFame().then((rows) => { ui.fame = rows; if (ui.screen === 'fame') render(); }, () => {});
       go(a as Screen);
       return;
@@ -853,6 +993,54 @@ function handle(act: string, el: HTMLElement): void {
       return;
     }
     case 'soul': say(restoreSoul(s), 'good'); commit(); return;
+    case 'room': say(rentRoom(s), 'good'); commit(); return;
+    case 'bribe': {
+      if (s.player.gems < 1) { say('Frieda will einen Edelstein sehen.', 'warn'); render(); return; }
+      s.player.gems -= 1;
+      commit();
+      go('innGuests');
+      loadTargets('gasthaus');
+      return;
+    }
+    case 'reload': loadTargets(a === 'gasthaus' ? 'gasthaus' : 'felder'); return;
+    case 'pvp': {
+      const place = b === 'gasthaus' ? 'gasthaus' : 'felder';
+      const pv = ui.pvp;
+      if (pv.busy) return;
+      pv.busy = true; pv.error = '';
+      render();
+      (async () => {
+        try {
+          // Erst die eigenen Werte hochladen, damit der Server mit dem aktuellen Stand rechnet.
+          saveGame(s);
+          await cloud.push(JSON.parse(JSON.stringify(s)) as GameState);
+          prefs.lastSyncedAt = s.savedAt ?? 0;
+          savePrefs(prefs);
+          const res = await cloud.pvpAttack(a, place);
+          applyPvpResult(s, res, place);
+          pv.fightsLeft = res.fights_left;
+          pv.immune = false;
+          ui.flash = [];
+          commit();
+          window.scrollTo(0, 0);
+        } catch (e) {
+          pv.error = e instanceof CloudError ? e.message : 'Der Angriff ist fehlgeschlagen.';
+          render();
+        } finally {
+          pv.busy = false;
+        }
+      })();
+      return;
+    }
+    case 'say': {
+      const inp = document.getElementById('say') as HTMLInputElement | null;
+      const text = (inp?.value ?? '').trim();
+      if (!text) return;
+      ui.sayText = text;
+      cloud.postComment(text).then(() => { ui.sayText = ''; ui.square.error = ''; loadSquare(true); },
+        (e) => { ui.square.error = e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'; render(); });
+      return;
+    }
     case 'resurrect': {
       const msg = resurrect(s);
       saveGame(s);
@@ -949,9 +1137,11 @@ function handle(act: string, el: HTMLElement): void {
       }
       if (!prefs.fightHint) { prefs.fightHint = true; savePrefs(prefs); }
       closeFight(s);
-      const target: Screen = a === 'forest' ? 'forest' : a === 'training' ? 'training' : a === 'shadows' ? 'shadows' : a === 'bonus' ? 'dragonBonus' : 'village';
+      const target: Screen = a === 'forest' ? 'forest' : a === 'training' ? 'training' : a === 'shadows' ? 'shadows' : a === 'bonus' ? 'dragonBonus'
+        : a === 'fields' ? 'fields' : a === 'inn' ? 'inn' : 'village';
       saveGame(s);
       go(target);
+      if (target === 'fields') loadTargets('felder');
       return;
     }
     case 'heal': say(heal(s, a as 'full' | 'half'), 'good'); commit(); return;
@@ -1025,6 +1215,7 @@ function onKey(e: KeyboardEvent): void {
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) {
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'name') handle('create', t);
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'acct-pass') handle('acct:in', t);
+    if (e.key === 'Enter' && (t as HTMLInputElement).id === 'say') handle('say', t);
     return;
   }
   if (e.key === 'Escape' && ui.menuOpen) { ui.menuOpen = false; render(); return; }

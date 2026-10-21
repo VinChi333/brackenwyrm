@@ -53,6 +53,8 @@ export function validate(x: unknown): GameState | null {
   s.player.soul = typeof s.player.soul === 'number' ? s.player.soul : 50 + 5 * s.player.level;
   s.player.favor = typeof s.player.favor === 'number' ? s.player.favor : 0;
   s.player.graveFights = typeof s.player.graveFights === 'number' ? s.player.graveFights : 10;
+  s.player.innRoom = !!s.player.innRoom;
+  s.outbox = Array.isArray(s.outbox) ? s.outbox.slice(-20) : [];
   s.stats = Object.assign(newStats(1), s.stats ?? {});
   s.pendingEvent = s.pendingEvent ?? null;
   s.chronicle = Array.isArray(s.chronicle) ? s.chronicle : [];

@@ -7,7 +7,11 @@ Das Dorf Moosgrund liegt am Rand des Brackenwalds. Jeden Tag gibt es eine feste 
 Wer genug Erfahrung sammelt, fordert den Meister seiner Stufe heraus. Ab Stufe 15 wartet in der
 Farnschlucht der Brackenwyrm. Wer ihn besiegt, beginnt wieder bei Stufe 1 und behält einen Bonus.
 
-## Stand: Testversion 0.17
+## Stand: Testversion 0.18
+
+- Spieler gegen Spieler wie im Original: schlafende Helden auf den Feldern vor dem Tor angreifen (3 am Tag, Stufe −1 bis +2, Neulingsschutz, keine Flucht), Kampf wird auf dem Server berechnet; Gasthaus-Zimmer schützt, Frieda lässt sich bestechen
+- Dorfplatz mit Sprüchen aller Spieler und Tagesneuigkeiten (Überfälle, Meistersiege, Drachenkills, Tode, Rückkehr aus dem Schattenreich)
+- Server-Regeln werden mit einem echten Postgres getestet (`npm run test:sql`)
 
 - Schattenreich wie im Original: Seelenkraft (50 + 5 × Stufe), 10 Schattenkämpfe am Tag gegen verirrte Seelen (Schattenkarten, eigenes Kapitel im Bestiarium), Gunst bei Morwen (10–20 + Stufe/3 je Sieg, bleibt erhalten), Seelenkraft stärken, Flucht kostet Gunst, mit 100 Gunst Rückkehr ins Leben (volle Lebenspunkte, 8 statt 20 Waldkämpfe)
 - Spielerkonto mit E-Mail und Passwort, Online-Spielstand über Supabase (nur in der Netlify-Version)

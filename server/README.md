@@ -25,6 +25,13 @@ läuft das Spiel rein lokal; das Spielerkonto erscheint dann gar nicht erst.
 Der anon key ist für den Einsatz im Spiel gedacht und darf öffentlich sein; geschützt wird über die Regeln in
 `supabase.sql` (jeder sieht nur seinen eigenen Spielstand).
 
+## Teil 2: Spieler gegen Spieler und Dorfplatz
+
+Danach `supabase-2-dorf.sql` ebenfalls im SQL Editor ausführen (kann gefahrlos wiederholt werden). Ohne diesen Teil
+funktioniert das Spiel weiter, nur Felder, Dorfplatz und Tagesneuigkeiten bleiben leer.
+
+Zum Testen ohne Supabase: `node scripts/fake-supabase.mjs` startet einen Nachbau mit echtem Postgres auf Port 54321.
+
 ## Wie der Abgleich funktioniert
 
 - Jeder Spielstand trägt den Zeitpunkt, an dem er gespeichert wurde.

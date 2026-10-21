@@ -54,7 +54,7 @@ export interface Combatant {
   def: number;
 }
 
-export type FightKind = 'forest' | 'master' | 'dragon' | 'grave';
+export type FightKind = 'forest' | 'master' | 'dragon' | 'grave' | 'pvp';
 
 export interface Buff {
   name: string;
@@ -99,6 +99,9 @@ export interface Fight {
   lastSpecial: boolean;
   seq: number;          // zählt jede Aktion, damit Animationen neu starten
   topHit?: number;      // stärkster eigener Treffer in diesem Kampf
+  foeSpec?: SpecialtyId;  // nur Spieler gegen Spieler: Fähigkeit und Geschlecht des anderen Helden (für sein Bild)
+  foeGender?: Gender;
+  pvpPlace?: 'felder' | 'gasthaus';
   autoWarned?: boolean; // "Kämpfen bis zum Ende" hat in diesem Kampf schon einmal angehalten
 }
 
@@ -128,6 +131,7 @@ export interface Player {
   soul: number;           // Seelenkraft im Schattenreich (statt Lebenspunkten)
   favor: number;          // Gunst bei Morwen, bleibt über den Tod hinaus
   graveFights: number;    // Schattenkämpfe heute
+  innRoom: boolean;       // Zimmer im Gasthaus für diese Nacht gemietet
   buffs: Buff[];
 }
 
@@ -165,6 +169,7 @@ export interface GameState {
   bestiary: Record<string, number>; // besiegte Gegner je Art (bleibt über Drachenkills erhalten)
   stats: Stats;
   chronicle: ChronicleEntry[];  // die letzten Kämpfe, neuester zuerst
+  outbox: string[];             // Tagesneuigkeiten, die noch an den Server gehen
   pendingEvent: PendingEvent | null;
   settings: { retro: boolean; reducedMotion: boolean };
 }

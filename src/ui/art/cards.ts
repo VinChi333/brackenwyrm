@@ -75,6 +75,7 @@ export interface CardInfo {
   flavor: string;
   glow: string;         // Farbe für Lichtschimmer und Funken
   fx: FxKind;
+  tierLabel?: string;   // statt Seltenheit, z. B. "Held" bei anderen Spielern
 }
 
 /** Art der schwebenden Teilchen über dem Bild. */
@@ -180,7 +181,7 @@ export function cardHtml(c: CardInfo, opts: { hp?: [number, number, number] | nu
     <div class="card-art">${c.art}${(live || shade) && opts.fx ? fxLayer(c, c.tier === 'legend' ? 16 : 10) : ''}${shine}${live || shade ? '' : '<span class="card-tag">Illustration folgt</span>'}</div>
     ${shade ? '<div class="card-level" title="Seele">✦</div>' : `<div class="card-level" title="Stufe">${c.level}</div>`}
     ${opts.isNew ? '<div class="card-new">Neu</div>' : ''}
-    <figcaption class="card-plate"><span class="card-name">${c.name}</span><span class="card-tier">${TIER_LABEL[c.tier]}</span></figcaption>
+    <figcaption class="card-plate"><span class="card-name">${c.name}</span><span class="card-tier">${c.tierLabel ?? TIER_LABEL[c.tier]}</span></figcaption>
     ${hp ? `<div class="card-hp" aria-label="Lebenspunkte ${hp[0]} von ${hp[1]}"><i style="--from:${hp[2]}%;--to:${Math.round((100 * hp[0]) / hp[1])}%;width:${Math.round((100 * hp[0]) / hp[1])}%"></i><span>${hp[0]} / ${hp[1]}</span></div>` : ''}
     ${opts.count ? `<div class="card-count">${opts.count}× besiegt</div>` : ''}
   </figure>`;

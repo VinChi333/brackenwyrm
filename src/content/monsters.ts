@@ -211,6 +211,11 @@ export function nom(id: string, name: string): string {
   return (g === 'm' ? 'der ' : g === 'f' ? 'die ' : 'das ') + name;
 }
 
+/** "einem Borkenwolf", "einer Moosratte", "einem Irrlicht" (Dativ, unbestimmt). */
+export function datIndef(id: string, name: string): string {
+  return (GENDER[id] === 'f' ? 'einer ' : 'einem ') + name;
+}
+
 /** "den Borkenwolf", "die Moosratte", "das Irrlicht" (Akkusativ). */
 export function acc(id: string, name: string): string {
   const g = GENDER[id];

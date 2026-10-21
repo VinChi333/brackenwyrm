@@ -4,7 +4,7 @@ import { eventById, pickEvent } from '../content/events';
 import { FRIEDA_TALKS_PER_DAY, friedaSays } from '../content/inn';
 import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
-import { DRAGON, MONSTERS, acc, monsterById, monstersOfLevel, nom } from '../content/monsters';
+import { DRAGON, MONSTERS, acc, datIndef, monsterById, monstersOfLevel, nom } from '../content/monsters';
 import { say } from '../content/fighttext';
 import { shadeById, SHADES } from '../content/shades';
 import { SPECIALTIES } from '../content/specialties';
@@ -28,7 +28,7 @@ export function newPlayer(name: string, specialty: SpecialtyId, gender: Gender =
   const p: Player = {
     name, specialty, gender, level: 1, exp: 0, hp: 0, baseMaxHp: 0, bonusAtk: 0, bonusDef: 0,
     weaponTier: 0, armorTier: 0, gold: 50, bank: 0, gems: 0, forestFights: FOREST_FIGHTS_PER_DAY,
-    specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, innTalks: 0, soul: 0, favor: 0, graveFights: GRAVE_FIGHTS_PER_DAY, buffs: [],
+    specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, innTalks: 0, soul: 0, favor: 0, graveFights: GRAVE_FIGHTS_PER_DAY, innRoom: false, buffs: [],
   };
   p.hp = maxHp(p);
   p.soul = maxSoul(p);
@@ -48,6 +48,7 @@ export function newGame(name: string, specialty: SpecialtyId, gender: Gender = '
     bestiary: {},
     stats: { ...newStats(1), firstPlayed: todayKey() },
     chronicle: [],
+    outbox: [],
     pendingEvent: null,
     settings: { retro: false, reducedMotion: false },
   };
@@ -73,6 +74,7 @@ export function startNewDay(s: GameState): void {
   s.fight = null;
   s.pendingEvent = null;
   p.innTalks = 0;
+  p.innRoom = false;
   p.hp = maxHp(p);
   p.soul = maxSoul(p);
   p.graveFights = GRAVE_FIGHTS_PER_DAY;
@@ -171,6 +173,21 @@ export function graveSearch(s: GameState): string | null {
   return null;
 }
 
+/** Gasthaus: Zimmer für die Nacht. Wer im Zimmer schläft, ist nur über eine Bestechung Friedas angreifbar. */
+export function roomCost(level: number): number {
+  return 10 * level + 10;
+}
+
+export function rentRoom(s: GameState): string {
+  const p = s.player;
+  if (p.innRoom) return 'Dein Zimmer ist schon bezahlt. Frieda hat dir sogar das Kissen aufgeschüttelt.';
+  const cost = roomCost(p.level);
+  if (p.gold < cost) return `Ein Zimmer kostet ${cost} Gold. So viel hast du nicht dabei.`;
+  p.gold -= cost;
+  p.innRoom = true;
+  return `Frieda gibt dir den Schlüssel zu Zimmer 3. „Abschließen nicht vergessen.“ Wer hier schläft, ist vor Überfällen auf den Feldern sicher. (${cost} Gold)`;
+}
+
 export function restoreSoul(s: GameState): string {
   const p = s.player;
   const cost = soulRestoreCost(p);
@@ -198,6 +215,7 @@ export function resurrect(s: GameState): string {
   p.buffs = [];
   s.fight = null;
   s.stats.resurrections += 1;
+  announce(s, `Morwen hat ${p.name} vorzeitig aus dem Schattenreich zurückgebracht.`);
   const msg = `Morwen stakt dich über den Fluss und setzt dich am Dorfrand ab. „Ausnahmsweise“, sagt sie. Du lebst wieder und hast noch ${p.forestFights} Waldkämpfe.`;
   s.news.push(msg);
   return msg;
@@ -280,6 +298,11 @@ export function canUseSpecial(p: Player): boolean {
 }
 
 /** Hängt Zeilen an den Kampfbericht an und merkt sich die Runde. Der Bericht bleibt ganz erhalten. */
+/** Kurze Meldung für die Tagesneuigkeiten aller Spieler (geht beim nächsten Abgleich an den Server). */
+export function announce(s: GameState, text: string): void {
+  s.outbox = [...(s.outbox ?? []), text].slice(-20);
+}
+
 function pushLog(f: Fight, lines: LogLine[]): void {
   f.log.push(...lines);
   for (const l of f.log) if (l.r === undefined) l.r = f.round;
@@ -417,6 +440,7 @@ function winFight(s: GameState): void {
     f.log.push({ t: m.victory, k: 'info' });
     f.log.push({ t: `Du steigst auf Stufe ${p.level}! Deine Lebenskraft wächst auf ${maxHp(p)}.`, k: 'gold' });
     s.news.push(`Du hast ${m.name} besiegt und bist jetzt Stufe ${p.level}.`);
+    announce(s, `${p.name} hat ${m.name} auf dem Trainingsplatz besiegt und ist jetzt Stufe ${p.level}.`);
   } else {
     p.dragonKills += 1;
     s.pendingDragonBonus = true;
@@ -425,6 +449,7 @@ function winFight(s: GameState): void {
     s.bestiary.dragon = (s.bestiary.dragon ?? 0) + 1;
     f.log.push({ t: DRAGON.falls, k: 'info' });
     f.log.push({ t: 'Du hast den Brackenwyrm besiegt!', k: 'gold' });
+    announce(s, p.dragonKills === 1 ? `${p.name} hat den Brackenwyrm besiegt! Ganz Moosgrund feiert.` : `${p.name} hat den Brackenwyrm zum ${p.dragonKills}. Mal besiegt!`);
   }
   pushLog(f, []);
 }
@@ -454,6 +479,7 @@ function loseFight(s: GameState): void {
     f.log.push({ t: 'Dir wird schwarz vor Augen. Du sinkst ins Moos …', k: 'bad' });
     f.log.push({ t: `Du verlierst ${lostGold} Gold und ${lostExp} Erfahrung.`, k: 'bad' });
     s.news.push(f.kind === 'dragon' ? 'Der Brackenwyrm hat dich besiegt.' : `Du bist im Wald gefallen.`);
+    announce(s, f.kind === 'dragon' ? `${p.name} ist in der Farnschlucht vom Brackenwyrm verschlungen worden.` : `${p.name} wurde im Brackenwald von ${datIndef(f.monsterId, f.foe.name)} besiegt.`);
   }
   pushLog(f, []);
 }
