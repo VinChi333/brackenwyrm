@@ -126,3 +126,20 @@ export function masterStats(level: number): Omit<Combatant, 'name'> {
 export function dragonStats(): Omit<Combatant, 'name'> {
   return { level: 18, hp: 300, maxHp: 300, atk: 64, def: 54 };
 }
+
+// ---------- Drachen-Neustart (wie im Original) ----------
+/** Waldkämpfe pro Tag inklusive Drachenpunkten. */
+export function forestFightsPerDay(p: { bonusFights?: number }): number {
+  return FOREST_FIGHTS_PER_DAY + (p.bonusFights ?? 0);
+}
+/** Startgold nach einem Drachenkill: 50 plus 50 je Drachenkill, höchstens 300. */
+export function restartGold(dragonKills: number): number {
+  return Math.min(300, 50 + 50 * dragonKills);
+}
+/** Edelsteine zum Neustart: ab dem 8. Drachenkill einer je weiterem Kill, höchstens 10. */
+export function restartGems(dragonKills: number): number {
+  return Math.min(10, Math.max(0, dragonKills - 7));
+}
+export const FLAWLESS_GOLD = 150;
+export const FLAWLESS_GEMS = 1;
+export const CHARM_PER_DRAGON = 5;

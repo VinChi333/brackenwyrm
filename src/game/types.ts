@@ -103,6 +103,7 @@ export interface Fight {
   foeGender?: Gender;
   pvpPlace?: 'felder' | 'gasthaus';
   autoWarned?: boolean; // "Kämpfen bis zum Ende" hat in diesem Kampf schon einmal angehalten
+  heroHurt?: boolean;   // Held hat in diesem Kampf Schaden genommen (für den makellosen Drachensieg)
 }
 
 export interface Player {
@@ -133,7 +134,12 @@ export interface Player {
   graveFights: number;    // Schattenkämpfe heute
   innRoom: boolean;       // Zimmer im Gasthaus für diese Nacht gemietet
   buffs: Buff[];
+  bonusFights: number;    // zusätzliche Waldkämpfe pro Tag aus Drachenpunkten
+  charm: number;          // Charme, wächst mit jedem Drachenkill (für Flirten und Heiraten im Gasthaus)
+  dragonPoints: DragonPoint[]; // Verlauf der gewählten Drachenpunkte
 }
+
+export type DragonPoint = 'atk' | 'def' | 'hp' | 'ff';
 
 /** Zahlen für die Ruhmeshalle. Bleiben über Drachenkills erhalten. */
 export interface Stats {
@@ -165,6 +171,7 @@ export interface GameState {
   lastRealDate: string;    // YYYY-MM-DD, löst den echten neuen Tag aus
   fight: Fight | null;
   pendingDragonBonus: boolean;
+  flawlessDragon?: boolean; // letzter Drachensieg ohne einen einzigen Treffer einzustecken
   news: string[];          // Kurze Meldungen für den Tag
   bestiary: Record<string, number>; // besiegte Gegner je Art (bleibt über Drachenkills erhalten)
   stats: Stats;

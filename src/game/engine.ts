@@ -10,13 +10,14 @@ import { shadeById, SHADES } from '../content/shades';
 import { SPECIALTIES } from '../content/specialties';
 import {
   DEATH_EXP_LOSS, EVENT_CHANCE, FOREST_FIGHTS_PER_DAY, GEM_DROP_CHANCE, GRAVE_FIGHTS_PER_DAY, HARZBIER_BUFF, MAX_LEVEL,
-  RESURRECT_FAVOR, RESURRECT_TURN_SHARE, favorRange, graveAttack, maxSoul, shadeStats, soulRestoreCost,
+  RESURRECT_FAVOR, RESURRECT_TURN_SHARE, CHARM_PER_DRAGON, FLAWLESS_GEMS, FLAWLESS_GOLD, forestFightsPerDay, restartGems, restartGold, favorRange, graveAttack, maxSoul, shadeStats, soulRestoreCost,
   attack, bankInterest, defense, dragonStats, expNeeded, expPerKill, goldPerKill, harzbierCost,
   healCost, masterStats, maxHp, monsterStats, specialUsesPerDay,
 } from './balance';
 import { between, chance, pick, rand, roll } from './rng';
 import { newStats } from './storage';
-import type { Fight, GameState, Gender, LogLine, Player, SpecialtyId } from './types';
+import { titleFor } from '../content/titles';
+import type { DragonPoint, Fight, GameState, Gender, LogLine, Player, SpecialtyId } from './types';
 
 export function todayKey(d = new Date()): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -29,6 +30,7 @@ export function newPlayer(name: string, specialty: SpecialtyId, gender: Gender =
     name, specialty, gender, level: 1, exp: 0, hp: 0, baseMaxHp: 0, bonusAtk: 0, bonusDef: 0,
     weaponTier: 0, armorTier: 0, gold: 50, bank: 0, gems: 0, forestFights: FOREST_FIGHTS_PER_DAY,
     specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, innTalks: 0, soul: 0, favor: 0, graveFights: GRAVE_FIGHTS_PER_DAY, innRoom: false, buffs: [],
+    bonusFights: 0, charm: 0, dragonPoints: [],
   };
   p.hp = maxHp(p);
   p.soul = maxSoul(p);
@@ -78,7 +80,7 @@ export function startNewDay(s: GameState): void {
   p.hp = maxHp(p);
   p.soul = maxSoul(p);
   p.graveFights = GRAVE_FIGHTS_PER_DAY;
-  p.forestFights = FOREST_FIGHTS_PER_DAY;
+  p.forestFights = forestFightsPerDay(p);
   p.specialUses = specialUsesPerDay(p);
   p.seenMaster = false;
   p.drankToday = false;
@@ -206,7 +208,7 @@ export function resurrect(s: GameState): string {
   p.favor -= RESURRECT_FAVOR;
   p.alive = true;
   p.hp = maxHp(p);
-  p.forestFights = Math.round(FOREST_FIGHTS_PER_DAY * RESURRECT_TURN_SHARE);
+  p.forestFights = Math.round(forestFightsPerDay(p) * RESURRECT_TURN_SHARE);
   p.specialUses = specialUsesPerDay(p);
   p.seenMaster = false;
   p.drankToday = false;
@@ -397,6 +399,7 @@ export function fightAction(s: GameState, action: FightAction): void {
     else if (h.crit) log.push({ t: say.foeCrit(N, h.dmg), k: 'bad' });
     else log.push({ t: say.foeHit(N, h.dmg, h.dmg / (grave ? maxSoul(p) : maxHp(p))), k: 'bad' });
     setHeroPool(Math.max(0, heroPool() - h.dmg));
+    if (h.dmg > 0) f.heroHurt = true;
   }
   pushLog(f, log);
   if (heroPool() <= 0) loseFight(s);
@@ -444,11 +447,13 @@ function winFight(s: GameState): void {
   } else {
     p.dragonKills += 1;
     s.pendingDragonBonus = true;
+    s.flawlessDragon = !f.heroHurt;
     const days = s.day - s.stats.runStartDay + 1;
     if (!s.stats.fastestDragon || days < s.stats.fastestDragon) s.stats.fastestDragon = days;
     s.bestiary.dragon = (s.bestiary.dragon ?? 0) + 1;
     f.log.push({ t: DRAGON.falls, k: 'info' });
     f.log.push({ t: 'Du hast den Brackenwyrm besiegt!', k: 'gold' });
+    if (!f.heroHurt) f.log.push({ t: 'Und das, ohne einen einzigen Kratzer abzubekommen! Davon wird man in Moosgrund noch lange erzählen.', k: 'gold' });
     announce(s, p.dragonKills === 1 ? `${p.name} hat den Brackenwyrm besiegt! Ganz Moosgrund feiert.` : `${p.name} hat den Brackenwyrm zum ${p.dragonKills}. Mal besiegt!`);
   }
   pushLog(f, []);
@@ -495,28 +500,54 @@ export function closeFight(s: GameState): void {
   s.fight = null;
 }
 
-export type DragonBonus = 'atk' | 'def' | 'hp';
+export type DragonBonus = DragonPoint;
 
-/** Nach dem Drachenkill: alles auf Anfang, ein dauerhafter Bonus bleibt. */
-export function chooseDragonBonus(s: GameState, bonus: DragonBonus): void {
-  if (!s.pendingDragonBonus) return;
+export interface RestartResult { title: string; gold: number; gems: number; flawless: boolean }
+
+/**
+ * Nach dem Drachenkill, wie im Original: ein Drachenpunkt bleibt für immer, der Held fängt
+ * mit neuer Fähigkeit wieder bei Stufe 1 an, bekommt einen neuen Titel und startet in einen frischen Tag.
+ * Gold im Beutel und im Kontor, Ausrüstung und Erfahrung sind weg. Edelsteine, Gunst und Bestiarium bleiben.
+ */
+export function chooseDragonBonus(s: GameState, bonus: DragonBonus, specialty?: SpecialtyId): RestartResult | null {
+  if (!s.pendingDragonBonus) return null;
   const p = s.player;
+  const dk = p.dragonKills;
+  const flawless = !!s.flawlessDragon;
   if (bonus === 'atk') p.bonusAtk += 1;
   if (bonus === 'def') p.bonusDef += 1;
   if (bonus === 'hp') p.baseMaxHp += 5;
+  if (bonus === 'ff') p.bonusFights += 1;
+  p.dragonPoints.push(bonus);
+  if (specialty && SPECIALTIES[specialty]) p.specialty = specialty;
+  p.charm += CHARM_PER_DRAGON;
   p.level = 1;
   p.exp = 0;
-  p.gold = 50;
   p.weaponTier = 0;
   p.armorTier = 0;
-  p.hp = maxHp(p);
-  p.specialUses = specialUsesPerDay(p);
-  p.seenMaster = false;
+  p.bank = 0;
+  const gold = restartGold(dk) + (flawless ? FLAWLESS_GOLD : 0);
+  const gems = restartGems(dk) + (flawless ? FLAWLESS_GEMS : 0);
+  p.gold = gold;
+  p.gems += gems;
   p.buffs = [];
   s.fight = null;
+  s.pendingEvent = null;
   s.pendingDragonBonus = false;
+  s.flawlessDragon = false;
+  // Ein frischer Tag mit allen Waldkämpfen. Der Tageszähler läuft weiter, der neue Durchgang beginnt heute.
+  startNewDay(s);
   s.stats.runStartDay = s.day;
-  s.news = [`Moosgrund feiert dich als Drachentöter. Es ist dein ${p.dragonKills}. Sieg über den Brackenwyrm. Doch Wyrme kehren wieder …`];
+  const title = titleFor(dk, p.gender);
+  const lines = [
+    `Moosgrund feiert dich als Drachentöter. Es ist dein ${dk}. Sieg über den Brackenwyrm. Doch Wyrme kehren wieder …`,
+    `Von heute an nennt man dich ${title} ${p.name}.`,
+    `Du beginnst ein neues Leben. Deine Fähigkeit: ${SPECIALTIES[p.specialty].name}. Im Beutel: ${gold} Gold${gems ? ` und ${gems} Edelstein${gems > 1 ? 'en' : ''}` : ''}.`,
+  ];
+  if (flawless) lines.push(`Für deinen makellosen Sieg schenkt dir der Dorfrat ${FLAWLESS_GOLD} Gold und ${FLAWLESS_GEMS} Edelstein.`);
+  s.news = [...lines, ...s.news];
+  announce(s, `${p.name} trägt jetzt den Titel ${title}.`);
+  return { title, gold, gems, flawless };
 }
 
 // ---------- Dorf ----------

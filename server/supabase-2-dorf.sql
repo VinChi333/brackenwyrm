@@ -11,6 +11,10 @@
 -- WICHTIG: Die Kampfwerte unten müssen zu src/game/balance.ts passen (maxHp, attack, defense).
 
 -- ---------------------------------------------------------------------------------------------
+-- Ruhmeshalle: Geschlecht dazu, damit der Titel stimmt (Gräfin statt Graf).
+alter table public.profiles add column if not exists gender text not null default 'm' check (gender in ('m', 'f'));
+
+-- ---------------------------------------------------------------------------------------------
 -- Kampfwerte jedes Spielers. Das Spiel schreibt sie bei jedem Abgleich; lesen darf jeder nur seine eigenen.
 create table if not exists public.fighters (
   user_id      uuid primary key references auth.users(id) on delete cascade,
@@ -135,10 +139,18 @@ revoke all on public.commentary from anon, authenticated;
 grant select on public.commentary to anon, authenticated;
 grant insert (section, body) on public.commentary to authenticated;
 
+-- ---------------------------------------------------------------------------------------------
+-- Titel nach Drachenkills (muss zu src/content/titles.ts passen). Auf dem Dorfplatz steht der Titel vor dem Namen.
+create or replace function public.f_title(dk int, g text) returns text language sql immutable as $$
+  select (case when g = 'f'
+    then ARRAY['Bauernmädchen', 'Pagin', 'Knappin', 'Gladiatorin', 'Legionärin', 'Zenturionin', 'Dame', 'Vögtin', 'Truchsessin', 'Bürgermeisterin', 'Baronin', 'Gräfin', 'Vicomtesse', 'Marquise', 'Kanzlerin', 'Prinzessin', 'Königin', 'Kaiserin', 'Engel', 'Erzengel', 'Himmelsfürstin', 'Gewaltige', 'Tugendhafte', 'Herrscherin', 'Thronwächterin', 'Cherub', 'Seraph', 'Halbgöttin', 'Titanin', 'Erztitanin', 'Niedere Göttin', 'Göttin']
+    else ARRAY['Bauernjunge', 'Page', 'Knappe', 'Gladiator', 'Legionär', 'Zenturio', 'Ritter', 'Vogt', 'Truchsess', 'Bürgermeister', 'Baron', 'Graf', 'Vicomte', 'Marquis', 'Kanzler', 'Prinz', 'König', 'Kaiser', 'Engel', 'Erzengel', 'Himmelsfürst', 'Gewaltiger', 'Tugendhafter', 'Herrscher', 'Thronwächter', 'Cherub', 'Seraph', 'Halbgott', 'Titan', 'Erztitan', 'Niederer Gott', 'Gott'] end)[least(greatest(dk, 0), 31) + 1]
+$$;
+
 create or replace function public.commentary_prepare() returns trigger language plpgsql security definer set search_path = public as $$
 declare who text;
 begin
-  select name into who from public.fighters where user_id = new.user_id;
+  select public.f_title(dragon_kills, gender) || ' ' || name into who from public.fighters where user_id = new.user_id;
   if who is null then raise exception 'Erst einmal spielen, dann reden.' using errcode = 'P0001'; end if;
   if exists (select 1 from public.commentary where user_id = new.user_id and created_at > now() - interval '10 seconds') then
     raise exception 'Nicht so schnell. Warte einen Moment.' using errcode = 'P0001';

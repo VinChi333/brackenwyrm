@@ -54,6 +54,10 @@ export function validate(x: unknown): GameState | null {
   s.player.favor = typeof s.player.favor === 'number' ? s.player.favor : 0;
   s.player.graveFights = typeof s.player.graveFights === 'number' ? s.player.graveFights : 10;
   s.player.innRoom = !!s.player.innRoom;
+  s.player.bonusFights = typeof s.player.bonusFights === 'number' ? s.player.bonusFights : 0;
+  s.player.charm = typeof s.player.charm === 'number' ? s.player.charm : 0;
+  s.player.dragonPoints = Array.isArray(s.player.dragonPoints) ? s.player.dragonPoints : [];
+  s.flawlessDragon = !!s.flawlessDragon;
   s.outbox = Array.isArray(s.outbox) ? s.outbox.slice(-20) : [];
   s.stats = Object.assign(newStats(1), s.stats ?? {});
   s.pendingEvent = s.pendingEvent ?? null;

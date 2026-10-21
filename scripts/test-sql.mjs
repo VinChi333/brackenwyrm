@@ -89,7 +89,9 @@ ok(r.rows[0].s.fights_left === 0, 'Status zeigt 0 Kämpfe übrig');
 // Dorfplatz
 await as(A, `insert into public.commentary (section, body) values ('dorfplatz', '  Hallo Moosgrund!  ')`);
 r = await db.query(`select name, body from public.commentary`);
-ok(r.rows[0].name === 'Angreifer' && r.rows[0].body === 'Hallo Moosgrund!', 'Spruch mit Namen vom Server, Leerzeichen entfernt');
+ok(/^[A-ZÄÖÜ][\wäöü ]+ Angreifer$/.test(r.rows[0].name) && r.rows[0].body === 'Hallo Moosgrund!', 'Spruch mit Titel und Namen vom Server, Leerzeichen entfernt: ' + r.rows[0].name);
+r = await db.query(`select public.f_title(0, 'm') a, public.f_title(11, 'f') b, public.f_title(99, 'f') c`);
+ok(r.rows[0].a === 'Bauernjunge' && r.rows[0].b === 'Gräfin' && r.rows[0].c === 'Göttin', 'Titelleiter wie im Spiel: ' + Object.values(r.rows[0]).join(', '));
 err = '';
 try { await as(A, `insert into public.commentary (section, body) values ('dorfplatz', 'Nochmal')`); } catch (e) { err = e.message; }
 ok(/Nicht so schnell/.test(err), 'zu schnelles Schreiben wird gebremst');

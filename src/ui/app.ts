@@ -4,7 +4,9 @@
 import { eventById } from '../content/events';
 import { FEEDBACK_KINDS, feedbackMessage } from '../content/feedback';
 import type { FeedbackKind } from '../content/feedback';
-import { fameTable, titleFor } from '../content/fame';
+import { fameTable } from '../content/fame';
+import { titleFor } from '../content/titles';
+import { forestFightsPerDay, restartGems, restartGold, FLAWLESS_GOLD } from '../game/balance';
 import { FRIEDA_TALKS_PER_DAY, regularsSay } from '../content/inn';
 import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
@@ -18,12 +20,12 @@ import {
   graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost,
   newGame, rentRoom, roomCost, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
 } from '../game/engine';
-import type { DragonBonus, FightAction, ForestMode } from '../game/engine';
+import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
-import type { ChronicleEntry, GameState, Gender, LogLine, SpecialtyId } from '../game/types';
+import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, SpecialtyId } from '../game/types';
 import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard, tierFor } from './art/cards';
 import type { CardInfo } from './art/cards';
 import { applyPvpEvents, applyPvpResult } from '../game/pvp';
@@ -31,7 +33,7 @@ import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news';
 
-const VERSION = 'Testversion 0.18';
+const VERSION = 'Testversion 0.19';
 
 interface Ui {
   screen: Screen;
@@ -39,6 +41,8 @@ interface Ui {
   createName: string;
   createSpec: SpecialtyId;
   createGender: Gender;
+  dkPoint: DragonPoint | null;   // Auswahl nach dem Drachenkill
+  dkSpec: SpecialtyId | null;
   confirmDelete: boolean;
   confirmNew: boolean;
   importMsg: string;
@@ -64,7 +68,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, square: { comments: null, loading: false, at: 0, error: '' }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, square: { comments: null, loading: false, at: 0, error: '' }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -117,7 +121,7 @@ function vital(s: GameState): string {
   return `<aside class="vital" aria-label="Charakter">
     <div class="vital-head">
       <div class="portrait">${heroPortrait(p.specialty, p.gender)}</div>
-      <div><strong class="v-name">${esc(p.name)}</strong><span class="v-sub">Stufe ${p.level} · ${sp.name}</span>
+      <div><span class="v-title">${esc(titleFor(p.dragonKills, p.gender))}</span><strong class="v-name">${esc(p.name)}</strong><span class="v-sub">Stufe ${p.level} · ${sp.name}</span>
         ${p.dragonKills ? `<span class="v-dk">Drachentöter ${p.dragonKills}×</span>` : ''}</div>
     </div>
     <dl class="vital-list">
@@ -216,7 +220,7 @@ function titleScreen(): string {
       <div class="fanned">${showcase}</div>
       ${flashHtml()}
       <div class="solo-nav">${navHtml([{ title: 'Willkommen', items: [
-        ...(p ? [{ act: 'continue', label: `Weiterspielen: ${p.name}`, key: 'w', hint: `Stufe ${p.level} · Spieltag ${state!.day}` }] : []),
+        ...(p ? [{ act: 'continue', label: `Weiterspielen: ${titleFor(p.dragonKills, p.gender)} ${p.name}`, key: 'w', hint: `Stufe ${p.level} · Spieltag ${state!.day}` }] : []),
         { act: 'new', label: p && ui.confirmNew ? 'Wirklich neu beginnen? Der alte Spielstand geht verloren.' : 'Neues Spiel beginnen', key: 'n' },
         ...(cloud.enabled && !cloud.signedIn ? [{ act: 'go:login', label: 'Mit Spielerkonto anmelden', key: 'k', hint: 'auf einem anderen Gerät weiterspielen' }] : []),
       ] }])}</div>
@@ -547,9 +551,9 @@ function fameScreen(s: GameState): string {
     <p class="lead">An der Wand im Rathaus hängen die Namen aller, die dem Brackenwyrm gegenübergetreten sind. Manche sind frisch geschnitzt, andere kaum noch zu lesen.</p>
     <table class="fame"><thead><tr><th></th><th>Held</th><th class="num">Drachen</th><th class="num">Stufe</th></tr></thead><tbody>${rows}</tbody></table>
     ${ui.fame && ui.fame.length ? `<h2>Drachentöter aus aller Welt</h2>
-    <table class="fame"><thead><tr><th></th><th>Held</th><th class="num">Drachen</th><th class="num">Stufe</th></tr></thead><tbody>${ui.fame.map((e, i) => `<tr><td class="rank">${i + 1}.</td><td><strong>${esc(e.name)}</strong><small>${esc(titleFor(e.dragonKills))}</small></td><td class="num">${e.dragonKills}</td><td class="num">${e.level}</td></tr>`).join('')}</tbody></table>` : ''}
+    <table class="fame"><thead><tr><th></th><th>Held</th><th class="num">Drachen</th><th class="num">Stufe</th></tr></thead><tbody>${ui.fame.map((e, i) => `<tr><td class="rank">${i + 1}.</td><td><strong>${esc(e.name)}</strong><small>${esc(titleFor(e.dragonKills, e.gender))}</small></td><td class="num">${e.dragonKills}</td><td class="num">${e.level}</td></tr>`).join('')}</tbody></table>` : ''}
     <h2>Deine Geschichte</h2>
-    <p class="muted">Titel: <span class="gold">${esc(titleFor(p.dragonKills))}</span></p>
+    <p class="muted">Titel: <span class="gold">${esc(titleFor(p.dragonKills, p.gender))}</span>${p.dragonKills < 31 ? ` · nach dem nächsten Drachen: ${esc(titleFor(p.dragonKills + 1, p.gender))}` : ''}</p>
     <div class="records">
       ${rec('Drachenkills', String(p.dragonKills))}
       ${rec('Schnellster Drachenkill', st.fastestDragon ? `${st.fastestDragon} Tage` : 'noch keiner')}
@@ -657,7 +661,7 @@ function targetsHtml(place: 'felder' | 'gasthaus'): string {
   const none = (pv.fightsLeft ?? 1) <= 0 || pv.busy;
   return `<ul class="targets">${pv.targets.map((t) => `<li class="target">
       <span class="t-portrait">${heroPortrait(t.specialty, t.gender)}</span>
-      <span class="t-info"><strong>${esc(t.name)}</strong><small>Stufe ${t.level} · ${SPEC_NAME[t.specialty] ?? ''}${t.dragonKills ? ` · Drachentöter ${t.dragonKills}×` : ''}${t.note ? ` · ${esc(t.note)}` : ''}</small></span>
+      <span class="t-info"><strong><span class="t-title">${esc(titleFor(t.dragonKills, t.gender))}</span> ${esc(t.name)}</strong><small>Stufe ${t.level} · ${SPEC_NAME[t.specialty] ?? ''}${t.dragonKills ? ` · Drachentöter ${t.dragonKills}×` : ''}${t.note ? ` · ${esc(t.note)}` : ''}</small></span>
       <button type="button" class="tbtn" data-act="pvp:${t.userId}:${place}" ${!t.attackable || none ? 'disabled' : ''}>Angreifen</button>
     </li>`).join('')}</ul>`;
 }
@@ -781,14 +785,50 @@ function shadowsScreen(s: GameState): string {
   ] }]);
 }
 
+const DK_POINTS: { id: DragonPoint; name: string; text: string }[] = [
+  { id: 'ff', name: '+1 Waldkampf', text: 'Jeden Tag einen Waldkampf mehr. Wer öfter in den Wald geht, ist schneller wieder beim Drachen.' },
+  { id: 'hp', name: '+5 Lebenspunkte', text: 'Dauerhaft mehr Lebenskraft, auf jeder Stufe.' },
+  { id: 'atk', name: '+1 Angriff', text: 'Deine Schläge sitzen fester. Für immer.' },
+  { id: 'def', name: '+1 Verteidigung', text: 'Du weißt jetzt, wie man einem Wyrmzahn ausweicht.' },
+];
+
 function dragonBonusScreen(s: GameState): string {
+  const p = s.player;
+  const dk = p.dragonKills;
+  const title = titleFor(dk, p.gender);
+  const spec = ui.dkSpec ?? p.specialty;
+  const gold = restartGold(dk) + (s.flawlessDragon ? FLAWLESS_GOLD : 0);
+  const gems = restartGems(dk) + (s.flawlessDragon ? 1 : 0);
+  const counts = (id: DragonPoint) => p.dragonPoints.filter((x) => x === id).length;
   const main = `<div class="speaker">${cardHtml(dragonCard(), { cls: 'mini is-defeated' })}<div>
     <h1>Drachentöter!</h1>
-    <p class="lead">Ganz Moosgrund läuft zusammen. Frieda schenkt aus, Florian dichtet, Mirla weint ein bisschen. Doch die alten Geschichten sagen: Ein Wyrm stirbt nie ganz. Du wirst wieder klein anfangen, aber etwas von diesem Tag bleibt dir für immer.</p></div></div>`;
-  return layout(s, main, [{ title: 'Was nimmst du mit?', items: [
-    { act: 'bonus:atk', label: 'Kraft: +1 Angriff', key: 'k' },
-    { act: 'bonus:def', label: 'Panzer: +1 Verteidigung', key: 'p' },
-    { act: 'bonus:hp', label: 'Lebenskraft: +5 Lebenspunkte', key: 'l' },
+    <p class="lead">Ganz Moosgrund läuft zusammen. Frieda schenkt aus, Florian dichtet, Mirla weint ein bisschen. Der Dorfrat ernennt dich feierlich: Von heute an heißt du <strong class="gold">${esc(title)} ${esc(p.name)}</strong>.</p>
+    <p>Doch die alten Geschichten sagen: Ein Wyrm stirbt nie ganz. Du wirst wieder bei Stufe 1 anfangen, ohne Ausrüstung, ohne Gold im Kontor. Etwas von diesem Tag bleibt dir aber für immer.</p></div></div>
+    ${s.flawlessDragon ? `<p class="good-box">Ohne einen einzigen Kratzer! Dafür gibt es ${FLAWLESS_GOLD} Gold und einen Edelstein extra.</p>` : ''}
+    <h2>1. Dein Drachenpunkt</h2>
+    <div class="choices dk-points" role="radiogroup" aria-label="Drachenpunkt">
+      ${DK_POINTS.map((d) => `<button type="button" class="choice ${ui.dkPoint === d.id ? 'on' : ''}" role="radio" aria-checked="${ui.dkPoint === d.id}" data-act="dkpoint:${d.id}">
+        <strong>${d.name}</strong><span>${d.text}</span>${counts(d.id) ? `<small>Bisher ${counts(d.id)}× gewählt</small>` : ''}</button>`).join('')}
+    </div>
+    <h2>2. Was lernst du in deinem neuen Leben?</h2>
+    <p class="muted">Du kannst bei ${esc(SPECIALTIES[p.specialty].name)} bleiben oder etwas Neues lernen.</p>
+    <div class="choices" role="radiogroup" aria-label="Spezialfähigkeit">
+      ${SPECIALTY_ORDER.map((id) => {
+        const sp = SPECIALTIES[id];
+        return `<button type="button" class="choice ${spec === id ? 'on' : ''}" role="radio" aria-checked="${spec === id}" data-act="dkspec:${id}">
+          <span class="choice-art">${heroArt(id, p.gender)}</span><strong>${sp.name}</strong><span>${sp.blurb}</span><small>Fähigkeit: ${sp.move}. ${sp.moveBlurb}</small></button>`;
+      }).join('')}
+    </div>
+    <h2>Das nimmst du mit</h2>
+    <ul class="plain">
+      <li>${gold} Gold für den Neuanfang${gems ? ` und ${gems} Edelstein${gems > 1 ? 'e' : ''} dazu` : ''}</li>
+      <li>Deine ${p.gems} Edelsteine, Morwens Gunst, dein Bestiarium und deine Ruhmeshalle</li>
+      <li>${p.dragonPoints.length ? `Deine bisherigen Drachenpunkte (${[p.bonusAtk ? `+${p.bonusAtk} Angriff` : '', p.bonusDef ? `+${p.bonusDef} Verteidigung` : '', p.baseMaxHp ? `+${p.baseMaxHp} Lebenspunkte` : '', p.bonusFights ? `+${p.bonusFights} Waldkämpfe` : ''].filter(Boolean).join(', ')}) und den neuen dazu` : 'Deinen ersten Drachenpunkt'}</li>
+      <li>Ein frischer Tag mit ${forestFightsPerDay(p) + (ui.dkPoint === 'ff' ? 1 : 0)} Waldkämpfen</li>
+    </ul>
+    ${!ui.dkPoint ? '<p class="muted">Wähle zuerst deinen Drachenpunkt.</p>' : ''}`;
+  return layout(s, main, [{ title: 'Neuanfang', items: [
+    { act: 'rebirth', label: 'Neues Leben beginnen', key: 'n', disabled: !ui.dkPoint, primary: true, hint: ui.dkPoint ? `${DK_POINTS.find((d) => d.id === ui.dkPoint)!.name} · ${SPECIALTIES[spec].name}` : 'erst Drachenpunkt wählen' },
   ] }]);
 }
 
@@ -1156,7 +1196,17 @@ function handle(act: string, el: HTMLElement): void {
     case 'event': ui.flash = resolveEvent(s, a); commit(); return;
     case 'talk': say(talkToFrieda(s), 'info'); commit(); return;
     case 'inn': say(a === 'beer' ? drinkHarzbier(s) : requestSong(s), 'good'); commit(); return;
-    case 'bonus': chooseDragonBonus(s, a as DragonBonus); saveGame(s); go('village'); return;
+    case 'dkpoint': ui.dkPoint = a as DragonPoint; render(); return;
+    case 'dkspec': ui.dkSpec = a as SpecialtyId; render(); return;
+    case 'rebirth': {
+      if (!ui.dkPoint) return;
+      const res = chooseDragonBonus(s, ui.dkPoint, ui.dkSpec ?? s.player.specialty);
+      ui.dkPoint = null; ui.dkSpec = null;
+      saveGame(s); go('village');
+      if (res) say(`Von heute an: ${res.title} ${s.player.name}.`, 'good');
+      scheduleSync(500);
+      return;
+    }
     case 'toggle':
       if (a === 'motion') prefs.reducedMotion = (el as HTMLInputElement).checked;
       savePrefs(prefs);

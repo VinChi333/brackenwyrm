@@ -10,7 +10,7 @@ const SESSION_KEY = 'brackenwyrm.session';
 
 export interface Session { accessToken: string; refreshToken: string; expiresAt: number; userId: string; email: string }
 export interface RemoteSave { state: GameState; savedAt: number }
-export interface FameRow { name: string; dragonKills: number; level: number; title?: string }
+export interface FameRow { name: string; dragonKills: number; level: number; gender?: Gender; title?: string }
 export interface PvpTarget { userId: string; name: string; level: number; specialty: SpecialtyId; gender: Gender; dragonKills: number; attackable: boolean; note: string }
 export interface PvpResult {
   won: boolean;
@@ -110,11 +110,15 @@ export class Cloud {
       prefer: 'resolution=merge-duplicates,return=minimal',
       body: { user_id: s.userId, data: state, saved_at: state.savedAt ?? Date.now() },
     });
-    await this.call('/rest/v1/profiles', {
-      method: 'POST',
-      prefer: 'resolution=merge-duplicates,return=minimal',
-      body: { user_id: s.userId, name: p.name, level: p.level, dragon_kills: p.dragonKills },
-    });
+    const profile = { user_id: s.userId, name: p.name, level: p.level, dragon_kills: p.dragonKills };
+    const sendProfile = (body: object) => this.call('/rest/v1/profiles', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body });
+    try {
+      await sendProfile({ ...profile, gender: p.gender });
+    } catch (e) {
+      // Datenbank noch ohne Spalte "gender" (Teil 2 nicht ausgeführt): ohne sie speichern
+      if (e instanceof CloudError && /gender|PGRST204|42703/.test(e.message)) await sendProfile(profile);
+      else throw e;
+    }
     await this.pushFighter(state);
   }
 
@@ -200,8 +204,14 @@ export class Cloud {
 
   /** Die besten Drachentöter aller Spieler für die Ruhmeshalle. */
   async hallOfFame(limit = 20): Promise<FameRow[]> {
-    const rows = await this.call(`/rest/v1/profiles?select=name,level,dragon_kills&order=dragon_kills.desc,level.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
-    return (Array.isArray(rows) ? rows : []).map((r: { name: string; level: number; dragon_kills: number }) => ({ name: r.name, level: r.level, dragonKills: r.dragon_kills }));
+    const q = (cols: string) => this.call(`/rest/v1/profiles?select=${cols}&order=dragon_kills.desc,level.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+    let rows: unknown;
+    try { rows = await q('name,level,dragon_kills,gender'); } catch (e) {
+      if (e instanceof CloudError && /gender|42703/.test(e.message)) rows = await q('name,level,dragon_kills'); else throw e;
+    }
+    return (Array.isArray(rows) ? rows : []).map((r: { name: string; level: number; dragon_kills: number; gender?: string }) => ({
+      name: r.name, level: r.level, dragonKills: r.dragon_kills, gender: r.gender === 'f' ? 'f' : 'm',
+    }));
   }
 
   // ---------- intern ----------

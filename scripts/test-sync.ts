@@ -44,7 +44,7 @@ const fake = async (url: string | URL | Request, init: RequestInit = {}): Promis
   if (u.includes('/rest/v1/saves?')) return json(db.save ? [db.save] : []);
   if (u.endsWith('/rest/v1/saves')) { db.save = { data: body.data, saved_at: body.saved_at }; return new Response('', { status: 201 }); }
   if (u.endsWith('/rest/v1/profiles')) { db.profile = body; return new Response('', { status: 201 }); }
-  if (u.includes('/rest/v1/profiles?')) return json([{ name: 'Hilda', level: 3, dragon_kills: 2 }]);
+  if (u.includes('/rest/v1/profiles?')) return json([{ name: 'Hilda', level: 3, dragon_kills: 2, gender: 'f' }]);
   return json({}, 404);
 };
 const mem = new Map<string, string>();
@@ -89,11 +89,11 @@ await t('hochladen und wieder laden ergibt denselben Spielstand', async () => {
   assert.equal(back?.savedAt, 1234);
   assert.equal(back?.state.player.name, 'Hilda');
   assert.equal(back?.state.player.level, 3);
-  assert.deepEqual(db.profile, { user_id: 'u1', name: 'Hilda', level: 3, dragon_kills: 0 });
+  assert.deepEqual(db.profile, { user_id: 'u1', name: 'Hilda', level: 3, dragon_kills: 0, gender: 'f' });
 });
 await t('Ruhmeshalle wird gelesen', async () => {
   const rows = await cloud.hallOfFame();
-  assert.deepEqual(rows, [{ name: 'Hilda', level: 3, dragonKills: 2 }]);
+  assert.deepEqual(rows, [{ name: 'Hilda', level: 3, dragonKills: 2, gender: 'f' }]);
 });
 await t('ohne Einrichtung ist das Konto abgeschaltet', () => {
   assert.equal(new Cloud('', '', fake as typeof fetch, store).enabled, false);
