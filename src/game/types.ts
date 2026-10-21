@@ -59,8 +59,11 @@ export type FightKind = 'forest' | 'master' | 'dragon' | 'grave' | 'pvp';
 export interface Buff {
   name: string;
   atkMult: number;
+  defMult?: number;
   rounds: number;
 }
+
+export type PartnerId = 'frieda' | 'florian';
 
 export interface LogLine {
   t: string;
@@ -137,6 +140,9 @@ export interface Player {
   bonusFights: number;    // zusätzliche Waldkämpfe pro Tag aus Drachenpunkten
   charm: number;          // Charme, wächst mit jedem Drachenkill (für Flirten und Heiraten im Gasthaus)
   dragonPoints: DragonPoint[]; // Verlauf der gewählten Drachenpunkte
+  marriedTo: PartnerId | '';   // verheiratet mit Frieda oder Florian (bleibt über Drachenkills)
+  seenLover: boolean;          // heute schon geflirtet
+  loverPref?: PartnerId;       // wen man im Gasthaus umwirbt (Standard: das andere Geschlecht)
 }
 
 export type DragonPoint = 'atk' | 'def' | 'hp' | 'ff';

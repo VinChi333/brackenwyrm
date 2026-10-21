@@ -17,6 +17,7 @@ import {
 import { between, chance, pick, rand, roll } from './rng';
 import { newStats } from './storage';
 import { titleFor } from '../content/titles';
+import { loverNewDay } from './lovers';
 import type { DragonPoint, Fight, GameState, Gender, LogLine, Player, SpecialtyId } from './types';
 
 export function todayKey(d = new Date()): string {
@@ -30,7 +31,7 @@ export function newPlayer(name: string, specialty: SpecialtyId, gender: Gender =
     name, specialty, gender, level: 1, exp: 0, hp: 0, baseMaxHp: 0, bonusAtk: 0, bonusDef: 0,
     weaponTier: 0, armorTier: 0, gold: 50, bank: 0, gems: 0, forestFights: FOREST_FIGHTS_PER_DAY,
     specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, innTalks: 0, soul: 0, favor: 0, graveFights: GRAVE_FIGHTS_PER_DAY, innRoom: false, buffs: [],
-    bonusFights: 0, charm: 0, dragonPoints: [],
+    bonusFights: 0, charm: 0, dragonPoints: [], marriedTo: '', seenLover: false,
   };
   p.hp = maxHp(p);
   p.soul = maxSoul(p);
@@ -86,6 +87,7 @@ export function startNewDay(s: GameState): void {
   p.drankToday = false;
   p.songToday = false;
   p.buffs = [];
+  s.news.push(...loverNewDay(s, announce));
   const interest = bankInterest(p);
   if (interest > 0) {
     p.bank += interest;
@@ -265,6 +267,10 @@ function strike(atk: number, def: number, opts: { noMiss?: boolean; ignoreDef?: 
   return { dmg, miss: false, crit };
 }
 
+function heroDef(p: Player): number {
+  return defense(p) * p.buffs.reduce((m, b) => m * (b.defMult ?? 1), 1);
+}
+
 function heroAtk(p: Player): number {
   const mult = p.buffs.reduce((m, b) => m * b.atkMult, 1);
   return attack(p) * mult;
@@ -392,7 +398,7 @@ export function fightAction(s: GameState, action: FightAction): void {
   if (foeSkips) {
     log.push({ t: say.foeSkips(N), k: 'info' });
   } else {
-    const h = strike(f.foe.atk, grave ? graveAttack(p) : defense(p));
+    const h = strike(f.foe.atk, grave ? graveAttack(p) : heroDef(p));
     f.lastFoeDmg = h.dmg;
     f.lastFoeMiss = h.miss;
     if (h.miss) log.push({ t: say.foeMiss(N), k: 'info' });

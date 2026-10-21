@@ -6,6 +6,8 @@ import { FEEDBACK_KINDS, feedbackMessage } from '../content/feedback';
 import type { FeedbackKind } from '../content/feedback';
 import { fameTable } from '../content/fame';
 import { titleFor } from '../content/titles';
+import { PARTNERS } from '../content/lovers';
+import { askLooks, flirt, friendOf, partnerOf, visitSpouse } from '../game/lovers';
 import { forestFightsPerDay, restartGems, restartGold, FLAWLESS_GOLD } from '../game/balance';
 import { FRIEDA_TALKS_PER_DAY, regularsSay } from '../content/inn';
 import { ARMORS, WEAPONS, tradeIn } from '../content/items';
@@ -15,7 +17,7 @@ import { SHADES } from '../content/shades';
 import { SPECIALTIES, SPECIALTY_ORDER } from '../content/specialties';
 import { MAX_LEVEL, healCostPerHp } from '../game/balance';
 import {
-  attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
+  announce, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
   CHRONICLE_SIZE, closeFight, defense, drinkHarzbier, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
   graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost,
   newGame, rentRoom, roomCost, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
@@ -31,9 +33,9 @@ import type { CardInfo } from './art/cards';
 import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt';
 
-const VERSION = 'Testversion 0.19';
+const VERSION = 'Testversion 0.20';
 
 interface Ui {
   screen: Screen;
@@ -122,7 +124,8 @@ function vital(s: GameState): string {
     <div class="vital-head">
       <div class="portrait">${heroPortrait(p.specialty, p.gender)}</div>
       <div><span class="v-title">${esc(titleFor(p.dragonKills, p.gender))}</span><strong class="v-name">${esc(p.name)}</strong><span class="v-sub">Stufe ${p.level} · ${sp.name}</span>
-        ${p.dragonKills ? `<span class="v-dk">Drachentöter ${p.dragonKills}×</span>` : ''}</div>
+        ${p.dragonKills ? `<span class="v-dk">Drachentöter ${p.dragonKills}×</span>` : ''}
+        ${p.marriedTo ? `<span class="v-wed">♥ verheiratet mit ${PARTNERS[p.marriedTo].name}</span>` : ''}</div>
     </div>
     <dl class="vital-list">
       ${p.alive
@@ -508,12 +511,41 @@ function innScreen(s: GameState): string {
       { act: 'talk', label: 'Mit Frieda reden', key: 'f', hint: talksLeft > 0 ? `${talksLeft}× heute` : 'hat zu tun' },
       { act: 'inn:beer', label: 'Harzbier bestellen', key: 'h', hint: p.drankToday ? 'heute schon' : `${harzbierCost(p.level)} Gold`, disabled: p.drankToday },
       { act: 'inn:song', label: 'Lied wünschen', key: 'l', hint: p.songToday ? 'heute schon' : '1 Edelstein', disabled: p.songToday },
+      { act: 'go:flirt', label: p.marriedTo ? `Zu ${PARTNERS[p.marriedTo].name} gehen` : `${PARTNERS[partnerOf(p)].name} umwerben`, key: 'u', hint: p.seenLover ? 'heute schon' : p.marriedTo ? 'dein Schatz' : '' },
+      { act: 'looks', label: `${PARTNERS[friendOf(p)].name} fragen, wie du aussiehst`, key: 'a' },
       ...(cloud.enabled ? [
         { act: 'room', label: 'Zimmer mieten', key: 'z', hint: p.innRoom ? 'gemietet' : `${roomCost(p.level)} Gold`, disabled: p.innRoom },
         { act: 'bribe', label: 'Frieda bestechen', key: 'b', hint: cloud.signedIn ? '1 Edelstein' : 'nur mit Spielerkonto', disabled: !cloud.signedIn || p.gems < 1 },
       ] : []),
     ] },
     { title: 'Zurück', items: [back] },
+  ]);
+}
+
+function flirtScreen(s: GameState): string {
+  const p = s.player;
+  const id = partnerOf(p);
+  const pt = PARTNERS[id];
+  const toInn: Item = { act: 'go:inn', label: 'Zurück in die Gaststube', key: 'g' };
+  if (p.marriedTo) {
+    const spouse = PARTNERS[p.marriedTo];
+    const main = `<h1>${esc(spouse.name)}</h1>
+      <p class="lead">${p.marriedTo === 'frieda' ? 'Frieda wischt sich die Hände an der Schürze ab, als sie dich sieht.' : 'Florian legt die Laute weg, als er dich sieht.'} Ihr seid verheiratet. Einmal am Tag habt ihr Zeit füreinander.</p>
+      ${flashHtml()}
+      <p class="muted">Verheiratete müssen nicht mehr so auf ihr Äußeres achten. Jeden Tag geht etwas Charme verloren. Wenn er ganz aufgebraucht ist, geht ${esc(spouse.name)}.</p>`;
+    return layout(s, main, [
+      { title: esc(spouse.name), items: [{ act: 'spouse', label: 'Zeit miteinander verbringen', key: 'z', hint: p.seenLover ? 'heute schon' : '', disabled: p.seenLover, primary: true }] },
+      { title: 'Zurück', items: [toInn, back] },
+    ]);
+  }
+  const main = `<h1>${esc(pt.name)} umwerben</h1>
+    <p class="lead">${esc(pt.intro)}</p>
+    ${flashHtml()}
+    <p class="muted">Je kühner der Versuch, desto mehr Charme brauchst du. Ein Versuch pro Tag. ${p.seenLover ? esc(pt.notToday) : ''}</p>`;
+  const keys = ['z', 'h', 'k', 's', 'c', 't', 'a'];
+  return layout(s, main, [
+    { title: 'Flirten', items: pt.moves.map((m, i) => ({ act: `flirt:${i}`, label: m.label, key: keys[i], hint: m.hint, disabled: p.seenLover })) },
+    { title: 'Zurück', items: [toInn, back] },
   ]);
 }
 
@@ -741,6 +773,11 @@ function settingsScreen(s: GameState): string {
   const main = `<h1>Einstellungen</h1>
     ${flashHtml()}
     <label class="toggle"><input type="checkbox" id="opt-motion" data-act="toggle:motion" ${prefs.reducedMotion ? 'checked' : ''}> Weniger Bewegung im Kampf</label>
+    <h2>Im Gasthaus umwerben</h2>
+    <div class="seg" role="radiogroup" aria-label="Wen umwerben">
+      ${(['frieda', 'florian'] as const).map((id) => `<button type="button" class="seg-btn ${partnerOf(s.player) === id ? 'on' : ''}" role="radio" aria-checked="${partnerOf(s.player) === id}" data-act="lover:${id}">${id === 'frieda' ? 'Wirtin Frieda' : 'Barde Florian'}</button>`).join('')}
+    </div>
+    ${s.player.marriedTo ? `<p class="muted">Du bist mit ${PARTNERS[s.player.marriedTo].name} verheiratet.</p>` : ''}
     ${cloud.enabled ? accountHtml() : ''}
     <h2>Spielstand auf ein anderes Gerät mitnehmen</h2>
     <p class="muted">${cloud.signedIn ? 'Mit deinem Spielerkonto geht das automatisch. Der Code hier ist nur eine Notlösung, zum Beispiel als Sicherungskopie.' : 'Ohne Spielerkonto liegt der Spielstand nur in diesem Browser. Kopiere den Code und füge ihn auf dem anderen Gerät ein.'}</p>
@@ -853,7 +890,7 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!),
   };
   root.innerHTML = views[scr]();
   if (scr === 'village') loadSquare();
@@ -1196,6 +1233,14 @@ function handle(act: string, el: HTMLElement): void {
     case 'event': ui.flash = resolveEvent(s, a); commit(); return;
     case 'talk': say(talkToFrieda(s), 'info'); commit(); return;
     case 'inn': say(a === 'beer' ? drinkHarzbier(s) : requestSong(s), 'good'); commit(); return;
+    case 'flirt': {
+      const r = flirt(s, Number(a), announce);
+      ui.flash = r.lines.map((t) => ({ t, k: r.kind }));
+      commit(); return;
+    }
+    case 'spouse': { const r = visitSpouse(s); ui.flash = r.lines.map((t) => ({ t, k: r.kind })); commit(); return; }
+    case 'looks': say(askLooks(s.player), 'info'); render(); return;
+    case 'lover': s.player.loverPref = a === 'florian' ? 'florian' : 'frieda'; saveGame(s); render(); return;
     case 'dkpoint': ui.dkPoint = a as DragonPoint; render(); return;
     case 'dkspec': ui.dkSpec = a as SpecialtyId; render(); return;
     case 'rebirth': {

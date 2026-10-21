@@ -115,6 +115,7 @@ p { margin: 0; }
 .v-title { display: block; font-size: 13px; letter-spacing: 0.04em; color: var(--gold); line-height: 1.1; }
 .t-title { font-family: var(--body, inherit); font-size: 0.8em; color: var(--gold); font-weight: 400; }
 .v-sub, .v-dk { display: block; color: var(--muted); font-size: 15px; }
+.v-wed { display: block; color: #e88aa8; font-size: 14px; }
 .v-dk { color: var(--legend); }
 .vital-list { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
 .v-row { display: flex; justify-content: space-between; gap: 8px; font-size: 16px; flex-wrap: wrap; border-bottom: 1px solid #1f2540; padding-bottom: 4px; }

@@ -41,6 +41,16 @@ export const FOREST_EVENTS: ForestEvent[] = [
     p.gold += g;
     return [{ t: `Ein Eichhörnchen hat in einem hohlen Baum Gold versteckt. Es hätte besser aufpassen sollen. Du findest ${g} Gold.`, k: 'gold' }];
   } },
+  // Wie der alte Mann mit dem Stock im Original: ein Schlag macht hübscher oder hässlicher.
+  { id: 'kauz', weight: 6, run: (p) => {
+    if (chance(0.5)) {
+      p.charm += 1;
+      return [{ t: 'Ein alter Kauz springt hinter einem Baum hervor und haut dir mit einem knorrigen Stock auf den Kopf. „Der Schönheitsstock!“, kichert er und verschwindet. Du fühlst dich tatsächlich etwas hübscher. (+1 Charme)', k: 'good' }];
+    }
+    const lost = p.charm > 0;
+    if (lost) p.charm -= 1;
+    return [{ t: `Ein alter Kauz springt hinter einem Baum hervor und haut dir mit einem krummen Stock auf den Kopf. „Der Hässlichkeitsstock!“, kichert er und verschwindet.${lost ? ' Du fühlst dich weniger ansehnlich. (−1 Charme)' : ' Viel kaputt machen konnte er nicht mehr.'}`, k: 'bad' }];
+  } },
   { id: 'edelstein', weight: 5, run: (p) => {
     p.gems += 1;
     return [{ t: 'Zwischen den Wurzeln einer alten Buche glitzert etwas: ein Edelstein!', k: 'gold' }];
