@@ -53,6 +53,8 @@ export function validate(x: unknown): GameState | null {
   s.stats = Object.assign(newStats(1), s.stats ?? {});
   s.pendingEvent = s.pendingEvent ?? null;
   s.chronicle = Array.isArray(s.chronicle) ? s.chronicle : [];
+  // Spielstände aus Versionen ohne Zeitstempel gelten als vorhanden, aber älter als alles andere.
+  if (typeof s.savedAt !== 'number' || !(s.savedAt > 0)) s.savedAt = 1;
   return s;
 }
 

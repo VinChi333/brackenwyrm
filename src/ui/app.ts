@@ -27,7 +27,7 @@ import { cardBack, cardFor, cardHtml, dragonCard, heroArt, heroPortrait, masterC
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login';
 
-const VERSION = 'Testversion 0.14';
+const VERSION = 'Testversion 0.15';
 
 interface Ui {
   screen: Screen;
@@ -659,8 +659,7 @@ function dragonBonusScreen(s: GameState): string {
 
 function currentScreen(): Screen {
   if (!state) return ui.screen === 'create' || ui.screen === 'login' ? ui.screen : 'title';
-  if (ui.screen === 'title' || ui.screen === 'create') return ui.screen;
-  if (ui.screen === 'login') return 'village';
+  if (ui.screen === 'title' || ui.screen === 'create' || ui.screen === 'login') return ui.screen;
   if (state.pendingDragonBonus && !state.fight) return 'dragonBonus';
   if (ui.conflict) return 'syncConflict';
   if (state.fight) return 'fight';
@@ -760,7 +759,7 @@ function handle(act: string, el: HTMLElement): void {
     case 'devtap':
       if (++ui.devTaps >= 5) { ui.devTaps = 0; prefs.dev = !prefs.dev; savePrefs(prefs); render(); }
       return;
-    case 'continue': if (s) { checkRealDay(s); saveGame(s); go('village'); } return;
+    case 'continue': if (s) { const newDay = checkRealDay(s); saveGame(s, !newDay); go('village'); scheduleSync(500); } return;
     case 'new':
       if (state && !ui.confirmNew) { ui.confirmNew = true; render(); return; }
       ui.createName = ''; go('create'); return;
@@ -780,6 +779,7 @@ function handle(act: string, el: HTMLElement): void {
       state = newGame(name, ui.createSpec, ui.createGender);
       saveGame(state);
       go('village');
+      scheduleSync(500);
       return;
     }
     case 'acct': {
@@ -795,7 +795,7 @@ function handle(act: string, el: HTMLElement): void {
           prefs.lastSyncedAt = 0; savePrefs(prefs);
           const m = await syncNow();
           if (ui.screen === 'login') {
-            if (state) { checkRealDay(state); saveGame(state, true); go('village'); return; }
+            if (state) { const newDay = checkRealDay(state); saveGame(state, !newDay); go('village'); return; }
             done('Angemeldet. Für dieses Konto gibt es noch keinen Spielstand. Beginne ein neues Spiel, es wird dann automatisch gesichert.');
             return;
           }

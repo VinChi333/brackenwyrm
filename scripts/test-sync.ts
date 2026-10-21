@@ -3,10 +3,17 @@ import assert from 'node:assert/strict';
 import { Cloud } from '../src/game/cloud';
 import { newGame } from '../src/game/engine';
 import { decideSync } from '../src/game/sync';
+import { validate } from '../src/game/storage';
 
 let n = 0;
 const t = (name: string, fn: () => void | Promise<void>) => Promise.resolve(fn()).then(() => { n++; console.log('ok  ', name); });
 
+await t('alter Spielstand ohne Zeitstempel zählt als vorhanden', () => {
+  const s = newGame('Alt', 'klinge') as unknown as Record<string, unknown>;
+  delete s.savedAt;
+  const v = validate(JSON.parse(JSON.stringify(s)))!;
+  assert.equal(decideSync({ local: v.savedAt ?? null, remote: null, lastSynced: 0 }), 'push');
+});
 await t('nichts da: nichts tun', () => assert.equal(decideSync({ local: null, remote: null, lastSynced: 0 }), 'none'));
 await t('nur lokal: hochladen', () => assert.equal(decideSync({ local: 5, remote: null, lastSynced: 0 }), 'push'));
 await t('nur Server: herunterladen', () => assert.equal(decideSync({ local: null, remote: 5, lastSynced: 0 }), 'pull'));
