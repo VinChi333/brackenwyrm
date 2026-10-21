@@ -27,7 +27,7 @@ import { cardBack, cardFor, cardHtml, dragonCard, heroArt, heroPortrait, masterC
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login';
 
-const VERSION = 'Testversion 0.13';
+const VERSION = 'Testversion 0.14';
 
 interface Ui {
   screen: Screen;
