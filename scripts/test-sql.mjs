@@ -106,5 +106,37 @@ await as(A, `insert into public.news (body) values ('Angreifer hat den Brackenwy
 r = await db.query(`select user_id from public.news where body like '%Brackenwyrm%'`);
 ok(r.rows[0].user_id === A, 'eigene Neuigkeit wird dem Spieler zugeordnet');
 
+// Rassen und Fähigkeiten wie im Original
+await as(A, `update public.fighters set race = 'troll', specialty = 'dunkel' where user_id = '${A}'`);
+r = await db.query(`select public.f_attack(f) a, public.f_defense(f) d, race from public.fighters f where user_id in ('${A}', '${B}') order by name`);
+const [ang, opf] = r.rows;
+ok(ang.race === 'troll' && ang.a === opf.a + 2 && ang.d === opf.d, `Troll hat mehr Angriff (Stufe 5: +2): ${ang.a} gegen ${opf.a}`);
+await as(B, `update public.fighters set race = 'elf' where user_id = '${B}'`);
+r = await db.query(`select public.f_defense(f) d from public.fighters f where user_id = '${B}'`);
+ok(r.rows[0].d === opf.d + 2, 'Elf hat mehr Verteidigung');
+let bad = false; try { await as(B, `update public.fighters set race = 'ork' where user_id = '${B}'`); } catch { bad = true; }
+ok(bad, 'unbekannte Rasse wird abgelehnt');
+let legacy = true; try { await as(B, `update public.fighters set specialty = 'schleich' where user_id = '${B}'`); } catch { legacy = false; }
+ok(legacy, 'alte Fähigkeitsnamen sind noch erlaubt (ältere Spielversionen)');
+await as(A, `select * from public.pvp_targets('felder')`).then((x) => ok('race' in (x.rows[0] ?? { race: 1 }), 'Ziel-Liste liefert die Rasse'));
+
+// Aktualisierung einer Datenbank mit dem alten Teil 2 (ohne Rassen)
+{
+  const old = new PGlite();
+  await old.exec(`create role anon nologin; create role authenticated nologin; create schema auth; create table auth.users (id uuid primary key, email text);
+    create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;`);
+  await old.exec(readFileSync(new URL('../server/supabase.sql', import.meta.url), 'utf8'));
+  const { execSync } = await import('node:child_process');
+  let oldSql = '';
+  try { oldSql = execSync('git show d5ae20c:server/supabase-2-dorf.sql', { cwd: new URL('..', import.meta.url).pathname }).toString(); } catch { /* ohne git */ }
+  if (oldSql) {
+    await old.exec(oldSql);
+    await old.exec(`insert into auth.users values ('${A}','a@x'); insert into public.fighters (user_id, name, specialty) values ('${A}', 'Alt', 'klinge')`);
+    await old.exec(readFileSync(new URL('../server/supabase-2-dorf.sql', import.meta.url), 'utf8'));
+    const x = await old.query(`select race, specialty from public.fighters`);
+    ok(x.rows[0].race === 'mensch' && x.rows[0].specialty === 'klinge', 'alte Datenbank lässt sich aktualisieren, bestehende Kämpfer bleiben');
+  }
+}
+
 console.log(fails ? `\n${fails} FEHLER` : '\nAlle Prüfungen bestanden');
 process.exit(fails ? 1 : 0);

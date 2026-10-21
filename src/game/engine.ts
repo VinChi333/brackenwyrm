@@ -5,11 +5,12 @@ import { FRIEDA_TALKS_PER_DAY, friedaSays } from '../content/inn';
 import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
 import { DRAGON, MONSTERS, acc, datIndef, monsterById, monstersOfLevel, nom } from '../content/monsters';
-import { say } from '../content/fighttext';
+import { say, type Names } from '../content/fighttext';
 import { shadeById, SHADES } from '../content/shades';
 import { SPECIALTIES } from '../content/specialties';
+import { RACES, raceName } from '../content/races';
 import {
-  DEATH_EXP_LOSS, EVENT_CHANCE, FOREST_FIGHTS_PER_DAY, GEM_DROP_CHANCE, GRAVE_FIGHTS_PER_DAY, HARZBIER_BUFF, MAX_LEVEL,
+  DEATH_EXP_LOSS, DWARF_GOLD, EVENT_CHANCE, GEM_DROP_CHANCE, GRAVE_FIGHTS_PER_DAY, HARZBIER_BUFF, MAX_LEVEL,
   RESURRECT_FAVOR, RESURRECT_TURN_SHARE, CHARM_PER_DRAGON, FLAWLESS_GEMS, FLAWLESS_GOLD, forestFightsPerDay, restartGems, restartGold, favorRange, graveAttack, maxSoul, shadeStats, soulRestoreCost,
   attack, bankInterest, defense, dragonStats, expNeeded, expPerKill, goldPerKill, harzbierCost,
   healCost, masterStats, maxHp, monsterStats, specialUsesPerDay,
@@ -18,7 +19,7 @@ import { between, chance, pick, rand, roll } from './rng';
 import { newStats } from './storage';
 import { titleFor } from '../content/titles';
 import { loverNewDay } from './lovers';
-import type { DragonPoint, Fight, GameState, Gender, LogLine, Player, SpecialtyId } from './types';
+import type { Buff, DragonPoint, Fight, GameState, Gender, LogLine, Player, RaceId, SpecialtyId } from './types';
 
 export function todayKey(d = new Date()): string {
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -26,23 +27,24 @@ export function todayKey(d = new Date()): string {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
-export function newPlayer(name: string, specialty: SpecialtyId, gender: Gender = 'm'): Player {
+export function newPlayer(name: string, specialty: SpecialtyId, gender: Gender = 'm', race: RaceId = 'mensch'): Player {
   const p: Player = {
-    name, specialty, gender, level: 1, exp: 0, hp: 0, baseMaxHp: 0, bonusAtk: 0, bonusDef: 0,
-    weaponTier: 0, armorTier: 0, gold: 50, bank: 0, gems: 0, forestFights: FOREST_FIGHTS_PER_DAY,
+    name, specialty, race, gender, skill: 0, level: 1, exp: 0, hp: 0, baseMaxHp: 0, bonusAtk: 0, bonusDef: 0,
+    weaponTier: 0, armorTier: 0, gold: 50, bank: 0, gems: 0, forestFights: 0,
     specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, innTalks: 0, soul: 0, favor: 0, graveFights: GRAVE_FIGHTS_PER_DAY, innRoom: false, buffs: [],
     bonusFights: 0, charm: 0, dragonPoints: [], marriedTo: '', seenLover: false,
   };
   p.hp = maxHp(p);
   p.soul = maxSoul(p);
+  p.forestFights = forestFightsPerDay(p);
   p.specialUses = specialUsesPerDay(p);
   return p;
 }
 
-export function newGame(name: string, specialty: SpecialtyId, gender: Gender = 'm'): GameState {
+export function newGame(name: string, specialty: SpecialtyId, gender: Gender = 'm', race: RaceId = 'mensch'): GameState {
   return {
     v: 1,
-    player: newPlayer(name, specialty, gender),
+    player: newPlayer(name, specialty, gender, race),
     day: 1,
     lastRealDate: todayKey(),
     fight: null,
@@ -148,7 +150,7 @@ export function forestSearch(s: GameState, mode: ForestMode): ForestResult {
   stats.hp = scaleVar(stats.hp);
   stats.maxHp = stats.hp;
   const expR = Math.round(scaleVar(expPerKill(m.level)) * expMult);
-  const goldR = Math.round(goldPerKill(m.level) * between(0.6, 1.4) * goldMult);
+  const goldR = Math.round(goldPerKill(m.level) * between(0.6, 1.4) * goldMult * (p.race === 'zwerg' ? DWARF_GOLD : 1));
   s.fight = makeFight('forest', m.id, m.name, stats, expR, goldR, m.intro);
   return { type: 'fight' };
 }
@@ -276,11 +278,30 @@ function heroAtk(p: Player): number {
   return attack(p) * mult;
 }
 
-function tickBuffs(p: Player, log: LogLine[]): void {
+function tickBuffs(p: Player, log: LogLine[], n: Names): void {
   for (const b of p.buffs) b.rounds -= 1;
   const gone = p.buffs.filter((b) => b.rounds <= 0);
   p.buffs = p.buffs.filter((b) => b.rounds > 0);
-  for (const b of gone) log.push({ t: `${b.name} lässt nach.`, k: 'info' });
+  for (const b of gone) log.push({ t: b.wearOff ? say.text(b.wearOff, n) : `${b.name} lässt nach.`, k: 'info' });
+}
+
+const buffMult = (p: Player, key: 'foeAtkMult' | 'foeDmgMult' | 'foeDefMult') => p.buffs.reduce((m, b) => m * (b[key] ?? 1), 1);
+
+/** Kann der Held diese Kunst gerade einsetzen? (genug Punkte, nicht im Schattenreich) */
+export function canUseSkill(p: Player, cost: number): boolean {
+  return p.specialUses >= cost && SPECIALTIES[p.specialty].skills.some((k) => k.cost === cost);
+}
+
+/** Eine Kunst wirken: Punkte abziehen, Effekt anlegen (gleicher Effekt wird erneuert). */
+function castSkill(p: Player, cost: number, log: LogLine[], n: Names): boolean {
+  const sk = SPECIALTIES[p.specialty].skills.find((k) => k.cost === cost);
+  if (!sk || p.specialUses < cost) return false;
+  p.specialUses -= cost;
+  const b: Buff = sk.buff(p, attack(p));
+  p.buffs = p.buffs.filter((x) => x.id !== b.id);
+  p.buffs.push(b);
+  log.push({ t: `${sk.name}! ${say.text(sk.start, n)}`, k: 'special' });
+  return true;
 }
 
 function foeLabel(f: Fight): { n: string; a: string; N: string } {
@@ -299,11 +320,7 @@ function foeHits(f: Fight): string {
   return monsterById(f.monsterId)?.hits ?? 'trifft dich';
 }
 
-export type FightAction = 'attack' | 'special' | 'flee';
-
-export function canUseSpecial(p: Player): boolean {
-  return p.specialUses > 0;
-}
+export type FightAction = 'attack' | 'flee' | `skill:${number}`;
 
 /** Hängt Zeilen an den Kampfbericht an und merkt sich die Runde. Der Bericht bleibt ganz erhalten. */
 /** Kurze Meldung für die Tagesneuigkeiten aller Spieler (geht beim nächsten Abgleich an den Server). */
@@ -321,17 +338,16 @@ export function fightAction(s: GameState, action: FightAction): void {
   const p = s.player;
   if (!f || f.over) return;
   const L = foeLabel(f);
-  const N = { a: L.a, N: L.N, hits: foeHits(f), move: SPECIALTIES[p.specialty].move };
+  const N: Names = { a: L.a, N: L.N, hits: foeHits(f), move: SPECIALTIES[p.specialty].name };
   const grave = f.kind === 'grave';
   // Im Schattenreich kämpft die Seele: Seelenkraft statt Lebenspunkten, Stufe statt Ausrüstung.
   const heroPool = () => (grave ? p.soul : p.hp);
   const setHeroPool = (v: number) => { if (grave) p.soul = v; else p.hp = v; };
   const log: LogLine[] = [];
+  const endRound = () => { if (!grave && action !== 'flee') tickBuffs(p, log, N); pushLog(f, log); };
   f.round += 1;
   f.seq += 1;
   f.lastHeroDmg = 0; f.lastFoeDmg = 0; f.lastHeroMiss = false; f.lastFoeMiss = false; f.lastCrit = false; f.lastSpecial = false;
-
-  let foeSkips = false;
 
   if (action === 'flee') {
     const odds = f.kind === 'forest' ? 0.5 : f.kind === 'dragon' || f.kind === 'grave' ? 0.33 : 1;
@@ -357,48 +373,68 @@ export function fightAction(s: GameState, action: FightAction): void {
     }
     log.push({ t: 'Du versuchst zu fliehen, aber eine Wurzel hat andere Pläne.', k: 'warn' });
   } else {
-    let h: Hit;
-    const atk = grave ? graveAttack(p) : heroAtk(p);
-    if (action === 'special' && canUseSpecial(p) && !grave) {
-      p.specialUses -= 1;
-      f.lastSpecial = true;
-      if (p.specialty === 'klinge') {
-        h = strike(atk, f.foe.def, { noMiss: true, mult: 1.9 });
-      } else if (p.specialty === 'wurzel') {
-        h = strike(atk, f.foe.def, { noMiss: true, ignoreDef: true, mult: 1.1 });
-        foeSkips = true;
-      } else {
-        h = strike(atk, f.foe.def, { noMiss: true, mult: 1.6 });
-        foeSkips = true;
-      }
-      log.push({ t: say.special(N, h.dmg, p.specialty) + (h.crit ? ' Ein Volltreffer!' : ''), k: h.crit ? 'crit' : 'special' });
-    } else {
-      h = strike(atk, f.foe.def);
-      if (h.miss) log.push({ t: say.heroMiss(N), k: 'info' });
-      else if (h.crit) log.push({ t: say.heroCrit(N, h.dmg, p.specialty), k: 'crit' });
-      else log.push({ t: say.heroHit(N, h.dmg, h.dmg / f.foe.maxHp), k: 'good' });
+    // Fähigkeit: wie im Original legt sie einen Effekt an, danach folgt der normale Schlag.
+    // Effekte zählen am Rundenende herunter, damit "5 Runden" auch 5 Gegenangriffe abdecken.
+    if (action.startsWith('skill:') && !grave) {
+      if (castSkill(p, Number(action.slice(6)), log, N)) f.lastSpecial = true;
     }
+    const buffs = grave ? [] : p.buffs;
+    for (const b of buffs) if (b.roundMsg) log.push({ t: say.text(b.roundMsg, N), k: 'special' });
+
+    // Helfer (Skelettkrieger, Voodoo, Erdfaust) schlagen zuerst zu
+    let helperDmg = 0;
+    for (const b of buffs) {
+      for (let i = 0; i < (b.minions ?? 0) && f.foe.hp > 0; i++) {
+        const d = roll(b.minDmg ?? 0, Math.max(b.minDmg ?? 0, b.maxDmg ?? 1));
+        if (d > 0) {
+          f.foe.hp = Math.max(0, f.foe.hp - d);
+          helperDmg += d;
+          log.push({ t: say.text(b.effectMsg ?? '{N} nimmt {d} Schaden.', N, d), k: 'special' });
+        } else if (b.missMsg) log.push({ t: say.text(b.missMsg, N), k: 'info' });
+      }
+    }
+    if (f.foe.hp <= 0) {
+      f.lastHeroDmg = helperDmg;
+      endRound();
+      winFight(s);
+      return;
+    }
+
+    const atk = grave ? graveAttack(p) : heroAtk(p);
+    const foeDef = f.foe.def * (grave ? 1 : buffMult(p, 'foeDefMult'));
+    const h = strike(atk, foeDef, { ignoreDef: foeDef <= 0 });
+    if (h.miss) log.push({ t: say.heroMiss(N), k: 'info' });
+    else if (h.crit) log.push({ t: say.heroCrit(N, h.dmg, p.specialty), k: 'crit' });
+    else log.push({ t: say.heroHit(N, h.dmg, h.dmg / f.foe.maxHp), k: 'good' });
     f.topHit = Math.max(f.topHit ?? 0, h.dmg);
     const best = s.stats.bestHit;
     if (h.dmg > best.dmg) s.stats.bestHit = { dmg: h.dmg, foe: f.foe.name, day: s.day };
-    f.lastHeroDmg = h.dmg;
-    f.lastHeroMiss = h.miss;
+    f.lastHeroDmg = h.dmg + helperDmg;
+    f.lastHeroMiss = h.miss && !helperDmg;
     f.lastCrit = h.crit;
     f.foe.hp = Math.max(0, f.foe.hp - h.dmg);
-    tickBuffs(p, log);
 
+    // Lebensentzug und Regeneration
+    for (const b of buffs) {
+      const room = maxHp(p) - p.hp;
+      const heal = b.lifetap ? Math.min(room, Math.round(h.dmg * b.lifetap)) : b.regen ? Math.min(room, b.regen) : 0;
+      if (heal > 0) {
+        p.hp += heal;
+        log.push({ t: say.text(b.effectMsg ?? 'Du heilst um {d} Lebenspunkte.', N, heal), k: 'good' });
+      }
+    }
     if (f.foe.hp <= 0) {
-      pushLog(f, log);
+      endRound();
       winFight(s);
       return;
     }
   }
 
   // Gegenangriff
-  if (foeSkips) {
-    log.push({ t: say.foeSkips(N), k: 'info' });
-  } else {
-    const h = strike(f.foe.atk, grave ? graveAttack(p) : heroDef(p));
+  {
+    const atkMult = grave ? 1 : buffMult(p, 'foeAtkMult');
+    const h = atkMult <= 0 ? { dmg: 0, miss: true, crit: false } : strike(f.foe.atk * atkMult, grave ? graveAttack(p) : heroDef(p));
+    if (!h.miss && !grave) h.dmg = Math.max(1, Math.round(h.dmg * buffMult(p, 'foeDmgMult')));
     f.lastFoeDmg = h.dmg;
     f.lastFoeMiss = h.miss;
     if (h.miss) log.push({ t: say.foeMiss(N), k: 'info' });
@@ -406,8 +442,22 @@ export function fightAction(s: GameState, action: FightAction): void {
     else log.push({ t: say.foeHit(N, h.dmg, h.dmg / (grave ? maxSoul(p) : maxHp(p))), k: 'bad' });
     setHeroPool(Math.max(0, heroPool() - h.dmg));
     if (h.dmg > 0) f.heroHurt = true;
+    // Blitzaura: der Gegner bekommt seinen Schaden mehrfach zurück
+    if (!grave && h.dmg > 0 && heroPool() > 0) {
+      for (const b of p.buffs) {
+        if (!b.dmgShield) continue;
+        const back = Math.round(h.dmg * b.dmgShield);
+        f.foe.hp = Math.max(0, f.foe.hp - back);
+        log.push({ t: say.text(b.effectMsg ?? '{N} nimmt {d} Schaden.', N, back), k: 'special' });
+      }
+      if (f.foe.hp <= 0) {
+        endRound();
+        winFight(s);
+        return;
+      }
+    }
   }
-  pushLog(f, log);
+  endRound();
   if (heroPool() <= 0) loseFight(s);
 }
 
@@ -448,6 +498,16 @@ function winFight(s: GameState): void {
     p.hp = maxHp(p);
     f.log.push({ t: m.victory, k: 'info' });
     f.log.push({ t: `Du steigst auf Stufe ${p.level}! Deine Lebenskraft wächst auf ${maxHp(p)}.`, k: 'gold' });
+    // Wie im Original: jeder Meister bringt eine Stufe in der eigenen Fähigkeit, jede dritte einen Punkt mehr pro Tag.
+    p.skill += 1;
+    const spName = SPECIALTIES[p.specialty].name;
+    if (p.skill % 3 === 0) {
+      p.specialUses += 1;
+      f.log.push({ t: `${spName} steigt auf Stufe ${p.skill}! Du bekommst einen Fähigkeitspunkt mehr pro Tag.`, k: 'gold' });
+    } else {
+      const left = 3 - (p.skill % 3);
+      f.log.push({ t: `${spName} steigt auf Stufe ${p.skill}. Noch ${left} ${left === 1 ? 'Stufe' : 'Stufen'} bis zum nächsten Fähigkeitspunkt.`, k: 'gold' });
+    }
     s.news.push(`Du hast ${m.name} besiegt und bist jetzt Stufe ${p.level}.`);
     announce(s, `${p.name} hat ${m.name} auf dem Trainingsplatz besiegt und ist jetzt Stufe ${p.level}.`);
   } else {
@@ -515,7 +575,7 @@ export interface RestartResult { title: string; gold: number; gems: number; flaw
  * mit neuer Fähigkeit wieder bei Stufe 1 an, bekommt einen neuen Titel und startet in einen frischen Tag.
  * Gold im Beutel und im Kontor, Ausrüstung und Erfahrung sind weg. Edelsteine, Gunst und Bestiarium bleiben.
  */
-export function chooseDragonBonus(s: GameState, bonus: DragonBonus, specialty?: SpecialtyId): RestartResult | null {
+export function chooseDragonBonus(s: GameState, bonus: DragonBonus, specialty?: SpecialtyId, race?: RaceId): RestartResult | null {
   if (!s.pendingDragonBonus) return null;
   const p = s.player;
   const dk = p.dragonKills;
@@ -526,6 +586,8 @@ export function chooseDragonBonus(s: GameState, bonus: DragonBonus, specialty?: 
   if (bonus === 'ff') p.bonusFights += 1;
   p.dragonPoints.push(bonus);
   if (specialty && SPECIALTIES[specialty]) p.specialty = specialty;
+  if (race && RACES[race]) p.race = race;
+  p.skill = 0;
   p.charm += CHARM_PER_DRAGON;
   p.level = 1;
   p.exp = 0;
@@ -548,7 +610,7 @@ export function chooseDragonBonus(s: GameState, bonus: DragonBonus, specialty?: 
   const lines = [
     `Moosgrund feiert dich als Drachentöter. Es ist dein ${dk}. Sieg über den Brackenwyrm. Doch Wyrme kehren wieder …`,
     `Von heute an nennt man dich ${title} ${p.name}.`,
-    `Du beginnst ein neues Leben. Deine Fähigkeit: ${SPECIALTIES[p.specialty].name}. Im Beutel: ${gold} Gold${gems ? ` und ${gems} Edelstein${gems > 1 ? 'en' : ''}` : ''}.`,
+    `Du beginnst ein neues Leben als ${raceName(p.race, p.gender)}. Deine Fähigkeit: ${SPECIALTIES[p.specialty].name}. Im Beutel: ${gold} Gold${gems ? ` und ${gems} Edelstein${gems > 1 ? 'en' : ''}` : ''}.`,
   ];
   if (flawless) lines.push(`Für deinen makellosen Sieg schenkt dir der Dorfrat ${FLAWLESS_GOLD} Gold und ${FLAWLESS_GEMS} Edelstein.`);
   s.news = [...lines, ...s.news];
@@ -639,7 +701,7 @@ export function requestSong(s: GameState): string {
     return 'Florian singt ein Wiegenlied so schön, dass deine Wunden sich schließen.';
   }
   p.specialUses += 2;
-  return `Florian singt vom ${SPECIALTIES[p.specialty].name}-Helden aus alten Tagen. Du kannst deine Fähigkeit zweimal mehr einsetzen.`;
+  return `Florian singt von den großen Meistern der ${SPECIALTIES[p.specialty].name} aus alten Tagen. Du bekommst 2 Fähigkeitspunkte.`;
 }
 
 export { maxSoul, soulRestoreCost, RESURRECT_FAVOR };

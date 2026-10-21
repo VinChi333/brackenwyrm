@@ -2,7 +2,9 @@
 // Ohne VITE_SUPABASE_URL und VITE_SUPABASE_ANON_KEY ist alles abgeschaltet und das Spiel läuft rein lokal.
 
 import { validate } from './storage';
-import type { GameState, Gender, SpecialtyId } from './types';
+import { LEGACY_REVERSE, normalizeSpecialty } from '../content/specialties';
+import { normalizeRace } from '../content/races';
+import type { GameState, Gender, RaceId, SpecialtyId } from './types';
 
 const URL_ = (import.meta.env?.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 const KEY_ = (import.meta.env?.VITE_SUPABASE_ANON_KEY as string | undefined) ?? '';
@@ -11,12 +13,12 @@ const SESSION_KEY = 'brackenwyrm.session';
 export interface Session { accessToken: string; refreshToken: string; expiresAt: number; userId: string; email: string }
 export interface RemoteSave { state: GameState; savedAt: number }
 export interface FameRow { name: string; dragonKills: number; level: number; gender?: Gender; title?: string }
-export interface PvpTarget { userId: string; name: string; level: number; specialty: SpecialtyId; gender: Gender; dragonKills: number; attackable: boolean; note: string }
+export interface PvpTarget { userId: string; name: string; level: number; specialty: SpecialtyId; race: RaceId; gender: Gender; dragonKills: number; attackable: boolean; note: string }
 export interface PvpResult {
   won: boolean;
   rounds: [number, number][];       // [Schaden des Angreifers, Schaden des Opfers] je Runde, 0 = daneben
   hero: { hp: number; max: number };
-  foe: { name: string; level: number; specialty: SpecialtyId; gender: Gender; hp: number; max: number; weapon_tier: number };
+  foe: { name: string; level: number; specialty: string; race?: string; gender: Gender; hp: number; max: number; weapon_tier: number };
   gold: number; exp_win: number; exp_lose: number; fights_left: number;
 }
 export interface PvpEvent { id: number; kind: 'slain' | 'defended'; other_name: string; place: string; gold: number; exp: number; created_at: string }
@@ -126,19 +128,23 @@ export class Cloud {
   async pushFighter(state: GameState): Promise<void> {
     const s = await this.ensureSession();
     const p = state.player;
+    const body: Record<string, unknown> = {
+      user_id: s.userId, name: p.name, specialty: p.specialty, race: p.race, gender: p.gender, level: p.level, exp: Math.max(0, Math.round(p.exp)),
+      gold: Math.max(0, p.gold), hp: Math.max(0, p.hp), base_max_hp: p.baseMaxHp, bonus_atk: p.bonusAtk, bonus_def: p.bonusDef,
+      weapon_tier: p.weaponTier, armor_tier: p.armorTier, dragon_kills: p.dragonKills, days_played: state.stats.realDays,
+      alive: p.alive, in_inn: p.alive && p.innRoom,
+    };
+    const send = (b: object) => this.call('/rest/v1/fighters', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: b });
     try {
-      await this.call('/rest/v1/fighters', {
-        method: 'POST',
-        prefer: 'resolution=merge-duplicates,return=minimal',
-        body: {
-          user_id: s.userId, name: p.name, specialty: p.specialty, gender: p.gender, level: p.level, exp: Math.max(0, Math.round(p.exp)),
-          gold: Math.max(0, p.gold), hp: Math.max(0, p.hp), base_max_hp: p.baseMaxHp, bonus_atk: p.bonusAtk, bonus_def: p.bonusDef,
-          weapon_tier: p.weaponTier, armor_tier: p.armorTier, dragon_kills: p.dragonKills, days_played: state.stats.realDays,
-          alive: p.alive, in_inn: p.alive && p.innRoom,
-        },
-      });
+      await send(body);
     } catch (e) {
       if (e instanceof CloudError && /404|42P01|PGRST205/.test(e.message)) return;  // Tabelle gibt es (noch) nicht
+      // Datenbank noch auf altem Stand (ohne Rasse, alte Fähigkeiten): so speichern, wie sie es kennt
+      if (e instanceof CloudError && /race|PGRST204|42703|23514|check/i.test(e.message)) {
+        const { race: _race, ...old } = body;
+        await send({ ...old, specialty: LEGACY_REVERSE[p.specialty] });
+        return;
+      }
       throw e;
     }
   }
@@ -165,8 +171,8 @@ export class Cloud {
   async pvpTargets(place: 'felder' | 'gasthaus'): Promise<PvpTarget[]> {
     await this.ensureSession();
     const rows = await this.call('/rest/v1/rpc/pvp_targets', { method: 'POST', body: { place } });
-    return (Array.isArray(rows) ? rows : []).map((r: { user_id: string; name: string; level: number; specialty: SpecialtyId; gender: Gender; dragon_kills: number; attackable: boolean; note: string }) => ({
-      userId: r.user_id, name: r.name, level: r.level, specialty: r.specialty, gender: r.gender, dragonKills: r.dragon_kills, attackable: r.attackable, note: r.note,
+    return (Array.isArray(rows) ? rows : []).map((r: { user_id: string; name: string; level: number; specialty: string; race?: string; gender: Gender; dragon_kills: number; attackable: boolean; note: string }) => ({
+      userId: r.user_id, name: r.name, level: r.level, specialty: normalizeSpecialty(r.specialty), race: normalizeRace(r.race), gender: r.gender, dragonKills: r.dragon_kills, attackable: r.attackable, note: r.note,
     }));
   }
 

@@ -9,7 +9,7 @@ let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n++; console.log('ok  ', name); };
 
 function killedDragon(dk: number, flawless = false) {
-  const s = newGame('Hilda', 'klinge', 'f');
+  const s = newGame('Hilda', 'dunkel', 'f');
   const p = s.player;
   p.level = 15; p.exp = 99999; p.gold = 4000; p.bank = 12000; p.gems = 3; p.weaponTier = 14; p.armorTier = 14;
   p.dragonKills = dk; s.pendingDragonBonus = true; s.flawlessDragon = flawless;
@@ -26,13 +26,13 @@ t('Titelleiter mit weiblichen Formen', () => {
 t('erster Drachenkill: alles auf Anfang, Edelsteine bleiben, Kontor ist leer', () => {
   const s = killedDragon(1);
   const day = s.day;
-  const r = chooseDragonBonus(s, 'ff', 'wurzel')!;
+  const r = chooseDragonBonus(s, 'ff', 'mystik')!;
   const p = s.player;
   assert.equal(p.level, 1); assert.equal(p.exp, 0); assert.equal(p.weaponTier, 0); assert.equal(p.armorTier, 0);
   assert.equal(p.bank, 0); assert.equal(p.gold, 100); assert.equal(p.gems, 3);
-  assert.equal(p.specialty, 'wurzel');
+  assert.equal(p.specialty, 'mystik');
   assert.equal(p.bonusFights, 1);
-  assert.equal(p.forestFights, FOREST_FIGHTS_PER_DAY + 1);
+  assert.equal(p.forestFights, FOREST_FIGHTS_PER_DAY + 1 + 1, 'Drachenpunkt + Mensch');
   assert.equal(p.hp, maxHp(p));
   assert.equal(p.charm, 5);
   assert.deepEqual(p.dragonPoints, ['ff']);
@@ -53,12 +53,12 @@ t('makelloser Sieg gibt 150 Gold und einen Edelstein extra', () => {
   assert.equal(s.player.gold, 250); assert.equal(s.player.gems, 4); assert.equal(s.player.baseMaxHp, 5);
 });
 t('ohne Drachenkill passiert nichts', () => {
-  const s = newGame('Hagen', 'klinge');
+  const s = newGame('Hagen', 'dunkel');
   assert.equal(chooseDragonBonus(s, 'atk'), null);
   assert.equal(s.player.bonusAtk, 0);
 });
 t('alte Spielstände bekommen die neuen Felder', () => {
-  const s = newGame('Alt', 'klinge') as any;
+  const s = newGame('Alt', 'dunkel') as any;
   delete s.player.bonusFights; delete s.player.charm; delete s.player.dragonPoints;
   const v = validate(JSON.parse(JSON.stringify(s)))!;
   assert.equal(v.player.bonusFights, 0); assert.equal(v.player.charm, 0); assert.deepEqual(v.player.dragonPoints, []);

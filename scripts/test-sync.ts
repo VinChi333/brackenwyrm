@@ -9,7 +9,7 @@ let n = 0;
 const t = (name: string, fn: () => void | Promise<void>) => Promise.resolve(fn()).then(() => { n++; console.log('ok  ', name); });
 
 await t('alter Spielstand ohne Zeitstempel zählt als vorhanden', () => {
-  const s = newGame('Alt', 'klinge') as unknown as Record<string, unknown>;
+  const s = newGame('Alt', 'dunkel') as unknown as Record<string, unknown>;
   delete s.savedAt;
   const v = validate(JSON.parse(JSON.stringify(s)))!;
   assert.equal(decideSync({ local: v.savedAt ?? null, remote: null, lastSynced: 0 }), 'push');
@@ -78,7 +78,7 @@ await t('richtiger Code meldet an und merkt sich die Sitzung', async () => {
   assert.ok(mem.get('brackenwyrm.session'));
 });
 await t('hochladen und wieder laden ergibt denselben Spielstand', async () => {
-  const s = newGame('Hilda', 'wurzel', 'f');
+  const s = newGame('Hilda', 'mystik', 'f');
   s.savedAt = 1234;
   s.player.level = 3;
   await cloud.push(s);

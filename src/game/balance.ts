@@ -49,17 +49,26 @@ export function maxHp(p: Player): number {
   return 10 + 10 * p.level + p.baseMaxHp;
 }
 
+/** Rassenvorteil für Troll (Angriff) und Elf (Verteidigung), wie im Original: 1 + Stufe/5. */
+export function raceBonus(p: Pick<Player, 'level'>): number {
+  return 1 + Math.floor(p.level / 5);
+}
+
 export function attack(p: Player): number {
-  return 3 + 2 * p.level + WEAPONS[p.weaponTier].value + p.bonusAtk;
+  return 3 + 2 * p.level + WEAPONS[p.weaponTier].value + p.bonusAtk + (p.race === 'troll' ? raceBonus(p) : 0);
 }
 
 export function defense(p: Player): number {
-  return 3 + 2 * p.level + ARMORS[p.armorTier].value + p.bonusDef;
+  return 3 + 2 * p.level + ARMORS[p.armorTier].value + p.bonusDef + (p.race === 'elf' ? raceBonus(p) : 0);
 }
 
+/** Fähigkeitspunkte pro Tag wie im Original: ein Punkt fürs Interesse, plus einer je drei Fähigkeitsstufen. */
 export function specialUsesPerDay(p: Player): number {
-  return 2 + Math.floor(p.level / 5);
+  return 1 + Math.floor((p.skill ?? 0) / 3);
 }
+
+/** Zwerge finden 20 % mehr Gold. */
+export const DWARF_GOLD = 1.2;
 
 /** Erfahrung pro Sieg im Wald, bevor Zufall und Modus wirken. */
 export function expPerKill(level: number): number {
@@ -129,8 +138,8 @@ export function dragonStats(): Omit<Combatant, 'name'> {
 
 // ---------- Drachen-Neustart (wie im Original) ----------
 /** Waldkämpfe pro Tag inklusive Drachenpunkten. */
-export function forestFightsPerDay(p: { bonusFights?: number }): number {
-  return FOREST_FIGHTS_PER_DAY + (p.bonusFights ?? 0);
+export function forestFightsPerDay(p: { bonusFights?: number; race?: string }): number {
+  return FOREST_FIGHTS_PER_DAY + (p.bonusFights ?? 0) + (p.race === 'mensch' ? 1 : 0);
 }
 /** Startgold nach einem Drachenkill: 50 plus 50 je Drachenkill, höchstens 300. */
 export function restartGold(dragonKills: number): number {

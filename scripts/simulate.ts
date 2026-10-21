@@ -20,6 +20,7 @@ let masterTries = 0, masterWins = 0;
 const masterByLevel: { t: number; w: number }[] = Array.from({ length: MAX_LEVEL + 1 }, () => ({ t: 0, w: 0 }));
 let dragonTries = 0, dragonWins = 0;
 const daysToDragon: number[] = [];
+const byCombo: Record<string, number[]> = {};
 let goldStarved = 0;
 
 function bestAffordable(s: GameState, kind: 'weapon' | 'armor'): void {
@@ -36,8 +37,11 @@ function fightOut(s: GameState): void {
   const f = s.fight!;
   while (!f.over) {
     const p = s.player;
-    const useSpecial = p.specialUses > 0 && f.foe.hp > f.foe.maxHp * 0.35 && (f.kind !== 'forest' || p.hp < maxHp(p) * 0.6);
-    fightAction(s, useSpecial ? 'special' : 'attack');
+    // Künste: bei Meister und Drache die teuerste bezahlbare, im Wald die billigste, wenn es eng wird
+    const costs = [5, 3, 2, 1].filter((c) => p.specialUses >= c);
+    const important = f.kind !== 'forest';
+    const want = f.foe.hp > f.foe.maxHp * 0.35 && (important || p.hp < maxHp(p) * 0.6) && costs.length && p.buffs.length < 2;
+    fightAction(s, want ? `skill:${important ? costs[0] : costs[costs.length - 1]}` : 'attack');
   }
 }
 
@@ -50,7 +54,7 @@ function topUp(s: GameState, threshold: number): void {
 }
 
 for (let run = 0; run < RUNS; run++) {
-  const s = newGame('Bot', (['klinge', 'wurzel', 'schleich'] as const)[run % 3]);
+  const s = newGame('Bot', (['dunkel', 'mystik', 'dieb'] as const)[run % 3], 'm', (['mensch', 'elf', 'troll', 'zwerg'] as const)[Math.floor(run / 3) % 4]);
   let levelStartDay = 1;
   let safety = 0;
   while (safety++ < 400) {
@@ -85,7 +89,7 @@ for (let run = 0; run < RUNS; run++) {
       dragonTries++;
       const won = s.fight!.over === 'win';
       closeFight(s);
-      if (won) { dragonWins++; daysToDragon.push(s.day); chooseDragonBonus(s, 'atk'); break; }
+      if (won) { dragonWins++; daysToDragon.push(s.day); (byCombo[`${s.player.race}/${s.player.specialty}`] ??= []).push(s.day); chooseDragonBonus(s, 'atk'); break; }
     }
 
     // Waldkämpfe
@@ -134,3 +138,7 @@ console.log(`Drache: ${pct(dragonWins, dragonTries)} (${dragonTries} Versuche)`)
 const avg = daysToDragon.reduce((a, b) => a + b, 0) / Math.max(1, daysToDragon.length);
 console.log(`Tage bis zum ersten Drachenkill: Ø ${avg.toFixed(1)} (${daysToDragon.length}/${RUNS} geschafft)`);
 console.log(`Situationen mit zu wenig Gold zum Heilen: ${goldStarved}`);
+for (const k of Object.keys(byCombo).sort()) {
+  const d = byCombo[k];
+  console.log(`  ${k.padEnd(16)} Ø ${(d.reduce((a, b) => a + b, 0) / d.length).toFixed(1)} Tage (${d.length} Läufe)`);
+}

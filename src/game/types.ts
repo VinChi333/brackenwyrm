@@ -1,6 +1,10 @@
 // Gemeinsame Typen der Spiellogik. Keine Darstellung, kein DOM.
 
-export type SpecialtyId = 'klinge' | 'wurzel' | 'schleich';
+/** Fähigkeiten wie im Original: Dunkle Künste, Mystische Kräfte, Diebeskünste. */
+export type SpecialtyId = 'dunkel' | 'mystik' | 'dieb';
+
+/** Rassen wie im Original. */
+export type RaceId = 'mensch' | 'elf' | 'troll' | 'zwerg';
 
 /** Für Heldenbild und Anrede. */
 export type Gender = 'm' | 'f';
@@ -57,10 +61,24 @@ export interface Combatant {
 export type FightKind = 'forest' | 'master' | 'dragon' | 'grave' | 'pvp';
 
 export interface Buff {
+  id?: string;            // gleiche id ersetzt den alten Effekt
   name: string;
   atkMult: number;
   defMult?: number;
   rounds: number;
+  foeAtkMult?: number;    // Gegner greift schwächer an (0 = trifft gar nicht)
+  foeDmgMult?: number;    // Gegner richtet weniger Schaden an
+  foeDefMult?: number;    // Gegner verteidigt sich schwächer (0 = gar nicht)
+  minions?: number;       // Helfer, die jede Runde zusätzlich zuschlagen
+  minDmg?: number;
+  maxDmg?: number;
+  regen?: number;         // Heilung pro Runde
+  lifetap?: number;       // Anteil des eigenen Schadens, der heilt
+  dmgShield?: number;     // Gegner bekommt diesen Anteil seines Schadens zurück
+  roundMsg?: string;      // Texte mit {a}/{N} für den Gegnernamen, {d} für Zahlen
+  effectMsg?: string;
+  missMsg?: string;
+  wearOff?: string;
 }
 
 export type PartnerId = 'frieda' | 'florian';
@@ -102,7 +120,8 @@ export interface Fight {
   lastSpecial: boolean;
   seq: number;          // zählt jede Aktion, damit Animationen neu starten
   topHit?: number;      // stärkster eigener Treffer in diesem Kampf
-  foeSpec?: SpecialtyId;  // nur Spieler gegen Spieler: Fähigkeit und Geschlecht des anderen Helden (für sein Bild)
+  foeSpec?: SpecialtyId;
+  foeRace?: RaceId;  // nur Spieler gegen Spieler: Fähigkeit und Geschlecht des anderen Helden (für sein Bild)
   foeGender?: Gender;
   pvpPlace?: 'felder' | 'gasthaus';
   autoWarned?: boolean; // "Kämpfen bis zum Ende" hat in diesem Kampf schon einmal angehalten
@@ -112,6 +131,7 @@ export interface Fight {
 export interface Player {
   name: string;
   specialty: SpecialtyId;
+  race: RaceId;
   gender: Gender;
   level: number;
   exp: number;
@@ -125,7 +145,8 @@ export interface Player {
   bank: number;
   gems: number;
   forestFights: number;
-  specialUses: number;
+  specialUses: number;     // Fähigkeitspunkte für heute
+  skill: number;           // Stufe in der eigenen Fähigkeit (steigt mit jedem Meister, nach dem Drachen wieder 0)
   dragonKills: number;
   alive: boolean;
   seenMaster: boolean;

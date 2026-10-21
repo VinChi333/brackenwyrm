@@ -19,7 +19,8 @@ alter table public.profiles add column if not exists gender text not null defaul
 create table if not exists public.fighters (
   user_id      uuid primary key references auth.users(id) on delete cascade,
   name         text not null check (char_length(name) between 1 and 20),
-  specialty    text not null default 'klinge' check (specialty in ('klinge', 'wurzel', 'schleich')),
+  specialty    text not null default 'dunkel',
+  race         text not null default 'mensch',
   gender       text not null default 'm' check (gender in ('m', 'f')),
   level        int  not null default 1 check (level between 1 and 15),
   exp          int  not null default 0 check (exp >= 0),
@@ -42,6 +43,13 @@ create table if not exists public.fighters (
   last_seen    timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
+-- Testversion 0.21: Fähigkeiten und Rassen wie im Original (alte Fähigkeitsnamen bleiben erlaubt, bis alle aktualisiert haben)
+alter table public.fighters add column if not exists race text not null default 'mensch';
+alter table public.fighters drop constraint if exists fighters_specialty_check;
+alter table public.fighters drop constraint if exists fighters_race_check;
+alter table public.fighters add constraint fighters_specialty_check check (specialty in ('dunkel', 'mystik', 'dieb', 'klinge', 'wurzel', 'schleich'));
+alter table public.fighters add constraint fighters_race_check check (race in ('mensch', 'elf', 'troll', 'zwerg'));
+
 alter table public.fighters enable row level security;
 drop policy if exists "Kampfwerte lesen (nur eigene)" on public.fighters;
 drop policy if exists "Kampfwerte anlegen (nur eigene)" on public.fighters;
@@ -52,9 +60,9 @@ create policy "Kampfwerte ändern (nur eigene)"  on public.fighters for update t
 -- Das Spiel darf nur diese Spalten schreiben; pk, pvp_* und last_seen setzt allein der Server.
 revoke all on public.fighters from anon, authenticated;
 grant select on public.fighters to authenticated;
-grant insert (user_id, name, specialty, gender, level, exp, gold, hp, base_max_hp, bonus_atk, bonus_def, weapon_tier, armor_tier, dragon_kills, days_played, alive, in_inn)
+grant insert (user_id, name, specialty, race, gender, level, exp, gold, hp, base_max_hp, bonus_atk, bonus_def, weapon_tier, armor_tier, dragon_kills, days_played, alive, in_inn)
   on public.fighters to authenticated;
-grant update (name, specialty, gender, level, exp, gold, hp, base_max_hp, bonus_atk, bonus_def, weapon_tier, armor_tier, dragon_kills, days_played, alive, in_inn)
+grant update (name, specialty, race, gender, level, exp, gold, hp, base_max_hp, bonus_atk, bonus_def, weapon_tier, armor_tier, dragon_kills, days_played, alive, in_inn)
   on public.fighters to authenticated;
 
 -- "Zuletzt gesehen" setzt der Server bei jedem Schreiben selbst.
@@ -169,9 +177,11 @@ create or replace function public.f_max_hp(f public.fighters) returns int langua
 $$;
 create or replace function public.f_attack(f public.fighters) returns int language sql immutable as $$
   select 3 + 2 * f.level + (f.weapon_tier * 2 + 1) + least(f.bonus_atk, f.dragon_kills)
+         + case when f.race = 'troll' then 1 + f.level / 5 else 0 end  -- Trolle: mehr Angriff
 $$;
 create or replace function public.f_defense(f public.fighters) returns int language sql immutable as $$
   select 3 + 2 * f.level + (f.armor_tier * 2 + 1) + least(f.bonus_def, f.dragon_kills)
+         + case when f.race = 'elf' then 1 + f.level / 5 else 0 end  -- Elfen: mehr Verteidigung
 $$;
 
 -- Geschützt (Neulingsschutz): jünger als 6 Tage, höchstens 1500 Erfahrung, kein Drachenkill, nie selbst angegriffen.
@@ -180,15 +190,16 @@ create or replace function public.f_immune(f public.fighters) returns boolean la
 $$;
 
 -- Wer schläft wo und kann angegriffen werden? place = 'felder' oder 'gasthaus'.
+drop function if exists public.pvp_targets(text);
 create or replace function public.pvp_targets(place text default 'felder')
-returns table (user_id uuid, name text, level int, specialty text, gender text, dragon_kills int, attackable boolean, note text)
+returns table (user_id uuid, name text, level int, specialty text, race text, gender text, dragon_kills int, attackable boolean, note text)
 language plpgsql stable security definer set search_path = public as $$
 declare me public.fighters;
 begin
   select * into me from public.fighters f where f.user_id = auth.uid();
   if me.user_id is null then return; end if;
   return query
-    select t.user_id, t.name, t.level, t.specialty, t.gender, t.dragon_kills,
+    select t.user_id, t.name, t.level, t.specialty, t.race, t.gender, t.dragon_kills,
            (t.pvp_flag is null or t.pvp_flag < now() - interval '10 minutes') as attackable,
            case when t.pvp_flag is not null and t.pvp_flag >= now() - interval '10 minutes' then 'wurde gerade erst angegriffen' else '' end
     from public.fighters t
@@ -276,7 +287,7 @@ begin
   return jsonb_build_object(
     'won', won, 'rounds', rounds,
     'hero', jsonb_build_object('hp', greatest(0, my_hp), 'max', my_max),
-    'foe', jsonb_build_object('name', t.name, 'level', t.level, 'specialty', t.specialty, 'gender', t.gender, 'hp', t_hp, 'max', t_max, 'weapon_tier', t.weapon_tier),
+    'foe', jsonb_build_object('name', t.name, 'level', t.level, 'specialty', t.specialty, 'race', t.race, 'gender', t.gender, 'hp', t_hp, 'max', t_max, 'weapon_tier', t.weapon_tier),
     'gold', gold_amt, 'exp_win', case when won then exp_win else 0 end, 'exp_lose', case when won then 0 else exp_lose end,
     'fights_left', 3 - me.pvp_used);
 end $$;

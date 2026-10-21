@@ -17,7 +17,7 @@ const FRIEDA_LORE = [
   '„Eulenbären sind halb Eule, halb Bär und ganz schlecht gelaunt. Lauf nicht weg, die sind schneller.“',
   '„Im Wald gibt es Moosfeen. Die mögen Edelsteine. Was sie dafür geben, weiß man vorher nie.“',
   '„Alrik gibt dir für alte Ausrüstung die Hälfte zurück. Mehr bekommst du von dem Geizhals nicht.“',
-  '„Deine Fähigkeit wird über Nacht wieder frisch. Spar sie dir nicht für morgen auf, das bringt nichts.“',
+  '„Deine Fähigkeitspunkte kommen über Nacht wieder. Spar sie dir nicht für morgen auf, das bringt nichts. Und jeder Meister, den du besiegst, macht dich darin besser.“',
   '„Glühwürmchen? Wenn sie flüstern, hör zu.“',
   '„Ein Harzbier pro Tag. Mehr schenke ich nicht aus. Ich will hier keine Helden, die über ihre eigenen Füße stolpern.“',
 ];

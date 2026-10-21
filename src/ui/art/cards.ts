@@ -5,8 +5,8 @@
 import { masterForLevel } from '../../content/masters';
 import { DRAGON, monsterById } from '../../content/monsters';
 import { shadeById } from '../../content/shades';
-import { SPECIALTIES } from '../../content/specialties';
-import type { Gender, MonsterDef, ShapeId, SpecialtyId } from '../../game/types';
+import { LEGACY_REVERSE, SPECIALTIES } from '../../content/specialties';
+import type { Gender, MonsterDef, RaceId, ShapeId, SpecialtyId } from '../../game/types';
 import { creature, humanoid } from './silhouettes';
 
 /**
@@ -120,18 +120,35 @@ export function masterCard(level: number): CardInfo {
 }
 
 function heroShadow(spec: SpecialtyId): string {
-  const opts = { hood: spec === 'schleich', shield: spec === 'klinge', cape: spec === 'wurzel' };
-  return shadowArt(humanoid(SPECIALTIES[spec].heroProp, null, opts), 'humanoid', '#6fc8e0', true);
+  const opts = { hood: spec === 'dieb', shield: false, cape: spec !== 'dieb' };
+  return shadowArt(humanoid(SPECIALTIES[spec].heroProp, null, opts), 'humanoid', SPECIALTIES[spec].color, true);
 }
 
-/** Ganzes Heldenbild (Charaktererstellung). */
-export function heroArt(spec: SpecialtyId, gender: Gender): string {
-  return artFor(`hero-${spec}-${gender}`, () => heroShadow(spec)).art;
+/** Bild für Rasse + Fähigkeit + Geschlecht. Solange das neue Bild fehlt, das alte Heldenbild der Fähigkeit. */
+function heroFile(prefix: 'held' | 'portrait', race: RaceId, spec: SpecialtyId, gender: Gender): string | null {
+  const exact = `${prefix}-${race}-${spec}-${gender}`;
+  if (MONSTER_ART[exact]) return exact;
+  const legacy = `${prefix === 'held' ? 'hero' : 'portrait'}-${LEGACY_REVERSE[spec]}-${gender}`;
+  return MONSTER_ART[legacy] ? legacy : null;
 }
 
-/** Kopf-und-Schultern-Ausschnitt für die Charakterleiste. */
-export function heroPortrait(spec: SpecialtyId, gender: Gender): string {
-  return artFor(`portrait-${spec}-${gender}`, () => heroShadow(spec)).art;
+export function hasHeroArt(race: RaceId, spec: SpecialtyId, gender: Gender): boolean {
+  return !!MONSTER_ART[`held-${race}-${spec}-${gender}`];
+}
+
+/** Ganzes Heldenbild (Charaktererstellung, Spielerkampf). */
+export function heroArt(race: RaceId, spec: SpecialtyId, gender: Gender): string {
+  const f = heroFile('held', race, spec, gender);
+  return f ? artFor(f, () => '').art : heroShadow(spec);
+}
+
+/** Kopf-und-Schultern-Ausschnitt für die Charakterleiste. Fehlt der Ausschnitt, das ganze Bild oben angesetzt. */
+export function heroPortrait(race: RaceId, spec: SpecialtyId, gender: Gender): string {
+  const f = heroFile('portrait', race, spec, gender);
+  if (f && (f.startsWith('portrait-') && f.includes(`-${race}-`))) return artFor(f, () => '').art;
+  const full = MONSTER_ART[`held-${race}-${spec}-${gender}`];
+  if (full) return `<img class="card-img portrait-from-full" src="${full}" alt="">`;
+  return f ? artFor(f, () => '').art : heroShadow(spec);
 }
 
 export function cardFor(key: string): CardInfo | null {

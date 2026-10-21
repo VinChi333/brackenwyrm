@@ -87,7 +87,7 @@ export const FOREST_EVENTS: ForestEvent[] = [
       return [{ t: 'Glühwürmchen umschwirren dich. Du fühlst dich schon randvoll mit Kraft.', k: 'info' }];
     }
     p.specialUses += 1;
-    return [{ t: 'Glühwürmchen umschwirren dich und flüstern dir etwas zu. Du kannst deine Fähigkeit einmal mehr einsetzen.', k: 'good' }];
+    return [{ t: 'Glühwürmchen umschwirren dich und flüstern dir etwas zu. Du bekommst einen Fähigkeitspunkt dazu.', k: 'good' }];
   } },
   { id: 'igel', weight: 7, run: () => [
     { t: 'Etwas raschelt im Unterholz. Es ist ein Igel. Er sieht dich vorwurfsvoll an, bis du weitergehst.', k: 'info' },
@@ -186,7 +186,7 @@ export const FOREST_EVENTS: ForestEvent[] = [
         if (chance(0.5)) {
           p.hp = maxHp(p);
           p.specialUses += 1;
-          return [{ t: 'Köstlich! Deine Wunden schließen sich, und du fühlst dich hellwach. Volle Lebenspunkte, Fähigkeit +1.', k: 'good' }];
+          return [{ t: 'Köstlich! Deine Wunden schließen sich, und du fühlst dich hellwach. Volle Lebenspunkte und ein Fähigkeitspunkt dazu.', k: 'good' }];
         }
         const d = hurt(p, 0.15);
         p.forestFights = Math.max(0, p.forestFights - 1);

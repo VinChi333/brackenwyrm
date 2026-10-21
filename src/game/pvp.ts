@@ -3,7 +3,8 @@
 
 import { say } from '../content/fighttext';
 import { WEAPONS } from '../content/items';
-import { SPECIALTIES } from '../content/specialties';
+import { SPECIALTIES, normalizeSpecialty } from '../content/specialties';
+import { normalizeRace } from '../content/races';
 import { maxSoul } from './balance';
 import type { PvpEvent, PvpResult } from './cloud';
 import type { Fight, GameState, LogLine } from './types';
@@ -45,7 +46,7 @@ export function applyPvpResult(s: GameState, res: PvpResult, place: 'felder' | '
   const p = s.player;
   const foe = res.foe;
   const weapon = WEAPONS[Math.max(0, Math.min(WEAPONS.length - 1, foe.weapon_tier))]?.name ?? 'Waffe';
-  const names = { a: foe.name, N: foe.name, hits: `schlägt im Halbschlaf mit ${weapon} zu`, move: SPECIALTIES[p.specialty].move };
+  const names = { a: foe.name, N: foe.name, hits: `schlägt im Halbschlaf mit ${weapon} zu`, move: SPECIALTIES[p.specialty].name };
   const log: LogLine[] = [{
     t: place === 'gasthaus'
       ? `Frieda zwinkert dir zu und dreht sich weg. Du schleichst die Treppe hinauf zu ${foe.name}s Zimmer. ${foe.name} fährt aus dem Schlaf hoch!`
@@ -89,7 +90,7 @@ export function applyPvpResult(s: GameState, res: PvpResult, place: 'felder' | '
     kind: 'pvp', monsterId: `pvp:${foe.name}`, foe: { name: foe.name, level: foe.level, hp: res.won ? 0 : foeHp, maxHp: foe.max, atk: 0, def: 0 },
     expReward: res.exp_win, goldReward: res.gold, round: r, log, over: res.won ? 'win' : 'lose', bound: 0,
     lastHeroDmg: last[0], lastFoeDmg: last[1], lastHeroMiss: last[0] === 0, lastFoeMiss: last[1] === 0, lastCrit: false, lastSpecial: false,
-    seq: 1, foeSpec: foe.specialty, foeGender: foe.gender, pvpPlace: place,
+    seq: 1, foeSpec: normalizeSpecialty(foe.specialty), foeRace: normalizeRace(foe.race), foeGender: foe.gender, pvpPlace: place,
     topHit: Math.max(0, ...res.rounds.map((x) => x[0])),
   };
   s.fight = f;

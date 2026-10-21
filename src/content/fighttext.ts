@@ -30,35 +30,20 @@ const HERO_MISS = [
 ];
 
 const HERO_CRIT: Record<SpecialtyId, string[]> = {
-  klinge: [
-    'VOLLTREFFER! Du legst dein ganzes Gewicht in den Schlag und triffst {a} mit voller Wucht: {d} Schadenspunkte!',
-    'VOLLTREFFER! Deine Klinge findet die Lücke in der Deckung. {N} heult auf: {d} Schadenspunkte!',
-    'VOLLTREFFER! Ein Hieb wie aus dem Lehrbuch von Gundolf. {N} wankt: {d} Schadenspunkte!',
+  dunkel: [
+    'VOLLTREFFER! Ein dunkles Flüstern führt deine Hand. {N} schreit auf: {d} Schadenspunkte!',
+    'VOLLTREFFER! Für einen Herzschlag wird es kalt im Wald. Dein Schlag trifft {a} mit voller Wucht: {d} Schadenspunkte!',
+    'VOLLTREFFER! Irgendwo lacht ein Toter. {N} wankt: {d} Schadenspunkte!',
   ],
-  wurzel: [
-    'VOLLTREFFER! Dein Stab kracht auf {a}, und die Erde bebt mit: {d} Schadenspunkte!',
-    'VOLLTREFFER! Für einen Moment leuchten die Runen auf deinem Stab. {N} wird zurückgeschleudert: {d} Schadenspunkte!',
-    'VOLLTREFFER! Der Wald selbst scheint mitzuschlagen: {d} Schadenspunkte!',
+  mystik: [
+    'VOLLTREFFER! Funken springen von deiner Waffe, und {N} wird zurückgeschleudert: {d} Schadenspunkte!',
+    'VOLLTREFFER! Für einen Moment leuchten die Runen auf deiner Kleidung. {N} taumelt: {d} Schadenspunkte!',
+    'VOLLTREFFER! Die Erde bebt mit deinem Schlag: {d} Schadenspunkte!',
   ],
-  schleich: [
+  dieb: [
     'VOLLTREFFER! Du findest die verwundbare Stelle und stichst zu: {d} Schadenspunkte!',
-    'VOLLTREFFER! {N} sieht dich nicht kommen. Deine Dolche schon: {d} Schadenspunkte!',
+    'VOLLTREFFER! {N} sieht dich nicht kommen. Deine Klinge schon: {d} Schadenspunkte!',
     'VOLLTREFFER! Ein Schritt zur Seite, ein Stich ins Herz der Deckung: {d} Schadenspunkte!',
-  ],
-};
-
-const SPECIAL: Record<SpecialtyId, string[]> = {
-  klinge: [
-    '{move}! Du spaltest {a} mit voller Wucht: {d} Schaden.',
-    '{move}! Du holst weit aus, und die Rinde splittert: {d} Schaden.',
-  ],
-  wurzel: [
-    '{move}! Wurzeln brechen aus dem Boden und fesseln {a}: {d} Schaden.',
-    '{move}! Dornige Ranken schlingen sich um {a} und ziehen sich zu: {d} Schaden.',
-  ],
-  schleich: [
-    '{move}! Du tauchst in die Schatten und triffst {a} von hinten: {d} Schaden.',
-    '{move}! Plötzlich bist du weg, und dann direkt hinter {a}: {d} Schaden.',
   ],
 };
 
@@ -100,7 +85,8 @@ export const say = {
   heroHit: (n: Names, d: number, share: number) => fill(pick(share < 0.07 ? HERO_HIT_WEAK : share > 0.28 ? HERO_HIT_STRONG : HERO_HIT), n, d),
   heroMiss: (n: Names) => fill(pick(HERO_MISS), n),
   heroCrit: (n: Names, d: number, s: SpecialtyId) => fill(pick(HERO_CRIT[s]), n, d),
-  special: (n: Names, d: number, s: SpecialtyId) => fill(pick(SPECIAL[s]), n, d),
+  /** Freier Text mit {a}/{N}/{d} (Fähigkeiten) */
+  text: (t: string, n: Names, d = 0) => fill(t, n, d),
   foeHit: (n: Names, d: number, share: number) => fill(pick(share < 0.04 ? FOE_HIT_WEAK : FOE_HIT), n, d),
   foeCrit: (n: Names, d: number) => fill(pick(FOE_CRIT), n, d),
   foeMiss: (n: Names) => fill(pick(FOE_MISS), n),

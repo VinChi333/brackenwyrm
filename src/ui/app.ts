@@ -15,6 +15,7 @@ import { masterForLevel } from '../content/masters';
 import { MONSTERS } from '../content/monsters';
 import { SHADES } from '../content/shades';
 import { SPECIALTIES, SPECIALTY_ORDER } from '../content/specialties';
+import { RACES, RACE_ORDER, raceName } from '../content/races';
 import { MAX_LEVEL, healCostPerHp } from '../game/balance';
 import {
   announce, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
@@ -27,7 +28,7 @@ import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, save
 import { Cloud, CloudError } from '../game/cloud';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
-import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, SpecialtyId } from '../game/types';
+import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, RaceId, SpecialtyId } from '../game/types';
 import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard, tierFor } from './art/cards';
 import type { CardInfo } from './art/cards';
 import { applyPvpEvents, applyPvpResult } from '../game/pvp';
@@ -35,7 +36,7 @@ import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt';
 
-const VERSION = 'Testversion 0.20';
+const VERSION = 'Testversion 0.21';
 
 interface Ui {
   screen: Screen;
@@ -43,6 +44,9 @@ interface Ui {
   createName: string;
   createSpec: SpecialtyId;
   createGender: Gender;
+  createRace: RaceId;
+  dkRace: RaceId | null;
+  skillMenu: boolean;            // Handy: Fähigkeiten statt Kampfbefehlen in der Leiste
   dkPoint: DragonPoint | null;   // Auswahl nach dem Drachenkill
   dkSpec: SpecialtyId | null;
   confirmDelete: boolean;
@@ -70,7 +74,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, square: { comments: null, loading: false, at: 0, error: '' }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, square: { comments: null, loading: false, at: 0, error: '' }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -84,8 +88,8 @@ function pct(a: number, b: number): number {
   return Math.max(0, Math.min(100, Math.round((100 * a) / Math.max(1, b))));
 }
 
-interface Item { act: string; label: string; key?: string; hint?: string; disabled?: boolean; primary?: boolean }
-interface Group { title: string; items: Item[] }
+interface Item { act: string; label: string; key?: string; hint?: string; disabled?: boolean; primary?: boolean; mobileOnly?: boolean }
+interface Group { title: string; items: Item[]; dock?: boolean }
 
 /** Tastenkürzel im Wort hervorheben, wie damals: "[W]ald" → W unterstrichen und farbig. */
 function hotLabel(label: string, key?: string): string {
@@ -97,7 +101,7 @@ function hotLabel(label: string, key?: string): string {
 
 function navHtml(groups: Group[]): string {
   return groups.map((g) => `<section class="nav-group"><h3>${esc(g.title)}</h3>
-    ${g.items.map((it) => `<button type="button" class="nav-link ${it.primary ? 'primary' : ''}" data-act="${it.act}" ${it.key ? `data-hotkey="${it.key}"` : ''} ${it.disabled ? 'disabled' : ''}>
+    ${g.items.map((it) => `<button type="button" class="nav-link ${it.primary ? 'primary' : ''} ${it.mobileOnly ? 'mobile-only' : ''}" data-act="${it.act}" ${it.key ? `data-hotkey="${it.key}"` : ''} ${it.disabled ? 'disabled' : ''}>
       <span>${hotLabel(it.label, it.key)}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}</button>`).join('')}
   </section>`).join('');
 }
@@ -122,8 +126,8 @@ function vital(s: GameState): string {
   const need = expNeeded(p.level);
   return `<aside class="vital" aria-label="Charakter">
     <div class="vital-head">
-      <div class="portrait">${heroPortrait(p.specialty, p.gender)}</div>
-      <div><span class="v-title">${esc(titleFor(p.dragonKills, p.gender))}</span><strong class="v-name">${esc(p.name)}</strong><span class="v-sub">Stufe ${p.level} · ${sp.name}</span>
+      <div class="portrait">${heroPortrait(p.race, p.specialty, p.gender)}</div>
+      <div><span class="v-title">${esc(titleFor(p.dragonKills, p.gender))}</span><strong class="v-name">${esc(p.name)}</strong><span class="v-sub">Stufe ${p.level} · ${raceName(p.race, p.gender)} · ${sp.name}</span>
         ${p.dragonKills ? `<span class="v-dk">Drachentöter ${p.dragonKills}×</span>` : ''}
         ${p.marriedTo ? `<span class="v-wed">♥ verheiratet mit ${PARTNERS[p.marriedTo].name}</span>` : ''}</div>
     </div>
@@ -139,7 +143,7 @@ function vital(s: GameState): string {
       <div class="v-row"><dt>Gold</dt><dd class="gold">${p.gold}</dd></div>
       <div class="v-row"><dt>Edelsteine</dt><dd class="gem">${p.gems}</dd></div>
       <div class="v-row"><dt>Waldkämpfe</dt><dd>${p.forestFights}</dd></div>
-      <div class="v-row"><dt>${sp.move}</dt><dd>${p.specialUses}×</dd></div>
+      <div class="v-row"><dt>${sp.name}</dt><dd>${p.specialUses} ${p.specialUses === 1 ? 'Punkt' : 'Punkte'}</dd></div>
       <div class="v-row wide v-gear"><dt>Waffe</dt><dd>${WEAPONS[p.weaponTier].name}</dd></div>
       <div class="v-row wide v-gear"><dt>Rüstung</dt><dd>${ARMORS[p.armorTier].name}</dd></div>
       ${p.buffs.length ? `<div class="v-row wide v-gear"><dt>Wirkung</dt><dd>${p.buffs.map((b) => `${b.name} (${b.rounds})`).join(', ')}</dd></div>` : ''}
@@ -160,7 +164,7 @@ function topbar(s: GameState | null): string {
 function dockItems(groups: Group[]): Item[] {
   const all = groups.flatMap((g) => g.items).filter((i) => i.act !== 'delete');
   const first = groups[0]?.items.filter((i) => i.act !== 'delete') ?? [];
-  const picked = first.length <= 4 ? [...first] : [];
+  const picked = first.length <= 4 || groups[0]?.dock ? [...first] : [];
   const backItem = all.find((i) => i.act === 'go:village' || i.act === 'after:village');
   if (backItem && !picked.includes(backItem) && picked.length < 5) picked.push(backItem);
   return picked;
@@ -239,6 +243,25 @@ function loginScreen(): string {
   </div></div>`;
 }
 
+/** Rassenwahl mit Bild (zeigt die gerade gewählte Fähigkeit), für Erstellung und Neuanfang. */
+function raceChoices(sel: RaceId, spec: SpecialtyId, g: Gender, act: string): string {
+  return `<div class="choices race-choices" role="radiogroup" aria-label="Rasse">${RACE_ORDER.map((id) => {
+    const r = RACES[id];
+    return `<button type="button" class="choice ${sel === id ? 'on' : ''}" role="radio" aria-checked="${sel === id}" data-act="${act}:${id}">
+      <span class="choice-art">${heroArt(id, spec, g)}</span><strong>${raceName(id, g)}</strong><span class="gold">${r.bonus}</span><small>${r.blurb}</small></button>`;
+  }).join('')}</div>`;
+}
+
+/** Fähigkeitswahl wie im Original ("Als Kind hast du …"), mit den vier Künsten. */
+function specChoices(sel: SpecialtyId, act: string): string {
+  return `<div class="choices spec-choices" role="radiogroup" aria-label="Fähigkeit">${SPECIALTY_ORDER.map((id) => {
+    const sp = SPECIALTIES[id];
+    return `<button type="button" class="choice ${sel === id ? 'on' : ''}" role="radio" aria-checked="${sel === id}" data-act="${act}:${id}">
+      <span class="muted">${sp.childhood} …</span><strong>${sp.name}</strong><span>${sp.blurb}</span>
+      <ul class="skills">${sp.skills.map((k) => `<li><b>${k.name}</b> <i>${k.cost} ${k.cost === 1 ? 'Punkt' : 'Punkte'}</i><br><small>${k.blurb}</small></li>`).join('')}</ul></button>`;
+  }).join('')}</div>`;
+}
+
 function createScreen(): string {
   return `<div class="solo"><div class="solo-panel">
     <h1>Wer bist du?</h1>
@@ -248,14 +271,11 @@ function createScreen(): string {
     <div class="seg" role="radiogroup" aria-label="Held oder Heldin">
       ${(['m', 'f'] as const).map((g) => `<button type="button" class="seg-btn ${ui.createGender === g ? 'on' : ''}" role="radio" aria-checked="${ui.createGender === g}" data-act="gender:${g}">${g === 'm' ? 'Held' : 'Heldin'}</button>`).join('')}
     </div>
-    <h2>Was hast du gelernt?</h2>
-    <div class="choices" role="radiogroup" aria-label="Spezialfähigkeit">
-      ${SPECIALTY_ORDER.map((id) => {
-        const sp = SPECIALTIES[id];
-        return `<button type="button" class="choice ${ui.createSpec === id ? 'on' : ''}" role="radio" aria-checked="${ui.createSpec === id}" data-act="spec:${id}">
-          <span class="choice-art">${heroArt(id, ui.createGender)}</span><strong>${sp.name}</strong><span>${sp.blurb}</span><small>Fähigkeit: ${sp.move}. ${sp.moveBlurb}</small></button>`;
-      }).join('')}
-    </div>
+    <h2>Woher kommst du?</h2>
+    ${raceChoices(ui.createRace, ui.createSpec, ui.createGender, 'race')}
+    <h2>Was hast du als Kind gemacht?</h2>
+    ${specChoices(ui.createSpec, 'spec')}
+    <p class="muted">Jeden Tag hast du einen Punkt für deine Fähigkeit. Mit jedem Meister, den du besiegst, wirst du besser darin, und jede dritte Stufe bringt einen Punkt mehr pro Tag.</p>
     <div class="row"><button type="button" class="btn" data-act="create">Nach Moosgrund aufbrechen</button>
       <button type="button" class="btn ghost" data-act="go:title">Zurück</button></div>
   </div></div>`;
@@ -338,7 +358,7 @@ function fightScreen(s: GameState): string {
   const f = s.fight!;
   const p = s.player;
   const c = f.kind === 'dragon' ? dragonCard() : f.kind === 'master' ? masterCard(f.foe.level) : f.kind === 'grave' ? shadeCard(f.monsterId)!
-    : f.kind === 'pvp' ? pvpCard(f.foe.name, f.foe.level, f.foeSpec ?? 'klinge', f.foeGender ?? 'm') : cardFor(f.monsterId)!;
+    : f.kind === 'pvp' ? pvpCard(f.foe.name, f.foe.level, f.foeRace ?? 'mensch', f.foeSpec ?? 'dunkel', f.foeGender ?? 'm') : cardFor(f.monsterId)!;
   const acted = f.seq > 0;
   const heroAttacked = acted && (f.lastHeroDmg > 0 || f.lastHeroMiss);
   const foeAttacked = acted && (f.lastFoeDmg > 0 || f.lastFoeMiss);
@@ -351,7 +371,6 @@ function fightScreen(s: GameState): string {
     f.over === 'win' ? 'is-defeated' : '',
   ].join(' ');
   const sp = SPECIALTIES[p.specialty];
-  const spKey = sp.move[0].toLowerCase();
   const card = cardHtml(c, { hp: [f.foe.hp, f.foe.maxHp, from], cls, fx: true });
   const fx = `${heroAttacked ? `<div class="dmg dmg-foe ${f.lastCrit ? 'crit' : ''}">${f.lastHeroMiss ? 'Daneben' : '−' + f.lastHeroDmg}</div>` : ''}
     ${foeAttacked ? `<div class="dmg dmg-hero">${f.lastFoeMiss ? 'Ausgewichen' : '−' + f.lastFoeDmg + ' LP'}</div>` : ''}
@@ -360,12 +379,21 @@ function fightScreen(s: GameState): string {
 
   let groups: Group[] = [];
   if (!f.over) {
-    groups = [{ title: 'Kampf', items: [
+    // Wie im Original: die Künste stehen unter dem Namen der Fähigkeit mit den Punkten, nur die bezahlbaren sind nutzbar.
+    const pts = `${p.specialUses} ${p.specialUses === 1 ? 'Punkt' : 'Punkte'}`;
+    const skillItems: Item[] = f.kind === 'grave' ? [] : sp.skills.map((k, i) => ({
+      act: `fight:skill:${k.cost}`, label: k.name, key: String(i + 1), hint: `${k.cost} ${k.cost === 1 ? 'Punkt' : 'Punkte'}`, disabled: p.specialUses < k.cost,
+    }));
+    const fightItems: Item[] = [
       { act: 'fight:attack', label: 'Angreifen', key: 'a', primary: true },
-      ...(f.kind === 'grave' ? [] : [{ act: 'fight:special', label: sp.move, key: spKey, disabled: p.specialUses <= 0, hint: `${p.specialUses}× übrig` }]),
+      ...(skillItems.length ? [{ act: 'skills', label: sp.name, key: 's', hint: pts, mobileOnly: true }] : []),
       ...(f.kind !== 'master' ? [{ act: 'fight:auto', label: 'Kämpfen bis zum Ende', key: 'k' }] : []),
       { act: 'fight:flee', label: f.kind === 'master' ? 'Aufgeben' : 'Fliehen', key: f.kind === 'master' ? 'u' : 'f' },
-    ] }];
+    ];
+    const skillGroup = { title: `${sp.name} · ${pts}`, items: skillItems };
+    groups = ui.skillMenu && skillItems.length
+      ? [{ title: skillGroup.title, dock: true, items: [...skillItems.map((it, i) => ({ ...it, primary: i === 0 && !it.disabled })), { act: 'skills', label: 'Zurück', key: 'z', mobileOnly: true }] }, { title: 'Kampf', items: fightItems }]
+      : [{ title: 'Kampf', items: fightItems }, ...(skillItems.length ? [skillGroup] : [])];
   } else {
     const items: Item[] = [];
     if (f.kind === 'pvp') {
@@ -682,7 +710,6 @@ function syncConflictScreen(s: GameState): string {
 
 // ---------- Spieler gegen Spieler, Dorfplatz, Neuigkeiten ----------
 
-const SPEC_NAME: Record<string, string> = { klinge: 'Klingenkunst', wurzel: 'Wurzelmagie', schleich: 'Schleichpfad' };
 
 function targetsHtml(place: 'felder' | 'gasthaus'): string {
   const pv = ui.pvp;
@@ -692,8 +719,8 @@ function targetsHtml(place: 'felder' | 'gasthaus'): string {
   if (!pv.targets.length) return `<p class="muted">${place === 'gasthaus' ? 'Frieda zuckt mit den Schultern. Heute Nacht schläft hier niemand, an den du herankommst.' : 'Auf den Feldern schläft gerade niemand in deiner Reichweite.'}</p>`;
   const none = (pv.fightsLeft ?? 1) <= 0 || pv.busy;
   return `<ul class="targets">${pv.targets.map((t) => `<li class="target">
-      <span class="t-portrait">${heroPortrait(t.specialty, t.gender)}</span>
-      <span class="t-info"><strong><span class="t-title">${esc(titleFor(t.dragonKills, t.gender))}</span> ${esc(t.name)}</strong><small>Stufe ${t.level} · ${SPEC_NAME[t.specialty] ?? ''}${t.dragonKills ? ` · Drachentöter ${t.dragonKills}×` : ''}${t.note ? ` · ${esc(t.note)}` : ''}</small></span>
+      <span class="t-portrait">${heroPortrait(t.race, t.specialty, t.gender)}</span>
+      <span class="t-info"><strong><span class="t-title">${esc(titleFor(t.dragonKills, t.gender))}</span> ${esc(t.name)}</strong><small>Stufe ${t.level} · ${raceName(t.race, t.gender)} · ${SPECIALTIES[t.specialty]?.name ?? ''}${t.dragonKills ? ` · Drachentöter ${t.dragonKills}×` : ''}${t.note ? ` · ${esc(t.note)}` : ''}</small></span>
       <button type="button" class="tbtn" data-act="pvp:${t.userId}:${place}" ${!t.attackable || none ? 'disabled' : ''}>Angreifen</button>
     </li>`).join('')}</ul>`;
 }
@@ -765,8 +792,8 @@ function loadTargets(place: 'felder' | 'gasthaus'): void {
 }
 
 /** Spielerkarte für den Kampf: das Heldenbild des anderen Spielers. */
-function pvpCard(name: string, level: number, spec: SpecialtyId, gender: Gender): CardInfo {
-  return { key: `pvp:${name}`, name, level, tier: tierFor(level), art: heroArt(spec, gender), hasIllustration: true, flavor: '', glow: '#ffd88a', fx: 'motes', tierLabel: gender === 'f' ? 'Heldin' : 'Held' };
+function pvpCard(name: string, level: number, race: RaceId, spec: SpecialtyId, gender: Gender): CardInfo {
+  return { key: `pvp:${name}`, name, level, tier: tierFor(level), art: heroArt(race, spec, gender), hasIllustration: true, flavor: '', glow: '#ffd88a', fx: 'motes', tierLabel: gender === 'f' ? 'Heldin' : 'Held' };
 }
 
 function settingsScreen(s: GameState): string {
@@ -834,6 +861,7 @@ function dragonBonusScreen(s: GameState): string {
   const dk = p.dragonKills;
   const title = titleFor(dk, p.gender);
   const spec = ui.dkSpec ?? p.specialty;
+  const race = ui.dkRace ?? p.race;
   const gold = restartGold(dk) + (s.flawlessDragon ? FLAWLESS_GOLD : 0);
   const gems = restartGems(dk) + (s.flawlessDragon ? 1 : 0);
   const counts = (id: DragonPoint) => p.dragonPoints.filter((x) => x === id).length;
@@ -847,25 +875,21 @@ function dragonBonusScreen(s: GameState): string {
       ${DK_POINTS.map((d) => `<button type="button" class="choice ${ui.dkPoint === d.id ? 'on' : ''}" role="radio" aria-checked="${ui.dkPoint === d.id}" data-act="dkpoint:${d.id}">
         <strong>${d.name}</strong><span>${d.text}</span>${counts(d.id) ? `<small>Bisher ${counts(d.id)}× gewählt</small>` : ''}</button>`).join('')}
     </div>
-    <h2>2. Was lernst du in deinem neuen Leben?</h2>
-    <p class="muted">Du kannst bei ${esc(SPECIALTIES[p.specialty].name)} bleiben oder etwas Neues lernen.</p>
-    <div class="choices" role="radiogroup" aria-label="Spezialfähigkeit">
-      ${SPECIALTY_ORDER.map((id) => {
-        const sp = SPECIALTIES[id];
-        return `<button type="button" class="choice ${spec === id ? 'on' : ''}" role="radio" aria-checked="${spec === id}" data-act="dkspec:${id}">
-          <span class="choice-art">${heroArt(id, p.gender)}</span><strong>${sp.name}</strong><span>${sp.blurb}</span><small>Fähigkeit: ${sp.move}. ${sp.moveBlurb}</small></button>`;
-      }).join('')}
-    </div>
+    <h2>2. Wer wirst du in deinem neuen Leben?</h2>
+    <p class="muted">Wie im Original wählst du Rasse und Fähigkeit neu. Du kannst auch alles so lassen.</p>
+    ${raceChoices(race, spec, p.gender, 'dkrace')}
+    <h2>3. Was hast du als Kind gemacht?</h2>
+    ${specChoices(spec, 'dkspec')}
     <h2>Das nimmst du mit</h2>
     <ul class="plain">
       <li>${gold} Gold für den Neuanfang${gems ? ` und ${gems} Edelstein${gems > 1 ? 'e' : ''} dazu` : ''}</li>
       <li>Deine ${p.gems} Edelsteine, Morwens Gunst, dein Bestiarium und deine Ruhmeshalle</li>
       <li>${p.dragonPoints.length ? `Deine bisherigen Drachenpunkte (${[p.bonusAtk ? `+${p.bonusAtk} Angriff` : '', p.bonusDef ? `+${p.bonusDef} Verteidigung` : '', p.baseMaxHp ? `+${p.baseMaxHp} Lebenspunkte` : '', p.bonusFights ? `+${p.bonusFights} Waldkämpfe` : ''].filter(Boolean).join(', ')}) und den neuen dazu` : 'Deinen ersten Drachenpunkt'}</li>
-      <li>Ein frischer Tag mit ${forestFightsPerDay(p) + (ui.dkPoint === 'ff' ? 1 : 0)} Waldkämpfen</li>
+      <li>Ein frischer Tag mit ${forestFightsPerDay({ ...p, race }) + (ui.dkPoint === 'ff' ? 1 : 0)} Waldkämpfen</li>
     </ul>
     ${!ui.dkPoint ? '<p class="muted">Wähle zuerst deinen Drachenpunkt.</p>' : ''}`;
   return layout(s, main, [{ title: 'Neuanfang', items: [
-    { act: 'rebirth', label: 'Neues Leben beginnen', key: 'n', disabled: !ui.dkPoint, primary: true, hint: ui.dkPoint ? `${DK_POINTS.find((d) => d.id === ui.dkPoint)!.name} · ${SPECIALTIES[spec].name}` : 'erst Drachenpunkt wählen' },
+    { act: 'rebirth', label: 'Neues Leben beginnen', key: 'n', disabled: !ui.dkPoint, primary: true, hint: ui.dkPoint ? `${DK_POINTS.find((d) => d.id === ui.dkPoint)!.name} · ${raceName(race, p.gender)} · ${SPECIALTIES[spec].name}` : 'erst Drachenpunkt wählen' },
   ] }]);
 }
 
@@ -993,6 +1017,7 @@ function handle(act: string, el: HTMLElement): void {
   const s = state;
   switch (cmd) {
     case 'menu': ui.menuOpen = !ui.menuOpen; render(); return;
+    case 'skills': ui.skillMenu = !ui.skillMenu; render(); return;
     case 'go':
       if (a === 'fields' && cloud.signedIn) { go('fields'); loadTargets('felder'); return; }
       if (a === 'news' && cloud.enabled) { ui.newsRows = null; cloud.news(40).then((r) => { ui.newsRows = r; }, () => { ui.newsRows = []; }).finally(() => { if (ui.screen === 'news') render(); }); }
@@ -1011,6 +1036,11 @@ function handle(act: string, el: HTMLElement): void {
       if (input) ui.createName = input.value;
       ui.createSpec = a as SpecialtyId; render(); return;
     }
+    case 'race': {
+      const input = document.getElementById('name') as HTMLInputElement | null;
+      if (input) ui.createName = input.value;
+      ui.createRace = (a as RaceId) in RACES ? a as RaceId : 'mensch'; render(); return;
+    }
     case 'gender': {
       const input = document.getElementById('name') as HTMLInputElement | null;
       if (input) ui.createName = input.value;
@@ -1019,7 +1049,7 @@ function handle(act: string, el: HTMLElement): void {
     case 'create': {
       const name = ((document.getElementById('name') as HTMLInputElement | null)?.value ?? '').trim().slice(0, 20);
       if (!name) { say('Ohne Namen lässt dich der Torwächter nicht ins Dorf.', 'warn'); ui.createName = ''; render(); return; }
-      state = newGame(name, ui.createSpec, ui.createGender);
+      state = newGame(name, ui.createSpec, ui.createGender, ui.createRace);
       saveGame(state);
       go('village');
       scheduleSync(500);
@@ -1141,7 +1171,8 @@ function handle(act: string, el: HTMLElement): void {
           s.fight.log.push({ t: s.fight.kind === 'grave' ? 'Du hältst inne, deine Seele flackert. Drück nochmal „Kämpfen bis zum Ende“, um weiterzukämpfen, oder flieh. Verlierst du, ist der Tag am Nebelfluss vorbei.' : 'Du hältst inne, du bist schwer angeschlagen. Drück nochmal „Kämpfen bis zum Ende“, um trotzdem weiterzukämpfen, oder flieh.', k: 'warn', r: s.fight.round });
         }
       } else {
-        fightAction(s, a as FightAction);
+        fightAction(s, (a === 'skill' ? `skill:${b}` : a) as FightAction);
+        ui.skillMenu = false;
       }
       const f = s.fight;
       if (f && f.over === 'win' && (f.kind === 'forest' || f.kind === 'grave') && s.bestiary[f.monsterId] === 1) ui.newCard = f.monsterId;
@@ -1243,10 +1274,11 @@ function handle(act: string, el: HTMLElement): void {
     case 'lover': s.player.loverPref = a === 'florian' ? 'florian' : 'frieda'; saveGame(s); render(); return;
     case 'dkpoint': ui.dkPoint = a as DragonPoint; render(); return;
     case 'dkspec': ui.dkSpec = a as SpecialtyId; render(); return;
+    case 'dkrace': ui.dkRace = a as RaceId; render(); return;
     case 'rebirth': {
       if (!ui.dkPoint) return;
-      const res = chooseDragonBonus(s, ui.dkPoint, ui.dkSpec ?? s.player.specialty);
-      ui.dkPoint = null; ui.dkSpec = null;
+      const res = chooseDragonBonus(s, ui.dkPoint, ui.dkSpec ?? s.player.specialty, ui.dkRace ?? s.player.race);
+      ui.dkPoint = null; ui.dkSpec = null; ui.dkRace = null;
       saveGame(s); go('village');
       if (res) say(`Von heute an: ${res.title} ${s.player.name}.`, 'good');
       scheduleSync(500);

@@ -1,6 +1,8 @@
 // Spielstand speichern und laden. Im Prototyp lokal im Browser,
 // später zusätzlich auf dem Server, damit Handy und PC denselben Stand haben.
 
+import { normalizeSpecialty } from '../content/specialties';
+import { normalizeRace } from '../content/races';
 import type { GameState, Stats } from './types';
 
 const KEY = 'brackenwyrm.save.v1';
@@ -49,6 +51,11 @@ export function validate(x: unknown): GameState | null {
   s.bestiary = s.bestiary && typeof s.bestiary === 'object' ? s.bestiary : {};
   s.player.buffs = Array.isArray(s.player.buffs) ? s.player.buffs : [];
   s.player.gender = s.player.gender === 'f' ? 'f' : 'm';
+  // Bis Testversion 0.20 hießen die Fähigkeiten Klingenkunst, Wurzelmagie und Schleichpfad, und es gab keine Rassen.
+  s.player.specialty = normalizeSpecialty(s.player.specialty);
+  s.player.race = normalizeRace(s.player.race);
+  // Fähigkeitsstufe: wie viele Meister in diesem Durchgang besiegt wurden
+  s.player.skill = typeof s.player.skill === 'number' ? s.player.skill : Math.max(0, s.player.level - 1);
   s.player.innTalks = typeof s.player.innTalks === 'number' ? s.player.innTalks : 0;
   s.player.soul = typeof s.player.soul === 'number' ? s.player.soul : 50 + 5 * s.player.level;
   s.player.favor = typeof s.player.favor === 'number' ? s.player.favor : 0;
