@@ -581,8 +581,8 @@ function accountHtml(): string {
   }
   if (ui.acctStep === 'code') {
     return `<h2>Spielerkonto</h2>
-      <p>Wir haben dir einen 6-stelligen Code an <strong>${esc(ui.acctEmail)}</strong> geschickt.</p>
-      <div class="row"><input type="text" id="acct-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" aria-label="Anmeldecode">
+      <p>Wir haben dir einen Anmeldecode an <strong>${esc(ui.acctEmail)}</strong> geschickt.</p>
+      <div class="row"><input type="text" id="acct-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="Code aus der E-Mail" aria-label="Anmeldecode">
         <button type="button" class="tbtn" data-act="acct:verify">Anmelden</button><button type="button" class="tbtn" data-act="acct:back">Andere Adresse</button></div>${msg}`;
   }
   return `<h2>Spielerkonto</h2>

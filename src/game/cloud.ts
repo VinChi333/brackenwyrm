@@ -93,7 +93,9 @@ export class Cloud {
   private async call(path: string, o: { method: string; body?: unknown; prefer?: string }, auth = true): Promise<any> {
     if (!this.enabled) throw new CloudError('server', 'Online-Spielstand ist nicht eingerichtet.');
     const headers: Record<string, string> = { apikey: this.key, 'Content-Type': 'application/json' };
-    headers.Authorization = `Bearer ${auth && this.session ? this.session.accessToken : this.key}`;
+    // Angemeldet: eigener Zugangsschlüssel. Sonst nur der öffentliche Projektschlüssel als apikey
+    // (funktioniert mit dem alten anon key und dem neuen publishable key).
+    if (auth && this.session) headers.Authorization = `Bearer ${this.session.accessToken}`;
     if (o.prefer) headers.Prefer = o.prefer;
     let res: Response;
     try {

@@ -54,6 +54,7 @@ await t('hochladen und wieder laden ergibt denselben Spielstand', async () => {
   await cloud.push(s);
   const last = calls.filter((c) => c.url.endsWith('/rest/v1/saves')).pop()!;
   assert.equal((last.init.headers as Record<string, string>).Authorization, 'Bearer A');
+  assert.equal((calls[0].init.headers as Record<string, string>).Authorization, undefined);
   const back = await cloud.pull();
   assert.equal(back?.savedAt, 1234);
   assert.equal(back?.state.player.name, 'Hilda');
