@@ -613,7 +613,7 @@ function settingsScreen(s: GameState): string {
     <label class="toggle"><input type="checkbox" id="opt-motion" data-act="toggle:motion" ${prefs.reducedMotion ? 'checked' : ''}> Weniger Bewegung im Kampf</label>
     ${cloud.enabled ? accountHtml() : ''}
     <h2>Spielstand auf ein anderes Gerät mitnehmen</h2>
-    <p class="muted">Im Prototyp liegt der Spielstand nur in diesem Browser. Kopiere den Code und füge ihn auf dem anderen Gerät ein. Später übernimmt das ein Spielerkonto automatisch.</p>
+    <p class="muted">${cloud.signedIn ? 'Mit deinem Spielerkonto geht das automatisch. Der Code hier ist nur eine Notlösung, zum Beispiel als Sicherungskopie.' : 'Ohne Spielerkonto liegt der Spielstand nur in diesem Browser. Kopiere den Code und füge ihn auf dem anderen Gerät ein.'}</p>
     <textarea id="exportcode" readonly aria-label="Spielstand-Code">${exportCode(s)}</textarea>
     <div class="row"><button type="button" class="tbtn" data-act="copycode">Code kopieren</button></div>
     <textarea id="importcode" placeholder="Code hier einfügen (beginnt mit BW1:)" aria-label="Code einfügen"></textarea>

@@ -141,7 +141,13 @@ export class Cloud {
       throw new CloudError('auth', 'Anmeldung abgelaufen. Bitte neu anmelden.');
     }
     if (res.status === 400 && path.startsWith('/auth/v1/verify')) throw new CloudError('auth', 'Code ungültig.');
-    if (!res.ok) throw new CloudError('server', `Server antwortet mit Fehler ${res.status}.`);
+    if (!res.ok) {
+      // Die genaue Meldung des Servers mitgeben, damit sich Fehler finden lassen.
+      let detail = '';
+      try { const d = JSON.parse(await res.text()); detail = [d.code, d.message, d.hint].filter(Boolean).join(' – '); } catch { /* keine Details */ }
+      const where = path.split('?')[0].replace('/rest/v1/', '');
+      throw new CloudError('server', `Server-Fehler ${res.status} bei ${where}${detail ? `: ${detail}` : ''}`);
+    }
     const text = await res.text();
     return text ? JSON.parse(text) : null;
   }
