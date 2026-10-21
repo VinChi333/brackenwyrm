@@ -27,3 +27,10 @@ create policy "Profil anlegen (nur eigenes)"    on public.profiles for insert to
 create policy "Profil ändern (nur eigenes)"     on public.profiles for update to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 create index if not exists profiles_fame on public.profiles (dragon_kills desc, level desc);
+
+-- Freigaben für die Data API. Nötig, weil im Projekt "Automatically expose new tables" ausgeschaltet ist:
+-- Nur was hier steht, ist von außen überhaupt erreichbar. Wer welche Zeile sieht, regeln die Policies oben.
+grant usage on schema public to anon, authenticated;
+grant select, insert, update on public.saves    to authenticated;
+grant select                 on public.profiles to anon, authenticated;
+grant insert, update         on public.profiles to authenticated;

@@ -6,7 +6,8 @@ läuft das Spiel rein lokal; das Spielerkonto erscheint dann gar nicht erst.
 ## Einrichten (einmalig, etwa 15 Minuten)
 
 1. Auf supabase.com ein Konto und ein neues Projekt anlegen (Region Frankfurt, wegen DSGVO).
-2. Im Projekt unter **SQL Editor** den Inhalt von `supabase.sql` einfügen und ausführen.
+2. Beim Anlegen: „Enable Data API“ an, „Automatically expose new tables“ aus, „Enable automatic RLS“ an.
+   Dann im Projekt unter **SQL Editor** den Inhalt von `supabase.sql` einfügen und ausführen.
 3. Unter **Authentication → Providers** muss **Email** aktiv sein.
 4. Unter **Authentication → Email Templates → Magic Link** den Text so ändern, dass der Code drinsteht, z. B.:
    `Dein Anmeldecode für Brackenwyrm: {{ .Token }}` (sonst schickt Supabase nur einen Link statt eines Codes).
