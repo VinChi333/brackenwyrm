@@ -4,6 +4,7 @@
 
 import { masterForLevel } from '../../content/masters';
 import { DRAGON, monsterById } from '../../content/monsters';
+import { shadeById } from '../../content/shades';
 import { SPECIALTIES } from '../../content/specialties';
 import type { Gender, MonsterDef, ShapeId, SpecialtyId } from '../../game/types';
 import { creature, humanoid } from './silhouettes';
@@ -25,7 +26,7 @@ const SPAN: Record<ShapeId, [number, number]> = {
 };
 const WIDTH: Partial<Record<ShapeId, number>> = { dragon: 780, wolf: 290, boar: 250, bear: 240, spider: 290, serpent: 260, bat: 290, bird: 230, stag: 250 };
 
-export type Tier = 'bronze' | 'silver' | 'gold' | 'legend';
+export type Tier = 'bronze' | 'silver' | 'gold' | 'legend' | 'shade';
 
 export function tierFor(level: number, kind: 'monster' | 'master' | 'dragon' = 'monster'): Tier {
   if (kind === 'dragon') return 'legend';
@@ -96,6 +97,15 @@ export function monsterCard(m: MonsterDef): CardInfo {
   return { key: m.id, name: m.name, level: m.level, tier: tierFor(m.level), art: a.art, hasIllustration: a.real, flavor: m.intro, glow, fx: FX_KIND[m.id] ?? 'motes' };
 }
 
+/** Seelen im Schattenreich: absichtlich als Schattenkarte, mit Geisterlichtern. */
+export function shadeCard(id: string): CardInfo | null {
+  const m = shadeById(id);
+  if (!m) return null;
+  const glow = m.eyes ?? '#bfe3ff';
+  const art = shadowArt(creature(m.shape, glow, m.prop), m.shape, glow);
+  return { key: m.id, name: m.name, level: 0, tier: 'shade', art, hasIllustration: false, flavor: m.intro, glow, fx: 'wisps' };
+}
+
 export function dragonCard(): CardInfo {
   const a = artFor('dragon', () => shadowArt(creature('dragon', DRAGON.eyes ?? '#ffcf5a'), 'dragon', '#7ee08a', false, -30));
   return { key: 'dragon', name: DRAGON.name, level: DRAGON.level, tier: 'legend', art: a.art, hasIllustration: a.real, flavor: DRAGON.intro, glow: '#8cff6a', fx: 'embers' };
@@ -126,11 +136,13 @@ export function heroPortrait(spec: SpecialtyId, gender: Gender): string {
 export function cardFor(key: string): CardInfo | null {
   if (key === 'dragon') return dragonCard();
   if (key.startsWith('master-')) return masterCard(Number(key.slice(7)));
+  const sh = shadeCard(key);
+  if (sh) return sh;
   const m = monsterById(key);
   return m ? monsterCard(m) : null;
 }
 
-const TIER_LABEL: Record<Tier, string> = { bronze: 'Gewöhnlich', silver: 'Selten', gold: 'Episch', legend: 'Legendär' };
+const TIER_LABEL: Record<Tier, string> = { bronze: 'Gewöhnlich', silver: 'Selten', gold: 'Episch', legend: 'Legendär', shade: 'Schatten' };
 
 /** Kleiner, fester Zufall aus einem Text, damit die Teilchen bei jedem Neuzeichnen gleich liegen. */
 function seeded(key: string): () => number {
@@ -162,10 +174,11 @@ function fxLayer(c: CardInfo, count: number): string {
 export function cardHtml(c: CardInfo, opts: { hp?: [number, number, number] | null; cls?: string; count?: number; isNew?: boolean; fx?: boolean } = {}): string {
   const hp = opts.hp;
   const live = c.hasIllustration;
+  const shade = c.tier === 'shade';
   const shine = live && (c.tier === 'gold' || c.tier === 'legend') ? '<span class="card-shine" aria-hidden="true"></span>' : '';
   return `<figure class="card tier-${c.tier} ${live ? 'is-live' : ''} ${opts.fx ? 'has-fx' : ''} ${opts.cls ?? ''}" data-tilt>
-    <div class="card-art">${c.art}${live && opts.fx ? fxLayer(c, c.tier === 'legend' ? 16 : 10) : ''}${shine}${live ? '' : '<span class="card-tag">Illustration folgt</span>'}</div>
-    <div class="card-level" title="Stufe">${c.level}</div>
+    <div class="card-art">${c.art}${(live || shade) && opts.fx ? fxLayer(c, c.tier === 'legend' ? 16 : 10) : ''}${shine}${live || shade ? '' : '<span class="card-tag">Illustration folgt</span>'}</div>
+    ${shade ? '<div class="card-level" title="Seele">✦</div>' : `<div class="card-level" title="Stufe">${c.level}</div>`}
     ${opts.isNew ? '<div class="card-new">Neu</div>' : ''}
     <figcaption class="card-plate"><span class="card-name">${c.name}</span><span class="card-tier">${TIER_LABEL[c.tier]}</span></figcaption>
     ${hp ? `<div class="card-hp" aria-label="Lebenspunkte ${hp[0]} von ${hp[1]}"><i style="--from:${hp[2]}%;--to:${Math.round((100 * hp[0]) / hp[1])}%;width:${Math.round((100 * hp[0]) / hp[1])}%"></i><span>${hp[0]} / ${hp[1]}</span></div>` : ''}
@@ -176,4 +189,9 @@ export function cardHtml(c: CardInfo, opts: { hp?: [number, number, number] | nu
 export function cardBack(level: number): string {
   return `<figure class="card card-back tier-${tierFor(level)}"><div class="card-art"><span class="card-q">?</span></div>
     <div class="card-level">${level}</div><figcaption class="card-plate"><span class="card-name">???</span><span class="card-tier">Stufe ${level}</span></figcaption></figure>`;
+}
+
+export function shadeBack(): string {
+  return `<figure class="card card-back tier-shade"><div class="card-art"><span class="card-q">?</span></div>
+    <div class="card-level">✦</div><figcaption class="card-plate"><span class="card-name">???</span><span class="card-tier">Schatten</span></figcaption></figure>`;
 }

@@ -518,3 +518,9 @@ tr.owned td { color: var(--green); }
 
 .acct-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
 .acct-form input { width: 100%; }
+
+/* ---------- Schattenreich ---------- */
+.card.tier-shade { --frame: #7d86b8; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 26px rgba(150, 170, 255, 0.25); }
+.card.tier-shade .card-art { filter: saturate(0.85); }
+.bar.soul > i { background: linear-gradient(90deg, #6f7fd8, #b9c6ff); }
+.bar.favor > i { background: linear-gradient(90deg, #8f6ae0, #c9a8ff); }

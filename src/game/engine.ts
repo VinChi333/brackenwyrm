@@ -6,9 +6,11 @@ import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
 import { DRAGON, MONSTERS, acc, monsterById, monstersOfLevel, nom } from '../content/monsters';
 import { say } from '../content/fighttext';
+import { shadeById, SHADES } from '../content/shades';
 import { SPECIALTIES } from '../content/specialties';
 import {
-  DEATH_EXP_LOSS, EVENT_CHANCE, FOREST_FIGHTS_PER_DAY, GEM_DROP_CHANCE, HARZBIER_BUFF, MAX_LEVEL,
+  DEATH_EXP_LOSS, EVENT_CHANCE, FOREST_FIGHTS_PER_DAY, GEM_DROP_CHANCE, GRAVE_FIGHTS_PER_DAY, HARZBIER_BUFF, MAX_LEVEL,
+  RESURRECT_FAVOR, RESURRECT_TURN_SHARE, favorRange, graveAttack, maxSoul, shadeStats, soulRestoreCost,
   attack, bankInterest, defense, dragonStats, expNeeded, expPerKill, goldPerKill, harzbierCost,
   healCost, masterStats, maxHp, monsterStats, specialUsesPerDay,
 } from './balance';
@@ -26,9 +28,10 @@ export function newPlayer(name: string, specialty: SpecialtyId, gender: Gender =
   const p: Player = {
     name, specialty, gender, level: 1, exp: 0, hp: 0, baseMaxHp: 0, bonusAtk: 0, bonusDef: 0,
     weaponTier: 0, armorTier: 0, gold: 50, bank: 0, gems: 0, forestFights: FOREST_FIGHTS_PER_DAY,
-    specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, innTalks: 0, buffs: [],
+    specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, innTalks: 0, soul: 0, favor: 0, graveFights: GRAVE_FIGHTS_PER_DAY, buffs: [],
   };
   p.hp = maxHp(p);
+  p.soul = maxSoul(p);
   p.specialUses = specialUsesPerDay(p);
   return p;
 }
@@ -71,6 +74,8 @@ export function startNewDay(s: GameState): void {
   s.pendingEvent = null;
   p.innTalks = 0;
   p.hp = maxHp(p);
+  p.soul = maxSoul(p);
+  p.graveFights = GRAVE_FIGHTS_PER_DAY;
   p.forestFights = FOREST_FIGHTS_PER_DAY;
   p.specialUses = specialUsesPerDay(p);
   p.seenMaster = false;
@@ -153,6 +158,51 @@ export function resolveEvent(s: GameState, choiceId: string): LogLine[] {
   return choice.run(s.player);
 }
 
+// ---------- Schattenreich ----------
+
+export function graveSearch(s: GameState): string | null {
+  const p = s.player;
+  if (p.alive) return 'Lebende haben am Nebelfluss nichts verloren.';
+  if (p.graveFights <= 0) return 'Für heute hast du keine Kraft mehr für Schattenkämpfe. Morwen bringt dich bei Sonnenaufgang zurück.';
+  if (p.soul <= 0) return 'Deine Seele ist zu schwach. Bitte Morwen, deine Seelenkraft zu stärken.';
+  p.graveFights -= 1;
+  const m = pick(SHADES);
+  s.fight = makeFight('grave', m.id, m.name, shadeStats(p), 0, 0, m.intro);
+  return null;
+}
+
+export function restoreSoul(s: GameState): string {
+  const p = s.player;
+  const cost = soulRestoreCost(p);
+  if (p.soul >= maxSoul(p)) return 'Deine Seele leuchtet schon hell genug.';
+  if (p.favor < cost) return `Morwen will dafür ${cost} Gunst. So viel hast du nicht.`;
+  p.favor -= cost;
+  p.soul = maxSoul(p);
+  return `Morwen haucht dich an. Deine Seelenkraft ist wieder voll. (${cost} Gunst)`;
+}
+
+/** Mit 100 Gunst zurück ins Leben, wie ein neuer Tag, aber mit weniger Waldkämpfen. */
+export function resurrect(s: GameState): string {
+  const p = s.player;
+  if (p.alive) return 'Du lebst doch schon.';
+  if (p.favor < RESURRECT_FAVOR) return `Morwen schüttelt den Kopf. „Komm wieder, wenn du ${RESURRECT_FAVOR} Gunst hast.“`;
+  p.favor -= RESURRECT_FAVOR;
+  p.alive = true;
+  p.hp = maxHp(p);
+  p.forestFights = Math.round(FOREST_FIGHTS_PER_DAY * RESURRECT_TURN_SHARE);
+  p.specialUses = specialUsesPerDay(p);
+  p.seenMaster = false;
+  p.drankToday = false;
+  p.songToday = false;
+  p.innTalks = 0;
+  p.buffs = [];
+  s.fight = null;
+  s.stats.resurrections += 1;
+  const msg = `Morwen stakt dich über den Fluss und setzt dich am Dorfrand ab. „Ausnahmsweise“, sagt sie. Du lebst wieder und hast noch ${p.forestFights} Waldkämpfe.`;
+  s.news.push(msg);
+  return msg;
+}
+
 export function canChallengeMaster(p: Player): 'ok' | 'notReady' | 'seen' | 'max' | 'dead' {
   if (!p.alive) return 'dead';
   if (p.level >= MAX_LEVEL) return 'max';
@@ -218,6 +268,7 @@ function foeLabel(f: Fight): { n: string; a: string; N: string } {
 
 function foeHits(f: Fight): string {
   if (f.kind === 'dragon') return DRAGON.hits;
+  if (f.kind === 'grave') return shadeById(f.monsterId)?.hits ?? 'greift nach dir';
   if (f.kind === 'master') return 'trifft dich';
   return monsterById(f.monsterId)?.hits ?? 'trifft dich';
 }
@@ -240,6 +291,10 @@ export function fightAction(s: GameState, action: FightAction): void {
   if (!f || f.over) return;
   const L = foeLabel(f);
   const N = { a: L.a, N: L.N, hits: foeHits(f), move: SPECIALTIES[p.specialty].move };
+  const grave = f.kind === 'grave';
+  // Im Schattenreich kämpft die Seele: Seelenkraft statt Lebenspunkten, Stufe statt Ausrüstung.
+  const heroPool = () => (grave ? p.soul : p.hp);
+  const setHeroPool = (v: number) => { if (grave) p.soul = v; else p.hp = v; };
   const log: LogLine[] = [];
   f.round += 1;
   f.seq += 1;
@@ -248,7 +303,7 @@ export function fightAction(s: GameState, action: FightAction): void {
   let foeSkips = false;
 
   if (action === 'flee') {
-    const odds = f.kind === 'forest' ? 0.5 : f.kind === 'dragon' ? 0.33 : 1;
+    const odds = f.kind === 'forest' ? 0.5 : f.kind === 'dragon' || f.kind === 'grave' ? 0.33 : 1;
     if (f.kind === 'master') {
       log.push({ t: `Du gibst auf. ${f.foe.name} nickt verständnisvoll.`, k: 'info' });
       f.over = 'fled';
@@ -256,6 +311,14 @@ export function fightAction(s: GameState, action: FightAction): void {
       return;
     }
     if (chance(odds)) {
+      if (grave) {
+        const lost = Math.min(p.favor, 5 + roll(0, p.level));
+        p.favor -= lost;
+        log.push({ t: `Du fliehst in den Nebel. Morwen hat es gesehen: ${lost} Gunst weniger.`, k: 'warn' });
+        f.over = 'fled';
+        pushLog(f, log);
+        return;
+      }
       log.push({ t: f.kind === 'dragon' ? 'Du rennst, bis die Farnschlucht hinter dir liegt. Der Wyrm lacht dir nach.' : 'Du verschwindest im Dickicht. Diesmal war der Wald auf deiner Seite.', k: 'info' });
       f.over = 'fled';
       pushLog(f, log);
@@ -264,8 +327,8 @@ export function fightAction(s: GameState, action: FightAction): void {
     log.push({ t: 'Du versuchst zu fliehen, aber eine Wurzel hat andere Pläne.', k: 'warn' });
   } else {
     let h: Hit;
-    const atk = heroAtk(p);
-    if (action === 'special' && canUseSpecial(p)) {
+    const atk = grave ? graveAttack(p) : heroAtk(p);
+    if (action === 'special' && canUseSpecial(p) && !grave) {
       p.specialUses -= 1;
       f.lastSpecial = true;
       if (p.specialty === 'klinge') {
@@ -304,16 +367,16 @@ export function fightAction(s: GameState, action: FightAction): void {
   if (foeSkips) {
     log.push({ t: say.foeSkips(N), k: 'info' });
   } else {
-    const h = strike(f.foe.atk, defense(p));
+    const h = strike(f.foe.atk, grave ? graveAttack(p) : defense(p));
     f.lastFoeDmg = h.dmg;
     f.lastFoeMiss = h.miss;
     if (h.miss) log.push({ t: say.foeMiss(N), k: 'info' });
     else if (h.crit) log.push({ t: say.foeCrit(N, h.dmg), k: 'bad' });
-    else log.push({ t: say.foeHit(N, h.dmg, h.dmg / maxHp(p)), k: 'bad' });
-    p.hp = Math.max(0, p.hp - h.dmg);
+    else log.push({ t: say.foeHit(N, h.dmg, h.dmg / (grave ? maxSoul(p) : maxHp(p))), k: 'bad' });
+    setHeroPool(Math.max(0, heroPool() - h.dmg));
   }
   pushLog(f, log);
-  if (p.hp <= 0) loseFight(s);
+  if (heroPool() <= 0) loseFight(s);
 }
 
 function winFight(s: GameState): void {
@@ -334,6 +397,18 @@ function winFight(s: GameState): void {
       p.gems += 1;
       f.log.push({ t: 'Im Farn glitzert etwas: ein Edelstein!', k: 'gold' });
     }
+  } else if (f.kind === 'grave') {
+    const sh = shadeById(f.monsterId);
+    const [lo, hi] = favorRange(p.level);
+    const gain = roll(lo, hi);
+    p.favor += gain;
+    s.stats.shades += 1;
+    f.log.push({ t: sh?.falls ?? 'Die Seele verweht.', k: 'info' });
+    f.log.push({ t: `Morwen nickt dir vom Boot aus zu. +${gain} Gunst (jetzt ${p.favor}).`, k: 'gold' });
+    const before = s.bestiary[f.monsterId] ?? 0;
+    s.bestiary[f.monsterId] = before + 1;
+    if (!before) f.log.push({ t: `Neue Schattenkarte im Bestiarium: ${f.foe.name}!`, k: 'gold' });
+    if (p.favor >= RESURRECT_FAVOR) f.log.push({ t: 'Du hast genug Gunst. Morwen würde dich jetzt zurückbringen.', k: 'good' });
   } else if (f.kind === 'master') {
     const m = masterForLevel(p.level)!;
     s.stats.masters += 1;
@@ -361,6 +436,10 @@ function loseFight(s: GameState): void {
   if (f.kind === 'master') {
     p.hp = 1;
     f.log.push({ t: masterForLevel(p.level)?.defeat ?? 'Du bist besiegt.', k: 'warn' });
+  } else if (f.kind === 'grave') {
+    p.soul = 0;
+    p.graveFights = 0;
+    f.log.push({ t: 'Deine Seele zerfasert im Nebel. Für heute hast du keine Kraft mehr für Schattenkämpfe.', k: 'bad' });
   } else {
     const lostGold = p.gold;
     const levelStart = p.level > 1 ? expNeeded(p.level - 1) : 0;
@@ -369,6 +448,7 @@ function loseFight(s: GameState): void {
     p.exp -= lostExp;
     p.alive = false;
     p.buffs = [];
+    p.soul = maxSoul(p);
     s.stats.deaths += 1;
     s.stats.lastDeathDay = s.day;
     f.log.push({ t: 'Dir wird schwarz vor Augen. Du sinkst ins Moos …', k: 'bad' });
@@ -499,4 +579,5 @@ export function requestSong(s: GameState): string {
   return `Florian singt vom ${SPECIALTIES[p.specialty].name}-Helden aus alten Tagen. Du kannst deine Fähigkeit zweimal mehr einsetzen.`;
 }
 
+export { maxSoul, soulRestoreCost, RESURRECT_FAVOR };
 export { expNeeded, maxHp, attack, defense, healCost, harzbierCost, specialUsesPerDay };

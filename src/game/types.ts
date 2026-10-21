@@ -54,7 +54,7 @@ export interface Combatant {
   def: number;
 }
 
-export type FightKind = 'forest' | 'master' | 'dragon';
+export type FightKind = 'forest' | 'master' | 'dragon' | 'grave';
 
 export interface Buff {
   name: string;
@@ -125,6 +125,9 @@ export interface Player {
   drankToday: boolean;
   songToday: boolean;
   innTalks: number;       // Gespräche mit Frieda heute
+  soul: number;           // Seelenkraft im Schattenreich (statt Lebenspunkten)
+  favor: number;          // Gunst bei Morwen, bleibt über den Tod hinaus
+  graveFights: number;    // Schattenkämpfe heute
   buffs: Buff[];
 }
 
@@ -138,6 +141,8 @@ export interface Stats {
   fastestDragon: number;  // wenigste Tage bis zum Drachenkill, 0 = noch keiner
   lastDeathDay: number;
   bestHit: { dmg: number; foe: string; day: number };
+  shades: number;         // besiegte Seelen im Schattenreich
+  resurrections: number;  // Rückkehr mit Morwens Hilfe
   realDays: number;       // an wie vielen echten Kalendertagen gespielt wurde
   firstPlayed: string;    // erster Spieltag (YYYY-MM-DD)
 }

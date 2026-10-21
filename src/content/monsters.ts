@@ -200,6 +200,8 @@ const GENDER: Record<string, 'm' | 'f' | 'n'> = {
   harpyie: 'f', knochenritter: 'm', dornengolem: 'm', wyrmling: 'm', sturmrabe: 'm', waldhexe: 'f',
   eichenhueter: 'm', schattenwolf: 'm', steinwurm: 'm', farngeist: 'm', trollkoenig: 'm', wyrmwaechter: 'm',
   dragon: 'm',
+  // Schattenreich
+  'verirrte-seele': 'f', faehrmann: 'm', schattenhund: 'm', knochenkraehe: 'f', 'klagende-witwe': 'f', nebelschlund: 'm',
 };
 
 /** "der Borkenwolf", "die Moosratte", "das Irrlicht" (Nominativ). */

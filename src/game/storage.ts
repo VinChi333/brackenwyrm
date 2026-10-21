@@ -36,7 +36,7 @@ export function deleteGame(): void {
 }
 
 export function newStats(day: number): Stats {
-  return { kills: 0, deaths: 0, masters: 0, events: 0, runStartDay: day, fastestDragon: 0, lastDeathDay: 0, bestHit: { dmg: 0, foe: '', day: 0 }, realDays: 1, firstPlayed: '' };
+  return { kills: 0, deaths: 0, masters: 0, events: 0, runStartDay: day, fastestDragon: 0, lastDeathDay: 0, bestHit: { dmg: 0, foe: '', day: 0 }, shades: 0, resurrections: 0, realDays: 1, firstPlayed: '' };
 }
 
 /** Prüft und ergänzt einen Spielstand aus beliebiger Quelle (Browser, Code, Server). */
@@ -50,6 +50,9 @@ export function validate(x: unknown): GameState | null {
   s.player.buffs = Array.isArray(s.player.buffs) ? s.player.buffs : [];
   s.player.gender = s.player.gender === 'f' ? 'f' : 'm';
   s.player.innTalks = typeof s.player.innTalks === 'number' ? s.player.innTalks : 0;
+  s.player.soul = typeof s.player.soul === 'number' ? s.player.soul : 50 + 5 * s.player.level;
+  s.player.favor = typeof s.player.favor === 'number' ? s.player.favor : 0;
+  s.player.graveFights = typeof s.player.graveFights === 'number' ? s.player.graveFights : 10;
   s.stats = Object.assign(newStats(1), s.stats ?? {});
   s.pendingEvent = s.pendingEvent ?? null;
   s.chronicle = Array.isArray(s.chronicle) ? s.chronicle : [];

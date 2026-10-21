@@ -13,6 +13,38 @@ export const DEATH_EXP_LOSS = 0.15;
 export const BANK_INTEREST = 0.03;
 export const HARZBIER_BUFF = { name: 'Harzbier-Mut', atkMult: 1.15, rounds: 10 };
 
+// ---------- Schattenreich (wie im Original: Seelenkraft, Schattenkämpfe, Gunst) ----------
+export const GRAVE_FIGHTS_PER_DAY = 10;
+export const RESURRECT_FAVOR = 100;
+/** Im Original kostet die Rückkehr 6 von 10 Waldkämpfen; bei uns entsprechend 60 %. */
+export const RESURRECT_TURN_SHARE = 0.4;
+
+export function maxSoul(p: Player): number {
+  return 50 + 5 * p.level;
+}
+
+/** Im Schattenreich zählen weder Waffe noch Rüstung, nur die Stufe. */
+export function graveAttack(p: Player): number {
+  return 10 + (p.level - 1) * 1.5;
+}
+
+export function shadeStats(p: Player): Omit<Combatant, 'name'> {
+  const atk = 9 + (p.level - 1) * 1.5;
+  const hp = Math.round(maxSoul(p) * 0.6);
+  return { level: p.level, hp, maxHp: hp, atk: Math.round(atk), def: Math.round(atk * 0.7) };
+}
+
+/** Gunst für eine besiegte Seele: 10 bis 20, plus ein Drittel der Stufe. */
+export function favorRange(level: number): [number, number] {
+  const b = Math.floor(level / 3);
+  return [10 + b, 20 + b];
+}
+
+/** Seelenkraft auffüllen kostet bis zu 10 Gunst, je nachdem wie viel fehlt. */
+export function soulRestoreCost(p: Player): number {
+  return Math.round((10 * (maxSoul(p) - p.soul)) / maxSoul(p));
+}
+
 export function maxHp(p: Player): number {
   return 10 + 10 * p.level + p.baseMaxHp;
 }

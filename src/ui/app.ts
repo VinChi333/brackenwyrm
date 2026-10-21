@@ -9,11 +9,13 @@ import { FRIEDA_TALKS_PER_DAY, regularsSay } from '../content/inn';
 import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
 import { MONSTERS } from '../content/monsters';
+import { SHADES } from '../content/shades';
 import { SPECIALTIES, SPECIALTY_ORDER } from '../content/specialties';
 import { MAX_LEVEL, healCostPerHp } from '../game/balance';
 import {
   attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
   CHRONICLE_SIZE, closeFight, defense, drinkHarzbier, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
+  graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost,
   newGame, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
 } from '../game/engine';
 import type { DragonBonus, FightAction, ForestMode } from '../game/engine';
@@ -22,12 +24,12 @@ import { Cloud, CloudError } from '../game/cloud';
 import type { FameRow, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
 import type { ChronicleEntry, GameState, Gender, LogLine, SpecialtyId } from '../game/types';
-import { cardBack, cardFor, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard } from './art/cards';
+import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard } from './art/cards';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login';
 
-const VERSION = 'Testversion 0.16';
+const VERSION = 'Testversion 0.17';
 
 interface Ui {
   screen: Screen;
@@ -113,7 +115,11 @@ function vital(s: GameState): string {
         ${p.dragonKills ? `<span class="v-dk">Drachentöter ${p.dragonKills}×</span>` : ''}</div>
     </div>
     <dl class="vital-list">
-      <div class="v-row wide"><dt>Lebenspunkte</dt><dd>${p.hp} / ${maxHp(p)}</dd>${bar(p.hp, maxHp(p), 'hp')}</div>
+      ${p.alive
+        ? `<div class="v-row wide"><dt>Lebenspunkte</dt><dd>${p.hp} / ${maxHp(p)}</dd>${bar(p.hp, maxHp(p), 'hp')}</div>`
+        : `<div class="v-row wide"><dt>Seelenkraft</dt><dd>${p.soul} / ${maxSoul(p)}</dd>${bar(p.soul, maxSoul(p), 'soul')}</div>
+           <div class="v-row"><dt>Gunst</dt><dd class="gem">${p.favor} / ${RESURRECT_FAVOR}</dd></div>
+           <div class="v-row"><dt>Schattenkämpfe</dt><dd>${p.graveFights}</dd></div>`}
       <div class="v-row wide"><dt>Erfahrung</dt><dd>${p.level >= MAX_LEVEL ? 'max.' : `${p.exp} / ${need}`}</dd>${bar(p.exp - prev, need - prev, 'xp')}</div>
       <div class="v-row"><dt>Angriff</dt><dd>${attack(p)}</dd></div>
       <div class="v-row"><dt>Verteidigung</dt><dd>${defense(p)}</dd></div>
@@ -313,7 +319,7 @@ function forestScreen(s: GameState): string {
 function fightScreen(s: GameState): string {
   const f = s.fight!;
   const p = s.player;
-  const c = f.kind === 'dragon' ? dragonCard() : f.kind === 'master' ? masterCard(f.foe.level) : cardFor(f.monsterId)!;
+  const c = f.kind === 'dragon' ? dragonCard() : f.kind === 'master' ? masterCard(f.foe.level) : f.kind === 'grave' ? shadeCard(f.monsterId)! : cardFor(f.monsterId)!;
   const acted = f.seq > 0;
   const heroAttacked = acted && (f.lastHeroDmg > 0 || f.lastHeroMiss);
   const foeAttacked = acted && (f.lastFoeDmg > 0 || f.lastFoeMiss);
@@ -331,19 +337,22 @@ function fightScreen(s: GameState): string {
   const fx = `${heroAttacked ? `<div class="dmg dmg-foe ${f.lastCrit ? 'crit' : ''}">${f.lastHeroMiss ? 'Daneben' : '−' + f.lastHeroDmg}</div>` : ''}
     ${foeAttacked ? `<div class="dmg dmg-hero">${f.lastFoeMiss ? 'Ausgewichen' : '−' + f.lastFoeDmg + ' LP'}</div>` : ''}
     ${f.over === 'win' ? '<div class="stamp">Besiegt</div>' : ''}`;
-  const isNew = f.over === 'win' && f.kind === 'forest' && s.bestiary[f.monsterId] === 1;
+  const isNew = f.over === 'win' && (f.kind === 'forest' || f.kind === 'grave') && s.bestiary[f.monsterId] === 1;
 
   let groups: Group[] = [];
   if (!f.over) {
     groups = [{ title: 'Kampf', items: [
       { act: 'fight:attack', label: 'Angreifen', key: 'a', primary: true },
-      { act: 'fight:special', label: sp.move, key: spKey, disabled: p.specialUses <= 0, hint: `${p.specialUses}× übrig` },
+      ...(f.kind === 'grave' ? [] : [{ act: 'fight:special', label: sp.move, key: spKey, disabled: p.specialUses <= 0, hint: `${p.specialUses}× übrig` }]),
       ...(f.kind !== 'master' ? [{ act: 'fight:auto', label: 'Kämpfen bis zum Ende', key: 'k' }] : []),
       { act: 'fight:flee', label: f.kind === 'master' ? 'Aufgeben' : 'Fliehen', key: f.kind === 'master' ? 'u' : 'f' },
     ] }];
   } else {
     const items: Item[] = [];
-    if (f.kind === 'forest' && f.over !== 'lose') {
+    if (f.kind === 'grave') {
+      if (f.over === 'win') items.push({ act: 'after:grave', label: 'Weiter am Nebelfluss', key: 'w', hint: `${p.graveFights} Schattenkämpfe`, disabled: p.graveFights <= 0 });
+      items.push({ act: 'after:shadows', label: 'Zurück zu Morwen', key: 'm' });
+    } else if (f.kind === 'forest' && f.over !== 'lose') {
       items.push({ act: 'after:forest', label: 'Weiter durch den Wald', key: 'w', hint: `${p.forestFights} Kämpfe übrig`, disabled: p.forestFights <= 0 });
       items.push({ act: 'after:village', label: 'Zurück ins Dorf', key: 'd' });
     } else if (f.kind === 'master') {
@@ -495,7 +504,11 @@ function bestiaryScreen(s: GameState): string {
     <p class="lead">Jede Kreatur, die du besiegst, bekommt hier ihre Karte. <span class="gold">${found} von ${MONSTERS.length}</span> entdeckt.</p>
     <div class="progress">${bar(found, MONSTERS.length, 'xp')}</div>
     ${sections}
-    <section class="b-level"><h2>Legende</h2><div class="card-grid">${dragon}</div></section>`;
+    <section class="b-level"><h2>Legende</h2><div class="card-grid">${dragon}</div></section>
+    <section class="b-level"><h2>Schattenreich</h2><div class="card-grid">${SHADES.map((m) => {
+      const n = s.bestiary[m.id] ?? 0;
+      return n ? cardHtml(shadeCard(m.id)!, { count: n, cls: 'grid-card', isNew: ui.newCard === m.id }) : shadeBack();
+    }).join('')}</div></section>`;
   return layout(s, main, [{ title: 'Zurück', items: [back] }]);
 }
 
@@ -633,11 +646,21 @@ function shadowsScreen(s: GameState): string {
   const mid = new Date(now);
   mid.setHours(24, 0, 0, 0);
   const mins = Math.max(0, Math.round((mid.getTime() - now.getTime()) / 60000));
+  const p = s.player;
+  const cost = soulRestoreCost(p);
+  const canBack = p.favor >= RESURRECT_FAVOR;
   const main = `<h1 class="shadow-title">Das Schattenreich</h1>
     <p class="lead">Grauer Nebel, ein stiller Fluss. <span class="npc">Morwen</span> stakt ihr Boot heran. „Du schon wieder“, sagt sie. „Setz dich. Bei Sonnenaufgang bringe ich dich zurück.“</p>
+    <p>Am Ufer treiben verirrte Seelen. „Wenn du mir ein paar davon vom Hals schaffst“, sagt Morwen, „fahre ich dich vielleicht früher zurück.“
+      ${canBack ? '<span class="place">Du hast genug Gunst für die Rückkehr.</span>' : `Dafür brauchst du <span class="gem">${RESURRECT_FAVOR} Gunst</span>, du hast ${p.favor}.`}</p>
+    <div class="progress">${bar(p.favor, RESURRECT_FAVOR, 'favor')}</div>
     <p class="muted">Neuer Tag in ${Math.floor(mins / 60)} Std. ${mins % 60} Min. Gold im Kontor ist sicher.</p>
     ${flashHtml()}`;
-  return layout(s, main, [{ title: 'Schattenreich', items: [
+  return layout(s, main, [{ title: 'Am Nebelfluss', items: [
+    { act: 'grave', label: 'Gegen Seelen kämpfen', key: 'k', hint: `${p.graveFights} Schattenkämpfe`, disabled: p.graveFights <= 0 || p.soul <= 0, primary: !canBack },
+    { act: 'resurrect', label: 'Morwen um Rückkehr bitten', key: 'r', hint: `${p.favor} / ${RESURRECT_FAVOR} Gunst`, disabled: !canBack, primary: canBack },
+    { act: 'soul', label: 'Seelenkraft stärken', key: 's', hint: p.soul >= maxSoul(p) ? 'voll' : `${cost} Gunst`, disabled: p.soul >= maxSoul(p) || p.favor < cost },
+  ] }, { title: 'Sonstiges', items: [
     ...(prefs.dev ? [{ act: 'testday', label: 'Neuer Tag (Testmodus)', key: 'n' }] : []),
     { act: 'feedback', label: 'Rückmeldung geben', key: 'm' },
     { act: 'go:settings', label: 'Einstellungen', key: 'e' },
@@ -822,6 +845,20 @@ function handle(act: string, el: HTMLElement): void {
       if (r.type === 'fight') window.scrollTo(0, 0);
       return;
     }
+    case 'grave': {
+      const err = graveSearch(s);
+      ui.flash = err ? [{ t: err, k: 'warn' }] : [];
+      commit();
+      if (!err) window.scrollTo(0, 0);
+      return;
+    }
+    case 'soul': say(restoreSoul(s), 'good'); commit(); return;
+    case 'resurrect': {
+      const msg = resurrect(s);
+      saveGame(s);
+      if (s.player.alive) { go('village'); say(msg, 'good'); render(); scheduleSync(500); } else { say(msg, 'warn'); render(); }
+      return;
+    }
     case 'dragon': if (startDragonFight(s)) { ui.flash = []; commit(); window.scrollTo(0, 0); } return;
     case 'master': if (startMasterFight(s)) { ui.flash = []; commit(); window.scrollTo(0, 0); } return;
     case 'fight': {
@@ -829,18 +866,20 @@ function handle(act: string, el: HTMLElement): void {
         // Bis zum Ende kämpfen. Einmal pro Kampf hält das Spiel an, wenn es knapp wird;
         // wer danach nochmal drückt (oder schon angeschlagen startet), kämpft wirklich bis zum Ende.
         const f0 = s.fight;
-        const safe = !!f0 && !f0.autoWarned && s.player.hp > maxHp(s.player) * 0.3;
+        // Im Schattenreich zählt die Seelenkraft, sonst die Lebenspunkte.
+        const healthy = () => (f0?.kind === 'grave' ? s.player.soul > maxSoul(s.player) * 0.3 : s.player.hp > maxHp(s.player) * 0.3);
+        const safe = !!f0 && !f0.autoWarned && healthy();
         let guard = 0;
-        while (s.fight && !s.fight.over && guard++ < 200 && (!safe || s.player.hp > maxHp(s.player) * 0.3)) fightAction(s, 'attack');
+        while (s.fight && !s.fight.over && guard++ < 200 && (!safe || healthy())) fightAction(s, 'attack');
         if (s.fight && !s.fight.over) {
           s.fight.autoWarned = true;
-          s.fight.log.push({ t: 'Du hältst inne, du bist schwer angeschlagen. Drück nochmal „Kämpfen bis zum Ende“, um trotzdem weiterzukämpfen, oder flieh.', k: 'warn', r: s.fight.round });
+          s.fight.log.push({ t: s.fight.kind === 'grave' ? 'Du hältst inne, deine Seele flackert. Drück nochmal „Kämpfen bis zum Ende“, um weiterzukämpfen, oder flieh. Verlierst du, ist der Tag am Nebelfluss vorbei.' : 'Du hältst inne, du bist schwer angeschlagen. Drück nochmal „Kämpfen bis zum Ende“, um trotzdem weiterzukämpfen, oder flieh.', k: 'warn', r: s.fight.round });
         }
       } else {
         fightAction(s, a as FightAction);
       }
       const f = s.fight;
-      if (f && f.over === 'win' && f.kind === 'forest' && s.bestiary[f.monsterId] === 1) ui.newCard = f.monsterId;
+      if (f && f.over === 'win' && (f.kind === 'forest' || f.kind === 'grave') && s.bestiary[f.monsterId] === 1) ui.newCard = f.monsterId;
       commit();
       return;
     }
@@ -899,6 +938,15 @@ function handle(act: string, el: HTMLElement): void {
     case 'fulllog': ui.fullLog = !ui.fullLog; render(); return;
     case 'after': {
       ui.fullLog = false;
+      if (a === 'grave') {
+        closeFight(s);
+        const err = graveSearch(s);
+        ui.flash = err ? [{ t: err, k: 'warn' }] : [];
+        if (err) ui.screen = 'shadows';
+        commit();
+        window.scrollTo(0, 0);
+        return;
+      }
       if (!prefs.fightHint) { prefs.fightHint = true; savePrefs(prefs); }
       closeFight(s);
       const target: Screen = a === 'forest' ? 'forest' : a === 'training' ? 'training' : a === 'shadows' ? 'shadows' : a === 'bonus' ? 'dragonBonus' : 'village';
