@@ -27,7 +27,7 @@ import { cardBack, cardFor, cardHtml, dragonCard, heroArt, heroPortrait, masterC
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login';
 
-const VERSION = 'Testversion 0.15';
+const VERSION = 'Testversion 0.16';
 
 interface Ui {
   screen: Screen;
@@ -720,10 +720,13 @@ async function syncNow(): Promise<string> {
     const local = state;
     const d = decideSync({ local: local?.savedAt ?? null, remote: remote?.savedAt ?? null, lastSynced: prefs.lastSyncedAt });
     if (d === 'push' && local) {
-      await cloud.push(local);
-      prefs.lastSyncedAt = local.savedAt ?? 0;
+      const pushedAt = local.savedAt ?? 0;  // merken, was wirklich hochging (während des Hochladens kann weitergespielt werden)
+      await cloud.push(JSON.parse(JSON.stringify(local)) as GameState);
+      prefs.lastSyncedAt = pushedAt;
+    } else if ((d === 'pull' || d === 'conflict') && local?.fight) {
+      scheduleSync(15000);  // nie mitten im Kampf austauschen oder nachfragen: nach dem Kampf erneut versuchen
+      return '';
     } else if (d === 'pull' && remote) {
-      if (local?.fight) return '';  // nie mitten im Kampf austauschen
       state = remote.state;
       localSaveWithoutTouch(state);
       prefs.lastSyncedAt = remote.savedAt;
@@ -823,9 +826,16 @@ function handle(act: string, el: HTMLElement): void {
     case 'master': if (startMasterFight(s)) { ui.flash = []; commit(); window.scrollTo(0, 0); } return;
     case 'fight': {
       if (a === 'auto') {
+        // Bis zum Ende kämpfen. Einmal pro Kampf hält das Spiel an, wenn es knapp wird;
+        // wer danach nochmal drückt (oder schon angeschlagen startet), kämpft wirklich bis zum Ende.
+        const f0 = s.fight;
+        const safe = !!f0 && !f0.autoWarned && s.player.hp > maxHp(s.player) * 0.3;
         let guard = 0;
-        while (s.fight && !s.fight.over && s.player.hp > maxHp(s.player) * 0.3 && guard++ < 60) fightAction(s, 'attack');
-        if (s.fight && !s.fight.over) s.fight.log.push({ t: 'Du hältst inne. Du bist angeschlagen, entscheide selbst, wie es weitergeht.', k: 'warn', r: s.fight.round });
+        while (s.fight && !s.fight.over && guard++ < 200 && (!safe || s.player.hp > maxHp(s.player) * 0.3)) fightAction(s, 'attack');
+        if (s.fight && !s.fight.over) {
+          s.fight.autoWarned = true;
+          s.fight.log.push({ t: 'Du hältst inne, du bist schwer angeschlagen. Drück nochmal „Kämpfen bis zum Ende“, um trotzdem weiterzukämpfen, oder flieh.', k: 'warn', r: s.fight.round });
+        }
       } else {
         fightAction(s, a as FightAction);
       }

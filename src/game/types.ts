@@ -99,6 +99,7 @@ export interface Fight {
   lastSpecial: boolean;
   seq: number;          // zählt jede Aktion, damit Animationen neu starten
   topHit?: number;      // stärkster eigener Treffer in diesem Kampf
+  autoWarned?: boolean; // "Kämpfen bis zum Ende" hat in diesem Kampf schon einmal angehalten
 }
 
 export interface Player {
