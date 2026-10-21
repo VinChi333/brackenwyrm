@@ -8,9 +8,10 @@ läuft das Spiel rein lokal; das Spielerkonto erscheint dann gar nicht erst.
 1. Auf supabase.com ein Konto und ein neues Projekt anlegen (Region Frankfurt, wegen DSGVO).
 2. Beim Anlegen: „Enable Data API“ an, „Automatically expose new tables“ aus, „Enable automatic RLS“ an.
    Dann im Projekt unter **SQL Editor** den Inhalt von `supabase.sql` einfügen und ausführen.
-3. Unter **Authentication → Providers** muss **Email** aktiv sein.
-4. Unter **Authentication → Email Templates → Magic Link** den Text so ändern, dass der Code drinsteht, z. B.:
-   `Dein Anmeldecode für Brackenwyrm: {{ .Token }}` (sonst schickt Supabase nur einen Link statt eines Codes).
+3. Unter **Authentication → Sign In / Providers**: **Email** aktiv, **Confirm email** aus, neue Anmeldungen erlaubt.
+   Angemeldet wird vorerst mit E-Mail und Passwort, dafür muss keine Mail verschickt werden.
+4. Später, mit eigener Domain: eigenen E-Mail-Versand (SMTP) einrichten, dann sind Passwort-Zurücksetzen und
+   Anmeldecodes per E-Mail möglich (Vorlage „Magic Link“ mit `{{ .Token }}`; im Spiel `requestCode`/`verifyCode`).
 5. Unter **Project Settings → API** die **Project URL** und den **anon public key** kopieren und im Projektordner
    eine Datei `.env` anlegen:
 

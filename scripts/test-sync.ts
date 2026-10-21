@@ -24,6 +24,12 @@ const fake = async (url: string | URL | Request, init: RequestInit = {}): Promis
   calls.push({ url: u, init });
   const body = init.body ? JSON.parse(String(init.body)) : null;
   const json = (x: unknown, status = 200) => new Response(JSON.stringify(x), { status });
+  if (u.endsWith('/auth/v1/signup')) return body.email === 'neu@b.de'
+    ? json({ access_token: 'A', refresh_token: 'R', expires_in: 3600, user: { id: 'u1', email: body.email } })
+    : json({ code: 422, error_code: 'user_already_exists', msg: 'User already registered' }, 422);
+  if (u.includes('/auth/v1/token?grant_type=password')) return body.password === 'geheim1'
+    ? json({ access_token: 'A', refresh_token: 'R', expires_in: 3600, user: { id: 'u1', email: body.email } })
+    : json({ error: 'invalid_grant', error_description: 'Invalid login credentials' }, 400);
   if (u.endsWith('/auth/v1/otp')) return new Response('{}', { status: 200 });
   if (u.endsWith('/auth/v1/verify')) return body.token === '123456'
     ? json({ access_token: 'A', refresh_token: 'R', expires_in: 3600, user: { id: 'u1', email: body.email } })
@@ -38,6 +44,23 @@ const mem = new Map<string, string>();
 const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v), removeItem: (k: string) => void mem.delete(k) };
 const cloud = new Cloud('https://x.supabase.co', 'anon', fake as typeof fetch, store);
 
+await t('vorhandenes Konto: verständlicher Hinweis', async () => {
+  await assert.rejects(cloud.signUp('alt@b.de', 'geheim1'), (e: { code: string }) => e.code === 'exists');
+});
+await t('falsches Passwort: verständlicher Hinweis', async () => {
+  await assert.rejects(cloud.signIn('a@b.de', 'falsch'), (e: { code: string }) => e.code === 'bad_login');
+  assert.equal(cloud.signedIn, false);
+});
+await t('neues Konto meldet direkt an', async () => {
+  await cloud.signUp('neu@b.de', 'geheim1');
+  assert.equal(cloud.signedIn, true);
+  cloud.signOut();
+});
+await t('Anmelden mit Passwort', async () => {
+  await cloud.signIn('a@b.de', 'geheim1');
+  assert.equal(cloud.email, 'a@b.de');
+  cloud.signOut();
+});
 await t('falscher Code wird abgelehnt', async () => {
   await assert.rejects(cloud.verifyCode('a@b.de', '000000'), (e: { code: string }) => e.code === 'bad_code');
   assert.equal(cloud.signedIn, false);

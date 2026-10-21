@@ -515,3 +515,6 @@ tr.owned td { color: var(--green); }
   .in-fight .battle .arena .card { max-width: 150px; }
   .in-fight .fight-log { max-height: 240px; }
 }
+
+.acct-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.acct-form input { width: 100%; }

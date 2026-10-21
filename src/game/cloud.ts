@@ -13,7 +13,7 @@ export interface RemoteSave { state: GameState; savedAt: number }
 export interface FameRow { name: string; dragonKills: number; level: number; title?: string }
 
 export class CloudError extends Error {
-  constructor(public code: 'offline' | 'auth' | 'server' | 'bad_code', message: string) { super(message); }
+  constructor(public code: 'offline' | 'auth' | 'server' | 'bad_code' | 'bad_login' | 'exists' | 'weak' | 'confirm', message: string) { super(message); }
 }
 
 type Fetch = typeof fetch;
@@ -28,7 +28,40 @@ export class Cloud {
   get signedIn(): boolean { return !!this.session; }
   get email(): string { return this.session?.email ?? ''; }
 
-  /** Schickt einen 6-stelligen Anmeldecode an die E-Mail-Adresse (legt das Konto bei Bedarf an). */
+  /** Neues Konto mit E-Mail und Passwort. Braucht in Supabase "Confirm email" = aus. */
+  async signUp(email: string, password: string): Promise<void> {
+    const r = await this.authCall('/auth/v1/signup', { email, password });
+    if (!r?.access_token) throw new CloudError('confirm', 'Konto angelegt, muss aber erst per E-Mail bestätigt werden. In Supabase "Confirm email" ausschalten.');
+    this.setSession(r);
+  }
+
+  /** Anmelden mit E-Mail und Passwort. */
+  async signIn(email: string, password: string): Promise<void> {
+    this.setSession(await this.authCall('/auth/v1/token?grant_type=password', { email, password }));
+  }
+
+  /** Auth-Anfrage mit verständlichen Fehlermeldungen. */
+  private async authCall(path: string, body: unknown): Promise<any> {
+    if (!this.enabled) throw new CloudError('server', 'Online-Spielstand ist nicht eingerichtet.');
+    let res: Response;
+    try {
+      res = await this.http(this.url + path, { method: 'POST', headers: { apikey: this.key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    } catch {
+      throw new CloudError('offline', 'Keine Verbindung zum Server.');
+    }
+    const text = await res.text();
+    const data = text ? JSON.parse(text) : null;
+    if (res.ok) return data;
+    const code = String(data?.error_code ?? data?.code ?? data?.error ?? '');
+    const msg = String(data?.msg ?? data?.message ?? data?.error_description ?? '');
+    if (/already|exists|registered/i.test(code + msg)) throw new CloudError('exists', 'Für diese E-Mail gibt es schon ein Konto. Bitte anmelden.');
+    if (/weak|password.*(short|least|characters)/i.test(code + msg)) throw new CloudError('weak', 'Das Passwort ist zu kurz oder zu einfach (mindestens 6 Zeichen).');
+    if (/invalid.*(credential|grant)|invalid login/i.test(code + msg)) throw new CloudError('bad_login', 'E-Mail oder Passwort stimmt nicht.');
+    if (/not.*confirmed/i.test(code + msg)) throw new CloudError('confirm', 'Die E-Mail-Adresse ist noch nicht bestätigt.');
+    throw new CloudError('server', `Anmeldung fehlgeschlagen (${res.status}).`);
+  }
+
+  /** Schickt einen Anmeldecode an die E-Mail-Adresse (legt das Konto bei Bedarf an). */
   async requestCode(email: string): Promise<void> {
     await this.call('/auth/v1/otp', { method: 'POST', body: { email, create_user: true } }, false);
   }

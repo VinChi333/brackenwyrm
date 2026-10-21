@@ -47,7 +47,6 @@ interface Ui {
   devTaps: number;
   menuOpen: boolean;        // Handy: Menü von unten aufgeklappt
   acctEmail: string;        // Spielerkonto: eingegebene Adresse
-  acctStep: 'email' | 'code';
   acctMsg: string;
   conflict: RemoteSave | null;  // Server-Stand, wenn beide Geräte weitergespielt haben
   fame: FameRow[] | null;       // echte Spieler aus der Online-Ruhmeshalle
@@ -57,7 +56,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, acctEmail: '', acctStep: 'email', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'klinge', createGender: 'm', confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, acctEmail: '', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -579,16 +578,13 @@ function accountHtml(): string {
       <p>Angemeldet als <strong>${esc(cloud.email)}</strong>. Dein Spielstand wird automatisch online gesichert, damit du auf Handy und Computer weiterspielen kannst.</p>
       <div class="row"><button type="button" class="tbtn" data-act="acct:sync">Jetzt abgleichen</button><button type="button" class="tbtn" data-act="acct:out">Abmelden</button></div>${msg}`;
   }
-  if (ui.acctStep === 'code') {
-    return `<h2>Spielerkonto</h2>
-      <p>Wir haben dir einen Anmeldecode an <strong>${esc(ui.acctEmail)}</strong> geschickt.</p>
-      <div class="row"><input type="text" id="acct-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="Code aus der E-Mail" aria-label="Anmeldecode">
-        <button type="button" class="tbtn" data-act="acct:verify">Anmelden</button><button type="button" class="tbtn" data-act="acct:back">Andere Adresse</button></div>${msg}`;
-  }
   return `<h2>Spielerkonto</h2>
-    <p class="muted">Mit einem Konto wird dein Spielstand online gesichert, und du spielst auf Handy und Computer mit demselben Helden. Kein Passwort: Du bekommst einen Code per E-Mail.</p>
-    <div class="row"><input type="email" id="acct-email" autocomplete="email" placeholder="deine@mail.at" aria-label="E-Mail-Adresse" value="${esc(ui.acctEmail)}">
-      <button type="button" class="tbtn" data-act="acct:code">Code schicken</button></div>${msg}`;
+    <p class="muted">Mit einem Konto wird dein Spielstand online gesichert, und du spielst auf Handy und Computer mit demselben Helden.</p>
+    <div class="acct-form">
+      <label class="field">E-Mail<input type="email" id="acct-email" autocomplete="email" placeholder="deine@mail.at" value="${esc(ui.acctEmail)}"></label>
+      <label class="field">Passwort<input type="password" id="acct-pass" autocomplete="current-password" placeholder="mindestens 6 Zeichen"></label>
+    </div>
+    <div class="row"><button type="button" class="btn" data-act="acct:in">Anmelden</button><button type="button" class="btn ghost" data-act="acct:up">Neues Konto anlegen</button></div>${msg}`;
 }
 
 function summary(st: GameState): string {
@@ -788,16 +784,23 @@ function handle(act: string, el: HTMLElement): void {
     }
     case 'acct': {
       const done = (m: string) => { ui.acctMsg = m; render(); };
-      if (a === 'code') {
+      if (a === 'in' || a === 'up') {
         const email = ((document.getElementById('acct-email') as HTMLInputElement | null)?.value ?? '').trim();
-        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { done('Bitte eine gültige E-Mail-Adresse eingeben.'); return; }
+        const pass = (document.getElementById('acct-pass') as HTMLInputElement | null)?.value ?? '';
         ui.acctEmail = email;
-        cloud.requestCode(email).then(() => { ui.acctStep = 'code'; done(''); }, (e) => done(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'));
-      } else if (a === 'verify') {
-        const code = (document.getElementById('acct-code') as HTMLInputElement | null)?.value ?? '';
-        cloud.verifyCode(ui.acctEmail, code).then(async () => { ui.acctStep = 'email'; prefs.lastSyncedAt = 0; savePrefs(prefs); const m = await syncNow(); if (ui.screen === 'login') { if (state) { checkRealDay(state); saveGame(state, true); go('village'); return; } done('Für dieses Konto gibt es noch keinen Spielstand. Beginne ein neues Spiel, es wird dann automatisch gesichert.'); return; } done(m); }, (e) => done(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'));
-      } else if (a === 'back') {
-        ui.acctStep = 'email'; done('');
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { done('Bitte eine gültige E-Mail-Adresse eingeben.'); return; }
+        if (pass.length < 6) { done('Das Passwort braucht mindestens 6 Zeichen.'); return; }
+        done(a === 'up' ? 'Lege Konto an …' : 'Melde an …');
+        (a === 'up' ? cloud.signUp(email, pass) : cloud.signIn(email, pass)).then(async () => {
+          prefs.lastSyncedAt = 0; savePrefs(prefs);
+          const m = await syncNow();
+          if (ui.screen === 'login') {
+            if (state) { checkRealDay(state); saveGame(state, true); go('village'); return; }
+            done('Angemeldet. Für dieses Konto gibt es noch keinen Spielstand. Beginne ein neues Spiel, es wird dann automatisch gesichert.');
+            return;
+          }
+          done(m || 'Angemeldet.');
+        }, (e) => done(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'));
       } else if (a === 'sync') {
         done('Gleiche ab …');
         syncNow().then(done);
@@ -963,6 +966,7 @@ function onKey(e: KeyboardEvent): void {
   const t = e.target as HTMLElement;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) {
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'name') handle('create', t);
+    if (e.key === 'Enter' && (t as HTMLInputElement).id === 'acct-pass') handle('acct:in', t);
     return;
   }
   if (e.key === 'Escape' && ui.menuOpen) { ui.menuOpen = false; render(); return; }
