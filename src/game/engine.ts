@@ -19,6 +19,7 @@ import { between, chance, pick, rand, roll } from './rng';
 import { newStats } from './storage';
 import { titleFor } from '../content/titles';
 import { loverNewDay } from './lovers';
+import { mountBuff, mountNewDay } from './stable';
 import type { Buff, DragonPoint, Fight, GameState, Gender, LogLine, Player, RaceId, SpecialtyId } from './types';
 
 export function todayKey(d = new Date()): string {
@@ -32,7 +33,7 @@ export function newPlayer(name: string, specialty: SpecialtyId, gender: Gender =
     name, specialty, race, gender, skill: 0, level: 1, exp: 0, hp: 0, baseMaxHp: 0, bonusAtk: 0, bonusDef: 0,
     weaponTier: 0, armorTier: 0, gold: 50, bank: 0, gems: 0, forestFights: 0,
     specialUses: 0, dragonKills: 0, alive: true, seenMaster: false, drankToday: false, songToday: false, innTalks: 0, soul: 0, favor: 0, graveFights: GRAVE_FIGHTS_PER_DAY, innRoom: false, buffs: [],
-    bonusFights: 0, charm: 0, dragonPoints: [], marriedTo: '', seenLover: false,
+    bonusFights: 0, charm: 0, dragonPoints: [], marriedTo: '', seenLover: false, mount: '', mountFed: false,
   };
   p.hp = maxHp(p);
   p.soul = maxSoul(p);
@@ -90,6 +91,7 @@ export function startNewDay(s: GameState): void {
   p.songToday = false;
   p.buffs = [];
   s.news.push(...loverNewDay(s, announce));
+  s.news.push(...mountNewDay(s));
   const interest = bankInterest(p);
   if (interest > 0) {
     p.bank += interest;
@@ -218,7 +220,7 @@ export function resurrect(s: GameState): string {
   p.drankToday = false;
   p.songToday = false;
   p.innTalks = 0;
-  p.buffs = [];
+  p.buffs = p.mount ? [mountBuff(p.mount)] : [];
   s.fight = null;
   s.stats.resurrections += 1;
   announce(s, `Morwen hat ${p.name} vorzeitig aus dem Schattenreich zurückgebracht.`);

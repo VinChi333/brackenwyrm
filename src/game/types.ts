@@ -11,7 +11,7 @@ export type Gender = 'm' | 'f';
 
 export type ShapeId =
   | 'rat' | 'bat' | 'goblin' | 'wolf' | 'beetle' | 'blob' | 'bird' | 'humanoid'
-  | 'boar' | 'spider' | 'ghost' | 'serpent' | 'bear' | 'troll' | 'stag' | 'treant'
+  | 'boar' | 'spider' | 'ghost' | 'serpent' | 'bear' | 'troll' | 'stag' | 'horse' | 'treant'
   | 'dragon';
 
 export type PropId = 'none' | 'sword' | 'axe' | 'bow' | 'hammer' | 'spear' | 'staff' | 'daggers' | 'club';
@@ -82,6 +82,8 @@ export interface Buff {
 }
 
 export type PartnerId = 'frieda' | 'florian';
+
+export type MountId = 'pony' | 'wallach' | 'hengst';
 
 export interface LogLine {
   t: string;
@@ -164,6 +166,8 @@ export interface Player {
   marriedTo: PartnerId | '';   // verheiratet mit Frieda oder Florian (bleibt über Drachenkills)
   seenLover: boolean;          // heute schon geflirtet
   loverPref?: PartnerId;       // wen man im Gasthaus umwirbt (Standard: das andere Geschlecht)
+  mount: MountId | '';         // Reittier aus Mertens Stall (bleibt über Drachenkills)
+  mountFed: boolean;           // heute schon gefüttert
 }
 
 export type DragonPoint = 'atk' | 'def' | 'hp' | 'ff';

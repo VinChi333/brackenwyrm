@@ -224,6 +224,18 @@ function stag(e: string): string {
     ${eye(-62, -200, e, 3.4)}`;
 }
 
+function horse(e: string): string {
+  return `<path d="M92 -140 Q130 -120 118 -60 Q112 -90 94 -112 Z"/>
+    <ellipse cx="22" cy="-124" rx="76" ry="34"/>
+    <rect x="-38" y="-104" width="11" height="104" rx="4"/><rect x="-16" y="-100" width="11" height="100" rx="4"/>
+    <rect x="58" y="-104" width="11" height="104" rx="4"/><rect x="80" y="-100" width="11" height="100" rx="4"/>
+    <path d="M-42 -146 Q-62 -176 -58 -212 L-34 -208 Q-32 -170 -6 -142 Z"/>
+    <path d="M-40 -214 Q-62 -222 -104 -196 Q-110 -184 -98 -180 Q-66 -184 -36 -190 Z"/>
+    <polygon points="-48,-218 -40,-238 -34,-214"/>
+    <path d="M-34 -212 Q-14 -196 -16 -150 Q-24 -176 -40 -196 Z"/>
+    ${eye(-66, -206, e, 3.4)}`;
+}
+
 function treant(e: string): string {
   return `<path d="M-70 0 Q-50 -10 -42 -40 L-40 -150 L40 -150 L42 -40 Q50 -10 74 0 Q40 -4 24 -18 L20 0 L-20 0 L-24 -18 Q-40 -4 -70 0 Z"/>
     <path d="M-40 -130 Q-80 -140 -110 -110 Q-116 -96 -100 -98 Q-80 -116 -42 -112 Z"/>
@@ -281,6 +293,7 @@ export function creature(shape: ShapeId, eyes: string, p: PropId = 'none'): stri
     case 'bear': return bear(eyes);
     case 'troll': return troll(p, eyes);
     case 'stag': return stag(eyes);
+    case 'horse': return horse(eyes);
     case 'treant': return treant(eyes);
     case 'dragon': return dragon(eyes);
   }

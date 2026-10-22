@@ -1,6 +1,6 @@
 {
   "name": "brackenwyrm",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "private": true,
   "description": "Brackenwyrm – ein textbasiertes Fantasy-Rollenspiel mit Tagesrhythmus und Drachen-Neustart.",
   "type": "module",
@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "simulate": "tsx scripts/simulate.ts",
     "build:artifact": "tsc --noEmit && vite build --mode artifact --outDir dist-artifact && node scripts/artifact.mjs",
-    "test": "tsx scripts/test-sync.ts && tsx scripts/test-dragon.ts && tsx scripts/test-lovers.ts && tsx scripts/test-skills.ts",
+    "test": "tsx scripts/test-sync.ts && tsx scripts/test-dragon.ts && tsx scripts/test-lovers.ts && tsx scripts/test-skills.ts && tsx scripts/test-stable.ts",
     "test:sql": "node scripts/test-sql.mjs"
   },
   "devDependencies": {

@@ -50,6 +50,9 @@ export function friedaSays(s: GameState, n: number): string {
   if (p.gems > 0 && !p.songToday) {
     tips.push('„Florian singt für einen Edelstein. Seine Lieder wirken, frag mich nicht wie.“');
   }
+  if (!p.mount && p.gems >= 6) {
+    tips.push(`„${p.gems} Edelsteine in der Tasche und immer noch zu Fuß? Merten im Pferdestall hat ein Pony für sechs. Mit Reittier schaffst du mehr im Wald.“`);
+  }
   if (p.dragonKills > 0) {
     tips.push('„Ein Drachentöter in meiner Stube. Das erste Bier geht aufs Haus. Nein, Moment, doch nicht.“');
   }

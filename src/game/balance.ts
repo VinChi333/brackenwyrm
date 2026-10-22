@@ -2,7 +2,8 @@
 // Mit `npm run simulate` lässt sich prüfen, wie sich Änderungen auswirken.
 
 import { ARMORS, WEAPONS } from '../content/items';
-import type { Combatant, Player } from './types';
+import { MOUNTS } from '../content/mounts';
+import type { Combatant, MountId, Player } from './types';
 
 export const MAX_LEVEL = 15;
 export const FOREST_FIGHTS_PER_DAY = 20;
@@ -138,8 +139,8 @@ export function dragonStats(): Omit<Combatant, 'name'> {
 
 // ---------- Drachen-Neustart (wie im Original) ----------
 /** Waldkämpfe pro Tag inklusive Drachenpunkten. */
-export function forestFightsPerDay(p: { bonusFights?: number; race?: string }): number {
-  return FOREST_FIGHTS_PER_DAY + (p.bonusFights ?? 0) + (p.race === 'mensch' ? 1 : 0);
+export function forestFightsPerDay(p: { bonusFights?: number; race?: string; mount?: MountId | '' }): number {
+  return FOREST_FIGHTS_PER_DAY + (p.bonusFights ?? 0) + (p.race === 'mensch' ? 1 : 0) + (p.mount ? MOUNTS[p.mount].fights : 0);
 }
 /** Startgold nach einem Drachenkill: 50 plus 50 je Drachenkill, höchstens 300. */
 export function restartGold(dragonKills: number): number {

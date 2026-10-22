@@ -6,7 +6,8 @@ import { masterForLevel } from '../../content/masters';
 import { DRAGON, monsterById } from '../../content/monsters';
 import { shadeById } from '../../content/shades';
 import { LEGACY_REVERSE, SPECIALTIES } from '../../content/specialties';
-import type { Gender, MonsterDef, RaceId, ShapeId, SpecialtyId } from '../../game/types';
+import { MOUNTS } from '../../content/mounts';
+import type { Gender, MonsterDef, MountId, RaceId, ShapeId, SpecialtyId } from '../../game/types';
 import { creature, humanoid } from './silhouettes';
 
 /**
@@ -22,9 +23,9 @@ export const MONSTER_ART: Record<string, string> = Object.fromEntries(
 const SPAN: Record<ShapeId, [number, number]> = {
   rat: [-75, 0], bat: [-200, -100], goblin: [-150, 0], wolf: [-170, 0], beetle: [-110, 0], blob: [-140, 0],
   bird: [-270, -110], humanoid: [-215, 0], boar: [-130, 0], spider: [-150, 0], ghost: [-210, -10], serpent: [-200, 0],
-  bear: [-160, 0], troll: [-250, 0], stag: [-290, 0], treant: [-300, 0], dragon: [-400, 0],
+  bear: [-160, 0], troll: [-250, 0], stag: [-290, 0], horse: [-245, 0], treant: [-300, 0], dragon: [-400, 0],
 };
-const WIDTH: Partial<Record<ShapeId, number>> = { dragon: 780, wolf: 290, boar: 250, bear: 240, spider: 290, serpent: 260, bat: 290, bird: 230, stag: 250 };
+const WIDTH: Partial<Record<ShapeId, number>> = { dragon: 780, wolf: 290, boar: 250, bear: 240, spider: 290, serpent: 260, bat: 290, bird: 230, stag: 250, horse: 260 };
 
 export type Tier = 'bronze' | 'silver' | 'gold' | 'legend' | 'shade';
 
@@ -149,6 +150,14 @@ export function heroPortrait(race: RaceId, spec: SpecialtyId, gender: Gender): s
   const full = MONSTER_ART[`held-${race}-${spec}-${gender}`];
   if (full) return `<img class="card-img portrait-from-full" src="${full}" alt="">`;
   return f ? artFor(f, () => '').art : heroShadow(spec);
+}
+
+/** Reittier aus Mertens Stall. Bild: src/assets/monsters/mount-<id>.webp */
+export function mountCard(id: MountId): CardInfo {
+  const m = MOUNTS[id];
+  const glow = '#d9b26a';
+  const a = artFor(`mount-${id}`, () => shadowArt(creature('horse', glow), 'horse', glow));
+  return { key: `mount-${id}`, name: m.name, level: m.rank, tier: m.rank === 3 ? 'gold' : m.rank === 2 ? 'silver' : 'bronze', art: a.art, hasIllustration: a.real, flavor: m.blurb, glow, fx: 'motes', tierLabel: 'Reittier' };
 }
 
 export function cardFor(key: string): CardInfo | null {

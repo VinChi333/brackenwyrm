@@ -1,6 +1,8 @@
 // Balancing-Simulation: ein einfacher Bot spielt viele Durchgänge bis zum Drachenkill.
 // Aufruf: npm run simulate   (optional: npm run simulate -- 200  für 200 Durchgänge)
 
+import { MOUNTS } from '../src/content/mounts';
+import { buyMount, tradeCost } from '../src/game/stable';
 import { ARMORS, WEAPONS, tradeIn } from '../src/content/items';
 import {
   bankDeposit, bankWithdraw, buyItem, canChallengeMaster, chooseDragonBonus, closeFight, fightAction, forestSearch,
@@ -21,6 +23,7 @@ const masterByLevel: { t: number; w: number }[] = Array.from({ length: MAX_LEVEL
 let dragonTries = 0, dragonWins = 0;
 const daysToDragon: number[] = [];
 const byCombo: Record<string, number[]> = {};
+const mountsAtDragon: Record<string, number> = {};
 let goldStarved = 0;
 
 function bestAffordable(s: GameState, kind: 'weapon' | 'armor'): void {
@@ -61,6 +64,10 @@ for (let run = 0; run < RUNS; run++) {
     const p = s.player;
     // Ausrüstung kaufen (Bankgeld mitnehmen)
     if (p.bank > 0) bankWithdraw(s, p.bank);
+    // Reittier kaufen oder aufwerten, sobald genug Edelsteine da sind
+    for (const id of ['hengst', 'wallach', 'pony'] as const) {
+      if (MOUNTS[id].rank > (p.mount ? MOUNTS[p.mount].rank : 0) && p.gems >= tradeCost(p, id)) { buyMount(s, id); break; }
+    }
     bestAffordable(s, 'weapon');
     bestAffordable(s, 'armor');
 
@@ -89,7 +96,7 @@ for (let run = 0; run < RUNS; run++) {
       dragonTries++;
       const won = s.fight!.over === 'win';
       closeFight(s);
-      if (won) { dragonWins++; daysToDragon.push(s.day); (byCombo[`${s.player.race}/${s.player.specialty}`] ??= []).push(s.day); chooseDragonBonus(s, 'atk'); break; }
+      if (won) { dragonWins++; daysToDragon.push(s.day); (byCombo[`${s.player.race}/${s.player.specialty}`] ??= []).push(s.day); mountsAtDragon[s.player.mount || 'keins'] = (mountsAtDragon[s.player.mount || 'keins'] ?? 0) + 1; chooseDragonBonus(s, 'atk'); break; }
     }
 
     // Waldkämpfe
@@ -138,6 +145,7 @@ console.log(`Drache: ${pct(dragonWins, dragonTries)} (${dragonTries} Versuche)`)
 const avg = daysToDragon.reduce((a, b) => a + b, 0) / Math.max(1, daysToDragon.length);
 console.log(`Tage bis zum ersten Drachenkill: Ø ${avg.toFixed(1)} (${daysToDragon.length}/${RUNS} geschafft)`);
 console.log(`Situationen mit zu wenig Gold zum Heilen: ${goldStarved}`);
+console.log(`Reittiere beim ersten Drachen: ${JSON.stringify(mountsAtDragon)}`);
 for (const k of Object.keys(byCombo).sort()) {
   const d = byCombo[k];
   console.log(`  ${k.padEnd(16)} Ø ${(d.reduce((a, b) => a + b, 0) / d.length).toFixed(1)} Tage (${d.length} Läufe)`);

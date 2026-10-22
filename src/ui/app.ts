@@ -7,6 +7,8 @@ import type { FeedbackKind } from '../content/feedback';
 import { fameTable } from '../content/fame';
 import { titleFor } from '../content/titles';
 import { PARTNERS } from '../content/lovers';
+import { MERTEN, MOUNTS, MOUNT_ORDER, mountRepay } from '../content/mounts';
+import { buyMount, feedMount, feedPrice, sellMount, tradeCost } from '../game/stable';
 import { askLooks, flirt, friendOf, partnerOf, visitSpouse } from '../game/lovers';
 import { forestFightsPerDay, restartGems, restartGold, FLAWLESS_GOLD } from '../game/balance';
 import { FRIEDA_TALKS_PER_DAY, regularsSay } from '../content/inn';
@@ -28,15 +30,15 @@ import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, save
 import { Cloud, CloudError } from '../game/cloud';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
-import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, RaceId, SpecialtyId } from '../game/types';
-import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard, tierFor } from './art/cards';
+import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, MountId, RaceId, SpecialtyId } from '../game/types';
+import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard, mountCard, tierFor } from './art/cards';
 import type { CardInfo } from './art/cards';
 import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable';
 
-const VERSION = 'Testversion 0.21';
+const VERSION = 'Testversion 0.22';
 
 interface Ui {
   screen: Screen;
@@ -309,6 +311,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:smith', label: 'Alriks Schmiede', key: 's' },
       { act: 'go:inn', label: 'Gasthaus', key: 'g' },
       { act: 'go:bank', label: 'Kontor', key: 'k', hint: p.bank ? `${p.bank} Gold` : '' },
+      { act: 'go:stable', label: 'Mertens Pferdestall', key: 'p', hint: p.mount ? MOUNTS[p.mount].name : '' },
     ] },
     { title: 'Sonstiges', items: [
       { act: 'go:bestiary', label: 'Bestiarium', key: 'b', hint: `${found} / ${MONSTERS.length}` },
@@ -546,6 +549,35 @@ function innScreen(s: GameState): string {
         { act: 'bribe', label: 'Frieda bestechen', key: 'b', hint: cloud.signedIn ? '1 Edelstein' : 'nur mit Spielerkonto', disabled: !cloud.signedIn || p.gems < 1 },
       ] : []),
     ] },
+    { title: 'Zurück', items: [back] },
+  ]);
+}
+
+function stableScreen(s: GameState): string {
+  const p = s.player;
+  const own = p.mount ? MOUNTS[p.mount] : null;
+  const ownBuff = p.buffs.find((b) => b.id === 'mount');
+  const main = `<h1>Mertens Pferdestall</h1>
+    <p class="lead">${esc(MERTEN.greeting)}</p>
+    ${flashHtml()}
+    ${own ? `<p>Im Stall steht ${esc(own.yourNom.replace('Dein', 'dein'))}. ${ownBuff ? `${esc(own.buffName)}: noch ${ownBuff.rounds} Runden.` : 'Es ist müde vom Tag.'}</p>` : ''}
+    <div class="card-grid mount-grid">${MOUNT_ORDER.map((id) => {
+      const m = MOUNTS[id];
+      return `<div class="mount-offer ${p.mount === id ? 'owned' : ''}">${cardHtml(mountCard(id), { cls: 'grid-card' })}
+        <p><strong>${m.gems} Edelsteine</strong><br>+${m.fights} Waldkämpfe pro Tag<br>+20 % Angriff für ${m.rounds} Runden<br><span class="muted">${esc(m.blurb)}</span></p></div>`;
+    }).join('')}</div>
+    <p class="muted">Ein Reittier bleibt dir auch nach dem Drachen. Beim Tausch rechnet Merten dein altes Tier mit zwei Dritteln seines Preises an.</p>`;
+  const buyItems: Item[] = MOUNT_ORDER.filter((id) => id !== p.mount).map((id, i) => {
+    const c = tradeCost(p, id);
+    return { act: `mount:buy:${id}`, label: `${p.mount ? 'Tauschen gegen' : 'Kaufen:'} ${MOUNTS[id].name}`, key: String(i + 1),
+      hint: c >= 0 ? `${c} Edelsteine` : `du bekommst ${-c} Edelsteine`, disabled: p.gems < c };
+  });
+  const ownItems: Item[] = own ? [
+    { act: 'mount:feed', label: 'Füttern', key: 'f', hint: p.mountFed ? 'heute schon' : `${feedPrice(p)} Gold`, disabled: p.mountFed || p.gold < feedPrice(p) || (!!ownBuff && ownBuff.rounds >= own.rounds) },
+    { act: 'mount:sell', label: ui.confirmDelete ? `Wirklich verkaufen? Nochmal drücken.` : `${own.name} verkaufen`, key: 'v', hint: `+${mountRepay(p.mount)} Edelsteine` },
+  ] : [];
+  return layout(s, main, [
+    { title: 'Stall', items: [...ownItems, ...buyItems] },
     { title: 'Zurück', items: [back] },
   ]);
 }
@@ -914,7 +946,7 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!),
   };
   root.innerHTML = views[scr]();
   if (scr === 'village') loadSquare();
@@ -1264,6 +1296,15 @@ function handle(act: string, el: HTMLElement): void {
     case 'event': ui.flash = resolveEvent(s, a); commit(); return;
     case 'talk': say(talkToFrieda(s), 'info'); commit(); return;
     case 'inn': say(a === 'beer' ? drinkHarzbier(s) : requestSong(s), 'good'); commit(); return;
+    case 'mount': {
+      if (a === 'buy') { const before = s.player.mount; const t = buyMount(s, b as MountId); say(t, s.player.mount !== before ? 'good' : 'warn'); ui.confirmDelete = false; commit(); return; }
+      if (a === 'feed') { const r = feedMount(s); say(r.text, r.ok ? 'good' : 'info'); commit(); return; }
+      if (a === 'sell') {
+        if (!ui.confirmDelete) { ui.confirmDelete = true; render(); return; }
+        ui.confirmDelete = false; say(sellMount(s), 'info'); commit(); return;
+      }
+      return;
+    }
     case 'flirt': {
       const r = flirt(s, Number(a), announce);
       ui.flash = r.lines.map((t) => ({ t, k: r.kind }));
