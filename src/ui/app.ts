@@ -39,7 +39,7 @@ import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt';
 
-const VERSION = 'Testversion 0.25';
+const VERSION = 'Testversion 0.26';
 
 interface Ui {
   screen: Screen;
