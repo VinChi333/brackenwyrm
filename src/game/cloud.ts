@@ -21,7 +21,7 @@ export interface PvpResult {
   foe: { name: string; level: number; specialty: string; race?: string; gender: Gender; hp: number; max: number; weapon_tier: number };
   gold: number; exp_win: number; exp_lose: number; fights_left: number;
 }
-export interface PvpEvent { id: number; kind: 'slain' | 'defended'; other_name: string; place: string; gold: number; exp: number; created_at: string }
+export interface PvpEvent { id: number; kind: 'slain' | 'defended' | 'haunted'; other_name: string; place: string; gold: number; exp: number; created_at: string }
 export interface NewsRow { created_at: string; body: string }
 export interface WarriorRow { userId: string; name: string; gender: Gender; level: number; race: RaceId; specialty: SpecialtyId; dragonKills: number; alive: boolean; online: boolean; inInn: boolean; lastSeen: string }
 export interface MailRow { id: number; created_at: string; from_user: string | null; from_name: string; subject: string; body: string; seen: boolean }
@@ -268,6 +268,17 @@ export class Cloud {
   async deleteMail(id: number): Promise<void> {
     await this.ensureSession();
     await this.call(`/rest/v1/mail?id=eq.${Number(id)}`, { method: 'DELETE', prefer: 'return=minimal' });
+  }
+
+  /** Spuken (Teil 3): einen lebenden Helden heimsuchen. */
+  async haunt(target: string): Promise<{ success: boolean; name: string }> {
+    await this.ensureSession();
+    try {
+      return await this.call('/rest/v1/rpc/haunt', { method: 'POST', body: { target } });
+    } catch (e) {
+      if (this.missingPart3(e)) throw new CloudError('server', 'Spuken ist auf dem Server noch nicht eingerichtet (Teil 3).');
+      throw e;
+    }
   }
 
   /** Die besten Drachentöter aller Spieler für die Ruhmeshalle. */

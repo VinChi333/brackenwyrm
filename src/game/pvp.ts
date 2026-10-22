@@ -17,6 +17,11 @@ export function applyPvpEvents(s: GameState, events: PvpEvent[]): string[] {
   const out: string[] = [];
   for (const ev of events) {
     const where = PLACE[ev.place] ?? 'im Schlaf';
+    if (ev.kind === 'haunted') {
+      p.hauntedBy = ev.other_name;
+      out.push(`Der Geist von ${ev.other_name} hat dich heimgesucht. Morgen früh wirst du müde aufwachen.`);
+      continue;
+    }
     if (ev.kind === 'slain') {
       const lostGold = Math.min(p.gold, ev.gold);
       p.gold -= lostGold;

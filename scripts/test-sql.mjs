@@ -150,6 +150,30 @@ await as(B, `delete from public.mail`);
 r = await as(B, `select count(*)::int n from public.mail`);
 ok(r.rows[0].n === 0, 'eigene Briefe lassen sich wegwerfen');
 
+// Spuken
+await db.exec(`update public.fighters set alive = false, level = 15 where user_id = '${C}'; update public.fighters set alive = true, level = 1, haunted_at = null where user_id = '${B}'`);
+let notDead = false; try { await as(A, `select public.haunt('${B}')`); } catch (e) { notDead = /Nur Tote/.test(e.message); }
+ok(notDead, 'Lebende können nicht spuken');
+let hres = null;
+for (let i = 0; i < 20 && !(hres && hres.success); i++) {
+  await db.exec(`update public.fighters set haunted_at = null where user_id = '${B}'; delete from public.hauntings`);
+  hres = (await as(C, `select public.haunt('${B}') j`)).rows[0].j;
+}
+ok(hres && hres.success, 'Spuken klappt (Stufe 15 gegen Stufe 1)');
+r = await as(B, `select kind, other_name from public.pvp_events where kind = 'haunted'`);
+ok(r.rows.length >= 1 && r.rows[0].other_name === 'Wach', 'Opfer bekommt die Nachricht zum Abziehen der Waldkämpfe');
+r = await as(B, `select from_name, from_user, subject from public.mail where subject = 'Du wurdest heimgesucht'`);
+ok(r.rows.length >= 1 && r.rows[0].from_name === 'Morwen' && r.rows[0].from_user === null, 'Brief von Morwen an das Opfer');
+let twice = false; try { await as(C, `select public.haunt('${B}')`); } catch (e) { twice = /schon heimgesucht/.test(e.message); }
+ok(twice, 'nur einmal pro Tag heimsuchbar');
+await db.exec(`update public.fighters set haunted_at = null`);
+await db.exec(`insert into public.hauntings (user_id, target, success) select '${C}', '${B}', false from generate_series(1, 4)`);
+let limit = false; try { await as(C, `select public.haunt('${B}')`); } catch (e) { limit = /genug von deinem Gespuke/.test(e.message); }
+ok(limit, 'höchstens 4-mal Spuken am Tag');
+let fakeSys = false; try { await as(A, `insert into public.mail (to_user, body) values ('${B}', 'Ich bin Morwen')`); r = await as(B, `select from_name from public.mail where body = 'Ich bin Morwen'`); fakeSys = r.rows[0]?.from_name !== 'Morwen'; } catch { fakeSys = true; }
+ok(fakeSys, 'Spieler können keine Briefe als Morwen schicken');
+await db.exec(`update public.fighters set alive = true where user_id = '${C}'`);
+
 // Aktualisierung einer Datenbank mit dem alten Teil 2 (ohne Rassen)
 {
   const old = new PGlite();

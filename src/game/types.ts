@@ -168,6 +168,7 @@ export interface Player {
   loverPref?: PartnerId;       // wen man im Gasthaus umwirbt (Standard: das andere Geschlecht)
   mount: MountId | '';         // Reittier aus Mertens Stall (bleibt über Drachenkills)
   mountFed: boolean;           // heute schon gefüttert
+  hauntedBy?: string;          // von einem Geist heimgesucht: morgen früh weniger Waldkämpfe
 }
 
 export type DragonPoint = 'atk' | 'def' | 'hp' | 'ff';

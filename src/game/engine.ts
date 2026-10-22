@@ -92,6 +92,12 @@ export function startNewDay(s: GameState): void {
   p.buffs = [];
   s.news.push(...loverNewDay(s, announce));
   s.news.push(...mountNewDay(s));
+  if (p.hauntedBy) {
+    const lost = Math.min(HAUNT_TURNS, p.forestFights);
+    p.forestFights -= lost;
+    s.news.push(`Der Geist von ${p.hauntedBy} hat dich heute Nacht heimgesucht. Du hast schlecht geschlafen und verlierst ${lost} Waldkämpfe.`);
+    delete p.hauntedBy;
+  }
   const interest = bankInterest(p);
   if (interest > 0) {
     p.bank += interest;
@@ -250,6 +256,27 @@ export function resurrect(s: GameState): string {
   const msg = `Morwen stakt dich über den Fluss und setzt dich am Dorfrand ab. „Ausnahmsweise“, sagt sie. Du lebst wieder und hast noch ${p.forestFights} Waldkämpfe.`;
   s.news.push(msg);
   return msg;
+}
+
+/** Spuken wie im Original: kostet 25 Gunst, das Opfer verliert am nächsten Morgen Waldkämpfe (im Original 1 von 10). */
+export const HAUNT_FAVOR = 25;
+export const HAUNT_TURNS = 2;
+
+const HAUNT_FAILS = [
+  'Gerade als du {n} so richtig erschrecken willst, niest {n} und bekommt gar nichts mit.',
+  'Du spukst wie ein Weltmeister, aber {n} schläft tief und fest und merkt nichts.',
+  'Du willst {n} heimsuchen, stolperst aber über deinen eigenen Geisterschweif und landest auf dem … Gesicht.',
+  '{n} schaut dich verschlafen an, dreht sich um und murmelt etwas von zu viel Wurstbrot vor dem Schlafengehen.',
+  '{n} wacht auf, sieht dich an, sagt „Toll!“ und versucht dich zu fangen.',
+  'Du willst {n} erschrecken, siehst dich aber selbst im Spiegel und erschrickst vor dem Geist!',
+];
+
+/** Ergebnis vom Server übernehmen: Gunst abziehen, Text erzählen. */
+export function applyHaunt(s: GameState, res: { success: boolean; name: string }): LogLine {
+  const p = s.player;
+  p.favor = Math.max(0, p.favor - HAUNT_FAVOR);
+  if (res.success) return { t: `Du hast ${res.name} erfolgreich heimgesucht! Morgen früh fehlen ${res.name} ${HAUNT_TURNS} Waldkämpfe. (−${HAUNT_FAVOR} Gunst)`, k: 'gold' };
+  return { t: `${pick(HAUNT_FAILS).replace(/\{n\}/g, res.name)} (−${HAUNT_FAVOR} Gunst)`, k: 'bad' };
 }
 
 export function canChallengeMaster(p: Player): 'ok' | 'notReady' | 'seen' | 'max' | 'dead' {

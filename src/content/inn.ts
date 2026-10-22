@@ -10,6 +10,7 @@ import type { GameState } from '../game/types';
 export const FRIEDA_TALKS_PER_DAY = 3;
 
 const FRIEDA_LORE = [
+  '„Warum Moosgrund? Die ersten Siedler fanden am Waldrand eine Mulde, so dick mit Moos gepolstert, dass sie die erste Nacht wie auf Federn schliefen. Am Morgen sagten sie: Hier bleiben wir. Den Grund haben wir behalten, das Moos auch.“',
   '„Moosgrund gab es schon, bevor der Wald so dicht wurde“, sagt Frieda. „Damals hieß es Moosgrund. Heute auch. Wir sind nicht sehr einfallsreich.“',
   '„Morwen fährt jeden, der im Wald fällt, bei Sonnenaufgang zurück. Sie nimmt kein Gold dafür. Sie nimmt das Gold, das du dabei hattest.“',
   '„Wenn du dich traust, such im Wald den Nervenkitzel. Gefährlicher, ja. Aber da liegt auch mehr Gold herum.“',

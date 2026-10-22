@@ -20,7 +20,7 @@ import { SPECIALTIES, SPECIALTY_ORDER } from '../content/specialties';
 import { RACES, RACE_ORDER, raceName } from '../content/races';
 import { MAX_LEVEL, healCostPerHp } from '../game/balance';
 import {
-  announce, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
+  announce, applyHaunt, HAUNT_FAVOR, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
   CHRONICLE_SIZE, closeFight, defense, drinkHarzbier, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
   graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost,
   newGame, rentRoom, roomCost, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
@@ -37,9 +37,9 @@ import type { CardInfo } from './art/cards';
 import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt';
 
-const VERSION = 'Testversion 0.24';
+const VERSION = 'Testversion 0.25';
 
 interface Ui {
   screen: Screen;
@@ -846,6 +846,27 @@ function statusOf(w: WarriorRow): string {
   return w.inInn ? 'schläft im Gasthaus' : 'schläft auf den Feldern';
 }
 
+function hauntScreen(s: GameState): string {
+  const p = s.player;
+  const me = cloud.userId;
+  const living = (ui.warriors ?? []).filter((w) => w.alive && w.userId !== me);
+  const rows = ui.warriors === null ? '<p class="muted">Du lauschst in die Welt der Lebenden …</p>'
+    : !living.length ? '<p class="muted">Gerade gibt es niemanden, den du heimsuchen könntest.</p>'
+    : `<ul class="warriors">${living.map((w) => `<li class="warrior">
+        <span class="t-portrait">${heroPortrait(w.race, w.specialty, w.gender)}</span>
+        <span class="t-info"><strong><span class="t-title">${esc(titleFor(w.dragonKills, w.gender))}</span> ${esc(w.name)}</strong>
+          <small>Stufe ${w.level} · ${raceName(w.race, w.gender)}</small><small class="w-status">${statusOf(w)}</small></span>
+        <button type="button" class="tbtn" data-act="haunt:${w.userId}" ${p.favor < HAUNT_FAVOR || ui.pvp.busy ? 'disabled' : ''}>Heimsuchen</button>
+      </li>`).join('')}</ul>`;
+  const main = `<h1 class="shadow-title">Heimsuchen</h1>
+    <p class="lead">Morwen ist von deinem Eifer beeindruckt und gibt dir die Macht, einen Lebenden heimzusuchen. Gelingt es, wacht dein Opfer morgen müde auf und verliert Waldkämpfe. Je höher deine Stufe im Vergleich zu deinem Opfer, desto eher klappt es.</p>
+    ${flashHtml()}
+    ${ui.listErr ? `<p class="warn-box">${esc(ui.listErr)}</p>` : ''}
+    <p class="muted">Deine Gunst: ${p.favor}. Jeder Versuch kostet ${HAUNT_FAVOR} Gunst, ob er gelingt oder nicht.</p>
+    ${rows}`;
+  return layout(s, main, [{ title: 'Schattenreich', items: [{ act: 'go:shadows', label: 'Zurück zu Morwen', key: 'm' }] }]);
+}
+
 function warriorsScreen(s: GameState): string {
   const list = ui.warriors;
   const me = cloud.userId;
@@ -911,7 +932,7 @@ function loadWarriors(): void {
   ui.warriors = null; ui.listErr = '';
   render();
   cloud.warriors().then((r) => { ui.warriors = r; }, (e) => { ui.warriors = []; ui.listErr = e instanceof CloudError ? e.message : 'Die Liste ließ sich nicht laden.'; })
-    .finally(() => { if (currentScreen() === 'warriors') render(); });
+    .finally(() => { if (currentScreen() === 'warriors' || currentScreen() === 'haunt') render(); });
 }
 
 function loadMail(): void {
@@ -976,6 +997,7 @@ function shadowsScreen(s: GameState): string {
     { act: 'grave', label: 'Gegen Seelen kämpfen', key: 'k', hint: `${p.graveFights} Schattenkämpfe`, disabled: p.graveFights <= 0 || p.soul <= 0, primary: !canBack },
     { act: 'resurrect', label: 'Morwen um Rückkehr bitten', key: 'r', hint: `${p.favor} / ${RESURRECT_FAVOR} Gunst`, disabled: !canBack, primary: canBack },
     { act: 'soul', label: 'Seelenkraft stärken', key: 's', hint: p.soul >= maxSoul(p) ? 'voll' : `${cost} Gunst`, disabled: p.soul >= maxSoul(p) || p.favor < cost },
+    ...(cloud.enabled ? [{ act: 'go:haunt', label: 'Einen Lebenden heimsuchen', key: 'h', hint: !cloud.signedIn ? 'nur mit Spielerkonto' : `${HAUNT_FAVOR} Gunst`, disabled: !cloud.signedIn || p.favor < HAUNT_FAVOR }] : []),
   ] }, { title: 'Sonstiges', items: [
     ...(prefs.dev ? [{ act: 'testday', label: 'Neuer Tag (Testmodus)', key: 'n' }] : []),
     { act: 'feedback', label: 'Rückmeldung geben', key: 'm' },
@@ -1035,7 +1057,8 @@ function currentScreen(): Screen {
   if (state.pendingDragonBonus && !state.fight) return 'dragonBonus';
   if (ui.conflict) return 'syncConflict';
   if (state.fight) return 'fight';
-  if (!state.player.alive && ui.screen !== 'settings' && ui.screen !== 'feedback') return 'shadows';
+  // Tote bleiben im Schattenreich, dürfen aber spuken, Briefe lesen und die Neuigkeiten sehen.
+  if (!state.player.alive && !['settings', 'feedback', 'haunt', 'mail', 'warriors', 'news'].includes(ui.screen)) return 'shadows';
   return ui.screen;
 }
 
@@ -1048,7 +1071,7 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!),
   };
   root.innerHTML = views[scr]();
   if (scr === 'village') { loadSquare(); checkMail(); }
@@ -1153,6 +1176,18 @@ function handle(act: string, el: HTMLElement): void {
     case 'menu': ui.menuOpen = !ui.menuOpen; render(); return;
     case 'skills': ui.skillMenu = !ui.skillMenu; render(); return;
     case 'reloadlist': loadWarriors(); return;
+    case 'haunt': {
+      if (!s || ui.pvp.busy || s.player.favor < HAUNT_FAVOR) return;
+      ui.pvp.busy = true; render();
+      // Erst den eigenen Stand hochladen, damit der Server weiß, dass du tot bist.
+      const st = s;
+      cloud.push(st).then(() => cloud.haunt(a)).then((res) => {
+        ui.flash = [applyHaunt(st, res)];
+        saveGame(st); scheduleSync(500);
+      }, (e) => { say(e instanceof CloudError ? e.message : 'Das Spuken hat nicht geklappt.', 'warn'); })
+        .finally(() => { ui.pvp.busy = false; render(); });
+      return;
+    }
     case 'reloadmail': loadMail(); return;
     case 'write': {
       const w = ui.warriors?.find((x) => x.userId === a);
@@ -1195,6 +1230,7 @@ function handle(act: string, el: HTMLElement): void {
       if (a === 'fields' && cloud.signedIn) { go('fields'); loadTargets('felder'); return; }
       if (a === 'news' && cloud.enabled) { ui.newsRows = null; cloud.news(40).then((r) => { ui.newsRows = r; }, () => { ui.newsRows = []; }).finally(() => { if (ui.screen === 'news') render(); }); }
       if (a === 'warriors' && cloud.signedIn) { go('warriors'); loadWarriors(); return; }
+      if (a === 'haunt' && cloud.signedIn) { go('haunt'); loadWarriors(); return; }
       if (a === 'mail' && cloud.signedIn) { ui.compose = null; ui.mailOpen = null; go('mail'); loadMail(); return; }
       if (a === 'fame' && cloud.enabled) cloud.hallOfFame().then((rows) => { ui.fame = rows; if (ui.screen === 'fame') render(); }, () => {});
       go(a as Screen);
