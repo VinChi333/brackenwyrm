@@ -16,7 +16,7 @@ await db.exec(`
   grant usage on schema auth to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
 `);
-for (const f of ['supabase.sql', 'supabase-2-dorf.sql']) await db.exec(readFileSync(new URL(`../server/${f}`, import.meta.url), 'utf8'));
+for (const f of ['supabase.sql', 'supabase-2-dorf.sql', 'supabase-3-briefe.sql']) await db.exec(readFileSync(new URL(`../server/${f}`, import.meta.url), 'utf8'));
 
 let queue = Promise.resolve();
 /** Führt SQL als angemeldeter Spieler (oder anon) aus. Nacheinander, weil PGlite nur eine Verbindung hat. */
@@ -37,6 +37,7 @@ const COLS = {
   fighters: ['user_id', 'name', 'specialty', 'race', 'gender', 'level', 'exp', 'gold', 'hp', 'base_max_hp', 'bonus_atk', 'bonus_def', 'weapon_tier', 'armor_tier', 'dragon_kills', 'days_played', 'alive', 'in_inn'],
   news: ['body'],
   commentary: ['section', 'body'],
+  mail: ['to_user', 'subject', 'body'],
 };
 
 function filters(params) {
@@ -79,7 +80,7 @@ const server = createServer(async (req, res) => {
       const r = await as(uid, `select to_jsonb(x) as j from public.${name}(${args.map((a, i) => `${a} => $${i + 1}`).join(', ')}) x`, args.map((a) => data[a]));
       const rows = r.rows.map((x) => x.j);
       // Funktionen mit einem einzelnen jsonb-Ergebnis liefern bei PostgREST den Wert selbst, Tabellenfunktionen eine Liste
-      return send(200, name === 'pvp_targets' ? rows : rows[0] ?? null);
+      return send(200, name === 'pvp_targets' || name === 'warriors' ? rows : rows[0] ?? null);
     }
     if (req.method === 'GET') {
       const { where, vals } = filters(url.searchParams);
@@ -101,6 +102,11 @@ const server = createServer(async (req, res) => {
       const { where, vals } = filters(url.searchParams);
       const sets = Object.keys(data).map((c, i) => `${c} = $${vals.length + i + 1}`);
       await as(uid, `update public.${name} set ${sets.join(', ')} ${where}`, [...vals, ...Object.values(data)]);
+      return send(204);
+    }
+    if (req.method === 'DELETE') {
+      const { where, vals } = filters(url.searchParams);
+      await as(uid, `delete from public.${name} ${where}`, vals);
       return send(204);
     }
     return send(405, { message: 'method' });

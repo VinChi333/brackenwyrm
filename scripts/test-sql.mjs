@@ -16,6 +16,8 @@ await db.exec(`
 await db.exec(readFileSync(new URL('../server/supabase.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-2-dorf.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-2-dorf.sql', import.meta.url), 'utf8')); // zweimal: muss wiederholbar sein
+await db.exec(readFileSync(new URL('../server/supabase-3-briefe.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-3-briefe.sql', import.meta.url), 'utf8'));
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c', N = '00000000-0000-0000-0000-00000000000d';
 await db.exec(`insert into auth.users values ('${A}','a@x'),('${B}','b@x'),('${C}','c@x'),('${N}','n@x')`);
 async function as(uid, sql, params) {
@@ -119,6 +121,34 @@ ok(bad, 'unbekannte Rasse wird abgelehnt');
 let legacy = true; try { await as(B, `update public.fighters set specialty = 'schleich' where user_id = '${B}'`); } catch { legacy = false; }
 ok(legacy, 'alte Fähigkeitsnamen sind noch erlaubt (ältere Spielversionen)');
 await as(A, `select * from public.pvp_targets('felder')`).then((x) => ok('race' in (x.rows[0] ?? { race: 1 }), 'Ziel-Liste liefert die Rasse'));
+
+// Kriegerliste und Briefe
+r = await as(A, `select * from public.warriors()`);
+ok(r.rows.length === 4 && !('gold' in r.rows[0]) && 'online' in r.rows[0], `Kriegerliste: ${r.rows.length} Helden, ohne Gold`);
+let anonList = true; try { await db.exec(`reset role; set role anon;`); await db.query(`select * from public.warriors()`); } catch { anonList = false; } finally { await db.exec('reset role'); }
+ok(!anonList, 'Kriegerliste nur für angemeldete Spieler');
+await as(A, `insert into public.mail (to_user, subject, body) values ('${B}', '  Hallo  ', '  Ich komme dich heute Nacht besuchen.  ')`);
+r = await as(B, `select from_name, from_user, subject, body, seen from public.mail`);
+ok(r.rows.length === 1 && r.rows[0].from_name.endsWith('Angreifer') && r.rows[0].from_user === A && r.rows[0].subject === 'Hallo', 'Brief kommt an, Absender vom Server: ' + r.rows[0]?.from_name);
+r = await as(C, `select * from public.mail`);
+ok(r.rows.length === 0, 'fremde Briefe sind nicht lesbar');
+r = await as(A, `select * from public.mail`);
+ok(r.rows.length === 0, 'auch der Absender sieht den Brief nicht mehr (nur Posteingang)');
+let fast = false; try { await as(A, `insert into public.mail (to_user, body) values ('${B}', 'Nochmal')`); } catch (e) { fast = /Nicht so schnell/.test(e.message); }
+ok(fast, 'zu schnelles Schreiben wird gebremst');
+let fake = false; try { await as(C, `insert into public.mail (to_user, body, from_name) values ('${B}', 'x', 'Angreifer')`); } catch { fake = true; }
+ok(fake, 'Absendername lässt sich nicht fälschen (Spalte gesperrt)');
+let ghost = false; try { await as(C, `insert into public.mail (to_user, body) values ('00000000-0000-0000-0000-0000000000ff', 'x')`); } catch (e) { ghost = /gibt es nicht|foreign key/.test(e.message); }
+ok(ghost, 'Briefe an Unbekannte werden abgelehnt');
+await as(B, `update public.mail set seen = true`);
+r = await as(B, `select seen from public.mail`);
+ok(r.rows[0].seen === true, 'Brief als gelesen markiert');
+await as(C, `delete from public.mail`);
+r = await as(B, `select count(*)::int n from public.mail`);
+ok(r.rows[0].n === 1, 'andere können fremde Briefe nicht löschen');
+await as(B, `delete from public.mail`);
+r = await as(B, `select count(*)::int n from public.mail`);
+ok(r.rows[0].n === 0, 'eigene Briefe lassen sich wegwerfen');
 
 // Aktualisierung einer Datenbank mit dem alten Teil 2 (ohne Rassen)
 {

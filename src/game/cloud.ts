@@ -23,6 +23,8 @@ export interface PvpResult {
 }
 export interface PvpEvent { id: number; kind: 'slain' | 'defended'; other_name: string; place: string; gold: number; exp: number; created_at: string }
 export interface NewsRow { created_at: string; body: string }
+export interface WarriorRow { userId: string; name: string; gender: Gender; level: number; race: RaceId; specialty: SpecialtyId; dragonKills: number; alive: boolean; online: boolean; inInn: boolean; lastSeen: string }
+export interface MailRow { id: number; created_at: string; from_user: string | null; from_name: string; subject: string; body: string; seen: boolean }
 export interface CommentRow { id: number; created_at: string; name: string; body: string }
 
 export class CloudError extends Error {
@@ -40,6 +42,7 @@ export class Cloud {
   get enabled(): boolean { return !!(this.url && this.key); }
   get signedIn(): boolean { return !!this.session; }
   get email(): string { return this.session?.email ?? ''; }
+  get userId(): string { return this.session?.userId ?? ''; }
 
   /** Neues Konto mit E-Mail und Passwort. Braucht in Supabase "Confirm email" = aus. */
   async signUp(email: string, password: string): Promise<void> {
@@ -206,6 +209,65 @@ export class Cloud {
   async postComment(body: string, section = 'dorfplatz'): Promise<void> {
     await this.ensureSession();
     await this.call('/rest/v1/commentary', { method: 'POST', prefer: 'return=minimal', body: { section, body: body.slice(0, 200) } });
+  }
+
+  // ---------- Kriegerliste und Briefe (Teil 3 der Datenbank) ----------
+
+  /** Teil 3 fehlt noch? Dann melden die Aufrufe das verständlich. */
+  private missingPart3(e: unknown): boolean {
+    return e instanceof CloudError && /404|42P01|PGRST202|PGRST205|42883|warriors|mail/.test(e.message) && e.code === 'server';
+  }
+
+  async warriors(): Promise<WarriorRow[]> {
+    await this.ensureSession();
+    try {
+      const rows = await this.call('/rest/v1/rpc/warriors', { method: 'POST', body: {} });
+      return (Array.isArray(rows) ? rows : []).map((r: Record<string, unknown>) => ({
+        userId: String(r.user_id), name: String(r.name), gender: r.gender === 'f' ? 'f' : 'm', level: Number(r.level), race: normalizeRace(r.race),
+        specialty: normalizeSpecialty(r.specialty), dragonKills: Number(r.dragon_kills), alive: !!r.alive, online: !!r.online, inInn: !!r.in_inn, lastSeen: String(r.last_seen),
+      }));
+    } catch (e) {
+      if (this.missingPart3(e)) throw new CloudError('server', 'Die Kriegerliste ist auf dem Server noch nicht eingerichtet (Teil 3).');
+      throw e;
+    }
+  }
+
+  async mailbox(limit = 50): Promise<MailRow[]> {
+    await this.ensureSession();
+    try {
+      const rows = await this.call(`/rest/v1/mail?select=id,created_at,from_user,from_name,subject,body,seen&order=created_at.desc&limit=${limit}`, { method: 'GET' });
+      return Array.isArray(rows) ? rows : [];
+    } catch (e) {
+      if (this.missingPart3(e)) throw new CloudError('server', 'Briefe sind auf dem Server noch nicht eingerichtet (Teil 3).');
+      throw e;
+    }
+  }
+
+  /** Zahl ungelesener Briefe; 0, wenn Briefe (noch) nicht eingerichtet sind. */
+  async unreadMail(): Promise<number> {
+    if (!this.session) return 0;
+    try {
+      const rows = await this.call('/rest/v1/mail?select=id&seen=eq.false&limit=100', { method: 'GET' });
+      return Array.isArray(rows) ? rows.length : 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  async sendMail(to: string, subject: string, body: string): Promise<void> {
+    await this.ensureSession();
+    await this.call('/rest/v1/mail', { method: 'POST', prefer: 'return=minimal', body: { to_user: to, subject: subject.slice(0, 60), body: body.slice(0, 1000) } });
+  }
+
+  async markMailSeen(ids: number[]): Promise<void> {
+    if (!ids.length) return;
+    await this.ensureSession();
+    await this.call(`/rest/v1/mail?id=in.(${ids.map(Number).join(',')})`, { method: 'PATCH', prefer: 'return=minimal', body: { seen: true } });
+  }
+
+  async deleteMail(id: number): Promise<void> {
+    await this.ensureSession();
+    await this.call(`/rest/v1/mail?id=eq.${Number(id)}`, { method: 'DELETE', prefer: 'return=minimal' });
   }
 
   /** Die besten Drachentöter aller Spieler für die Ruhmeshalle. */

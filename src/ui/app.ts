@@ -28,6 +28,7 @@ import {
 import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
+import type { MailRow, WarriorRow } from '../game/cloud';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
 import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, MountId, RaceId, SpecialtyId } from '../game/types';
@@ -36,9 +37,9 @@ import type { CardInfo } from './art/cards';
 import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail';
 
-const VERSION = 'Testversion 0.22';
+const VERSION = 'Testversion 0.23';
 
 interface Ui {
   screen: Screen;
@@ -48,7 +49,14 @@ interface Ui {
   createGender: Gender;
   createRace: RaceId;
   dkRace: RaceId | null;
-  skillMenu: boolean;            // Handy: Fähigkeiten statt Kampfbefehlen in der Leiste
+  skillMenu: boolean;
+  warriors: WarriorRow[] | null;
+  mail: MailRow[] | null;
+  listErr: string;
+  mailOpen: number | null;
+  compose: { to: string; toName: string; subject: string; body: string } | null;
+  unread: number;
+  unreadAt: number;            // Handy: Fähigkeiten statt Kampfbefehlen in der Leiste
   dkPoint: DragonPoint | null;   // Auswahl nach dem Drachenkill
   dkSpec: SpecialtyId | null;
   confirmDelete: boolean;
@@ -76,7 +84,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, square: { comments: null, loading: false, at: 0, error: '' }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, square: { comments: null, loading: false, at: 0, error: '' }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -317,6 +325,10 @@ function villageScreen(s: GameState): string {
       { act: 'go:bestiary', label: 'Bestiarium', key: 'b', hint: `${found} / ${MONSTERS.length}` },
       ...(cloud.enabled ? [{ act: 'go:news', label: 'Tagesneuigkeiten', key: 'n' }] : []),
       { act: 'go:fame', label: 'Ruhmeshalle', key: 'r' },
+      ...(cloud.enabled ? [
+        { act: 'go:warriors', label: 'Kriegerliste', key: 'l', hint: cloud.signedIn ? '' : 'nur mit Spielerkonto', disabled: !cloud.signedIn },
+        { act: 'go:mail', label: 'Briefe', key: 'i', hint: !cloud.signedIn ? 'nur mit Spielerkonto' : ui.unread ? `${ui.unread} neu` : '', disabled: !cloud.signedIn },
+      ] : []),
       { act: 'go:chronicle', label: 'Kampfchronik', key: 'c', hint: s.chronicle.length ? `${s.chronicle.length} Kämpfe` : '' },
       { act: 'go:settings', label: 'Einstellungen', key: 'e' },
       { act: 'feedback', label: 'Rückmeldung geben', key: 'm' },
@@ -828,6 +840,96 @@ function pvpCard(name: string, level: number, race: RaceId, spec: SpecialtyId, g
   return { key: `pvp:${name}`, name, level, tier: tierFor(level), art: heroArt(race, spec, gender), hasIllustration: true, flavor: '', glow: '#ffd88a', fx: 'motes', tierLabel: gender === 'f' ? 'Heldin' : 'Held' };
 }
 
+function statusOf(w: WarriorRow): string {
+  if (w.online) return '<span class="on-dot"></span> unterwegs';
+  if (!w.alive) return 'bei Morwen';
+  return w.inInn ? 'schläft im Gasthaus' : 'schläft auf den Feldern';
+}
+
+function warriorsScreen(s: GameState): string {
+  const list = ui.warriors;
+  const me = cloud.userId;
+  const rows = list === null ? '<p class="muted">Du schaust auf die Liste am Rathaus …</p>'
+    : !list.length ? '<p class="muted">Noch niemand eingetragen.</p>'
+    : `<ul class="warriors">${list.map((w) => `<li class="warrior ${w.userId === me ? 'me' : ''}">
+        <span class="t-portrait">${heroPortrait(w.race, w.specialty, w.gender)}</span>
+        <span class="t-info"><strong><span class="t-title">${esc(titleFor(w.dragonKills, w.gender))}</span> ${esc(w.name)}</strong>
+          <small>Stufe ${w.level} · ${raceName(w.race, w.gender)} · ${SPECIALTIES[w.specialty].name}${w.dragonKills ? ` · Drachentöter ${w.dragonKills}×` : ''}</small>
+          <small class="w-status">${statusOf(w)}</small></span>
+        ${w.userId === me ? '<span class="muted">du</span>' : `<button type="button" class="tbtn" data-act="write:${w.userId}">Brief</button>`}
+      </li>`).join('')}</ul>`;
+  const online = list ? list.filter((w) => w.online).length : 0;
+  const main = `<h1>Kriegerliste</h1>
+    <p class="lead">Am Rathaus hängt eine Liste aller Helden von Moosgrund. ${list ? `${list.length} ${list.length === 1 ? 'Held' : 'Helden'}, ${online} gerade unterwegs.` : ''}</p>
+    ${ui.listErr ? `<p class="warn-box">${esc(ui.listErr)}</p>` : ''}
+    ${rows}`;
+  return layout(s, main, [
+    { title: 'Kriegerliste', items: [{ act: 'reloadlist', label: 'Neu laden', key: 'n' }, { act: 'go:mail', label: 'Briefe', key: 'i', hint: ui.unread ? `${ui.unread} neu` : '' }] },
+    { title: 'Zurück', items: [back] },
+  ]);
+}
+
+function mailScreen(s: GameState): string {
+  const c = ui.compose;
+  if (c) {
+    const main = `<h1>Brief an ${esc(c.toName)}</h1>
+      ${flashHtml()}
+      <label class="field">Betreff<input type="text" id="mail-subject" maxlength="60" value="${esc(c.subject)}"></label>
+      <label class="field">Dein Brief<textarea id="mail-body" maxlength="1000" rows="7" placeholder="Schreib etwas …">${esc(c.body)}</textarea></label>
+      <p class="muted">Ein Bote bringt den Brief sofort. Bitte freundlich bleiben, Moosgrund ist ein kleines Dorf.</p>`;
+    return layout(s, main, [
+      { title: 'Brief', items: [{ act: 'mailsend', label: 'Abschicken', key: 'a', primary: true }, { act: 'mailcancel', label: 'Verwerfen', key: 'v' }] },
+      { title: 'Zurück', items: [back] },
+    ]);
+  }
+  const list = ui.mail;
+  const rows = list === null ? '<p class="muted">Du siehst nach, ob Post da ist …</p>'
+    : !list.length ? '<p class="muted">Dein Postfach ist leer. Schreib doch jemandem aus der Kriegerliste.</p>'
+    : `<ul class="mails">${list.map((m) => {
+        const open = ui.mailOpen === m.id;
+        return `<li class="mail ${m.seen ? '' : 'unread'} ${open ? 'open' : ''}">
+          <button type="button" class="mail-head" data-act="mailopen:${m.id}" aria-expanded="${open}">
+            <span class="mail-from">${esc(m.from_name || 'Unbekannt')}</span><span class="muted">${when(m.created_at)}</span>
+            <span class="mail-subj">${esc(m.subject || '(ohne Betreff)')}</span></button>
+          ${open ? `<div class="mail-body"><p>${esc(m.body).replace(/\n/g, '<br>')}</p>
+            <div class="row">${m.from_user ? `<button type="button" class="tbtn" data-act="reply:${m.id}">Antworten</button>` : ''}
+            <button type="button" class="tbtn" data-act="maildel:${m.id}">Wegwerfen</button></div></div>` : ''}
+        </li>`;
+      }).join('')}</ul>`;
+  const main = `<h1>Briefe</h1>
+    <p class="lead">Beim Rathaus hat jeder Held ein kleines Postfach.</p>
+    ${flashHtml()}
+    ${ui.listErr ? `<p class="warn-box">${esc(ui.listErr)}</p>` : ''}
+    ${rows}`;
+  return layout(s, main, [
+    { title: 'Briefe', items: [{ act: 'go:warriors', label: 'Brief schreiben', key: 's', hint: 'aus der Kriegerliste' }, { act: 'reloadmail', label: 'Neu laden', key: 'n' }] },
+    { title: 'Zurück', items: [back] },
+  ]);
+}
+
+function loadWarriors(): void {
+  ui.warriors = null; ui.listErr = '';
+  render();
+  cloud.warriors().then((r) => { ui.warriors = r; }, (e) => { ui.warriors = []; ui.listErr = e instanceof CloudError ? e.message : 'Die Liste ließ sich nicht laden.'; })
+    .finally(() => { if (currentScreen() === 'warriors') render(); });
+}
+
+function loadMail(): void {
+  ui.mail = null; ui.listErr = '';
+  render();
+  cloud.mailbox().then((r) => { ui.mail = r; ui.unread = r.filter((m) => !m.seen).length; }, (e) => { ui.mail = []; ui.listErr = e instanceof CloudError ? e.message : 'Die Briefe ließen sich nicht laden.'; })
+    .finally(() => { if (currentScreen() === 'mail') render(); });
+}
+
+/** Schaut höchstens einmal pro Minute nach neuer Post (für den Hinweis im Dorf). */
+function checkMail(): void {
+  if (!cloud.signedIn || Date.now() - ui.unreadAt < 60_000) return;
+  ui.unreadAt = Date.now();
+  cloud.unreadMail().then((n) => {
+    if (n !== ui.unread) { if (n > ui.unread) say(n === 1 ? 'Ein Bote hat dir einen Brief gebracht.' : `Boten haben dir ${n} Briefe gebracht.`, 'gold'); ui.unread = n; if (currentScreen() === 'village') render(); }
+  }, () => {});
+}
+
 function settingsScreen(s: GameState): string {
   const main = `<h1>Einstellungen</h1>
     ${flashHtml()}
@@ -946,10 +1048,10 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!),
   };
   root.innerHTML = views[scr]();
-  if (scr === 'village') loadSquare();
+  if (scr === 'village') { loadSquare(); checkMail(); }
   // Der neueste Kampftext steht unten, also dorthin scrollen.
   const fl = root.querySelector<HTMLElement>('.battle .fight-log');
   if (fl) fl.scrollTop = fl.scrollHeight;
@@ -1050,9 +1152,50 @@ function handle(act: string, el: HTMLElement): void {
   switch (cmd) {
     case 'menu': ui.menuOpen = !ui.menuOpen; render(); return;
     case 'skills': ui.skillMenu = !ui.skillMenu; render(); return;
+    case 'reloadlist': loadWarriors(); return;
+    case 'reloadmail': loadMail(); return;
+    case 'write': {
+      const w = ui.warriors?.find((x) => x.userId === a);
+      ui.compose = { to: a, toName: w ? `${titleFor(w.dragonKills, w.gender)} ${w.name}` : 'einen Helden', subject: '', body: '' };
+      go('mail'); return;
+    }
+    case 'reply': {
+      const m = ui.mail?.find((x) => x.id === Number(a));
+      if (!m || !m.from_user) return;
+      ui.compose = { to: m.from_user, toName: m.from_name, subject: m.subject.startsWith('Re: ') ? m.subject : `Re: ${m.subject}`.slice(0, 60), body: '' };
+      go('mail'); return;
+    }
+    case 'mailcancel': ui.compose = null; go('mail'); loadMail(); return;
+    case 'mailsend': {
+      const c = ui.compose;
+      if (!c) return;
+      c.subject = (document.getElementById('mail-subject') as HTMLInputElement | null)?.value ?? c.subject;
+      c.body = (document.getElementById('mail-body') as HTMLTextAreaElement | null)?.value ?? c.body;
+      if (!c.body.trim()) { say('Ein leerer Brief? Der Bote schaut dich verwirrt an.', 'warn'); render(); return; }
+      cloud.sendMail(c.to, c.subject.trim(), c.body.trim()).then(() => {
+        ui.compose = null; go('mail'); say(`Der Bote ist mit deinem Brief an ${c.toName} unterwegs.`, 'good'); loadMail();
+      }, (e) => { say(e instanceof CloudError ? e.message : 'Der Brief ließ sich nicht verschicken.', 'warn'); render(); });
+      return;
+    }
+    case 'mailopen': {
+      const id = Number(a);
+      ui.mailOpen = ui.mailOpen === id ? null : id;
+      const m = ui.mail?.find((x) => x.id === id);
+      if (m && !m.seen) { m.seen = true; ui.unread = Math.max(0, ui.unread - 1); cloud.markMailSeen([id]).catch(() => {}); }
+      render(); return;
+    }
+    case 'maildel': {
+      const id = Number(a);
+      ui.mail = (ui.mail ?? []).filter((x) => x.id !== id);
+      ui.mailOpen = null;
+      cloud.deleteMail(id).catch(() => {});
+      render(); return;
+    }
     case 'go':
       if (a === 'fields' && cloud.signedIn) { go('fields'); loadTargets('felder'); return; }
       if (a === 'news' && cloud.enabled) { ui.newsRows = null; cloud.news(40).then((r) => { ui.newsRows = r; }, () => { ui.newsRows = []; }).finally(() => { if (ui.screen === 'news') render(); }); }
+      if (a === 'warriors' && cloud.signedIn) { go('warriors'); loadWarriors(); return; }
+      if (a === 'mail' && cloud.signedIn) { ui.compose = null; ui.mailOpen = null; go('mail'); loadMail(); return; }
       if (a === 'fame' && cloud.enabled) cloud.hallOfFame().then((rows) => { ui.fame = rows; if (ui.screen === 'fame') render(); }, () => {});
       go(a as Screen);
       return;

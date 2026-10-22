@@ -30,6 +30,11 @@ Der anon key ist für den Einsatz im Spiel gedacht und darf öffentlich sein; ge
 Danach `supabase-2-dorf.sql` ebenfalls im SQL Editor ausführen (kann gefahrlos wiederholt werden). Ohne diesen Teil
 funktioniert das Spiel weiter, nur Felder, Dorfplatz und Tagesneuigkeiten bleiben leer.
 
+## Teil 3: Kriegerliste und Briefe
+
+Im SQL Editor den Inhalt von `supabase-3-briefe.sql` einfügen und auf **Run** klicken. Voraussetzung: Teil 1 und Teil 2
+(in der Fassung ab Testversion 0.21) sind schon ausgeführt. Die Datei lässt sich gefahrlos erneut ausführen.
+
 Zum Testen ohne Supabase: `node scripts/fake-supabase.mjs` startet einen Nachbau mit echtem Postgres auf Port 54321.
 
 ## Wie der Abgleich funktioniert
@@ -44,3 +49,4 @@ Zum Testen ohne Supabase: `node scripts/fake-supabase.mjs` startet einen Nachbau
 - Ruhmeshalle gegen Schummeln absichern: Drachenkills auf dem Server aus dem Spielstand berechnen statt sie vom Spiel
   zu übernehmen.
 - Datenschutzerklärung (E-Mail-Adresse wird gespeichert) und Möglichkeit, das Konto zu löschen.
+- Briefe und Dorfplatz: Melden und Blockieren von Spielern, Wortfilter.
