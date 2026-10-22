@@ -192,6 +192,7 @@ export interface Stats {
 export interface PendingEvent {
   id: string;
   lines: LogLine[];
+  data?: number;          // z. B. welches Rätsel gestellt wurde
 }
 
 export interface GameState {

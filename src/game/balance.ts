@@ -7,7 +7,7 @@ import type { Combatant, MountId, Player } from './types';
 
 export const MAX_LEVEL = 15;
 export const FOREST_FIGHTS_PER_DAY = 20;
-export const EVENT_CHANCE = 0.12;
+export const EVENT_CHANCE = 0.15; // wie im Original (forestchance 15)
 export const GEM_DROP_CHANCE = 0.03;
 /** Anteil der Erfahrung der aktuellen Stufe, der beim Tod verloren geht. */
 export const DEATH_EXP_LOSS = 0.15;

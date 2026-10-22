@@ -1,6 +1,6 @@
 // Die Spielregeln. Jede Aktion verändert den GameState; die Darstellung liest ihn nur.
 
-import { eventById, pickEvent } from '../content/events';
+import { eventById, pickEvent, type EventCtx } from '../content/events';
 import { FRIEDA_TALKS_PER_DAY, friedaSays } from '../content/inn';
 import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
@@ -134,11 +134,12 @@ export function forestSearch(s: GameState, mode: ForestMode): ForestResult {
   if (mode === 'normal' && rand() < EVENT_CHANCE) {
     const ev = pickEvent(p);
     s.stats.events += 1;
+    const ctx = eventCtx(s);
     if (ev.choices && ev.prompt) {
-      s.pendingEvent = { id: ev.id, lines: ev.prompt(p) };
+      s.pendingEvent = { id: ev.id, lines: ev.prompt(p, ctx), data: ctx.data };
       return { type: 'choice' };
     }
-    return { type: 'event', lines: ev.run ? ev.run(p) : [] };
+    return { type: 'event', lines: afterEvent(s, true, ev.run ? ev.run(p, ctx) : []) };
   }
 
   let lvl = p.level;
@@ -165,7 +166,29 @@ export function resolveEvent(s: GameState, choiceId: string): LogLine[] {
   if (!pe || !choice) { s.pendingEvent = null; return []; }
   if (choice.available && !choice.available(s.player)) return [{ t: 'Das geht gerade nicht.', k: 'warn' }];
   s.pendingEvent = null;
-  return choice.run(s.player);
+  const ctx = eventCtx(s);
+  ctx.data = pe.data;
+  const wasAlive = s.player.alive;
+  return afterEvent(s, wasAlive, choice.run(s.player, ctx));
+}
+
+function eventCtx(s: GameState): EventCtx {
+  return { s, announce: (t) => announce(s, t) };
+}
+
+/** Manche Ereignisse sind tödlich (Leuchtender Bach, Stolleneinsturz). Dann wie bei jedem Tod ins Schattenreich. */
+function afterEvent(s: GameState, wasAlive: boolean, lines: LogLine[]): LogLine[] {
+  const p = s.player;
+  if (wasAlive && !p.alive) {
+    p.hp = 0;
+    p.buffs = [];
+    p.soul = maxSoul(p);
+    s.stats.deaths += 1;
+    s.stats.lastDeathDay = s.day;
+    s.pendingEvent = null;
+    s.news.push(...lines.map((l) => l.t));
+  }
+  return lines;
 }
 
 // ---------- Schattenreich ----------

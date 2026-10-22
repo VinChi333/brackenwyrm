@@ -39,7 +39,7 @@ import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail';
 
-const VERSION = 'Testversion 0.23';
+const VERSION = 'Testversion 0.24';
 
 interface Ui {
   screen: Screen;
@@ -190,7 +190,7 @@ function dockHtml(items: Item[], needMenu: boolean): string {
   // So bleibt er für den Daumen an derselben Stelle, egal wie viele andere Knöpfe es gibt.
   return `<div class="dock" role="toolbar" aria-label="Aktionen">
     ${sec.length ? `<div class="dock-row">${sec.join('')}</div>` : ''}
-    ${main ? btn(main, true) : ''}
+    ${main ? btn(main, main.primary !== false) : ''}
   </div>`;
 }
 
@@ -344,7 +344,7 @@ function eventScreen(s: GameState): string {
     <div class="event-box log">${pe.lines.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}</div>
     <p class="muted">Was tust du?</p>`;
   return layout(s, main, [{ title: 'Entscheidung', items: (ev?.choices ?? []).map((c, i) => ({
-    act: `event:${c.id}`, label: c.label, key: c.key, hint: c.hint?.(p), disabled: !!c.available && !c.available(p), primary: i === 0,
+    act: `event:${c.id}`, label: c.labelFor ? c.labelFor(pe.data) : c.label, key: c.key, hint: c.hint?.(p), disabled: !!c.available && !c.available(p), primary: ev?.neutral ? false : i === 0,
   })) }], 'in-fight');
 }
 
