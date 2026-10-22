@@ -16,7 +16,7 @@ export const RACES: Record<RaceId, RaceDef> = {
   elf: { id: 'elf', name: ['Elf', 'Elfe'], plural: 'Elfen', bonus: 'Mehr Verteidigung (+1, alle 5 Stufen +1 mehr)',
     blurb: 'Elfen sind flink und aufmerksam. Kaum ein Schlag trifft sie dort, wo er treffen sollte.' },
   troll: { id: 'troll', name: ['Troll', 'Trollin'], plural: 'Trolle', bonus: 'Mehr Angriff (+1, alle 5 Stufen +1 mehr)',
-    blurb: 'Trolle sind groß, grün und schlagen zu, bevor sie nachdenken. Meistens ist das auch besser so.' },
+    blurb: 'Waldtrolle sind groß, zäh wie alter Fels und haben Moos im Haar. Sie schlagen zu, bevor sie nachdenken. Meistens ist das auch besser so.' },
   zwerg: { id: 'zwerg', name: ['Zwerg', 'Zwergin'], plural: 'Zwerge', bonus: '20 % mehr Gold im Wald',
     blurb: 'Zwerge riechen Gold durch drei Fuß Moos hindurch. Kein Beutel im Wald bleibt ungefunden.' },
 };
