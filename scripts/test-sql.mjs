@@ -150,6 +150,16 @@ await as(B, `delete from public.mail`);
 r = await as(B, `select count(*)::int n from public.mail`);
 ok(r.rows[0].n === 0, 'eigene Briefe lassen sich wegwerfen');
 
+// Steckbrief
+await as(A, `update public.fighters set bio = 'Ich jage Wyrme.', mount = 'pony', married_to = 'frieda' where user_id = '${A}'`);
+r = await as(B, `select bio, mount, married_to from public.warriors() where name = 'Angreifer'`);
+ok(r.rows[0]?.bio === 'Ich jage Wyrme.' && r.rows[0].mount === 'pony' && r.rows[0].married_to === 'frieda', 'Steckbrief für andere sichtbar');
+let longBio = false; try { await as(A, `update public.fighters set bio = repeat('x', 401) where user_id = '${A}'`); } catch { longBio = true; }
+ok(longBio, 'Steckbrief höchstens 400 Zeichen');
+let foreignBio = false; await as(B, `update public.fighters set bio = 'gehackt' where user_id = '${A}'`);
+r = await db.query(`select bio from public.fighters where user_id = '${A}'`); foreignBio = r.rows[0].bio !== 'gehackt';
+ok(foreignBio, 'fremden Steckbrief kann man nicht ändern');
+
 // Spuken
 await db.exec(`update public.fighters set alive = false, level = 15 where user_id = '${C}'; update public.fighters set alive = true, level = 1, haunted_at = null where user_id = '${B}'`);
 let notDead = false; try { await as(A, `select public.haunt('${B}')`); } catch (e) { notDead = /Nur Tote/.test(e.message); }

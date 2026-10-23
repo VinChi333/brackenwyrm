@@ -80,6 +80,7 @@ export function startNewDay(s: GameState): void {
   s.fight = null;
   s.pendingEvent = null;
   p.innTalks = 0;
+  p.ambrosGames = 0;
   p.innRoom = false;
   p.hp = maxHp(p);
   p.soul = maxSoul(p);

@@ -588,3 +588,15 @@ textarea#mail-body { width: 100%; font: inherit; color: var(--text); background:
 /* Lautstärke */
 .slider { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 12px; margin: 8px 0; }
 .slider input[type=range] { width: 100%; accent-color: var(--gold); }
+
+/* Denkmal, Steckbrief, Ambros (0.32) */
+.statue { font-style: italic; color: var(--muted); border-left: 3px solid var(--line); padding: 2px 0 2px 12px; }
+.w-link { background: none; border: 0; padding: 0; margin: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.w-link:hover strong, .w-link:focus-visible strong { color: var(--gold-hi); text-decoration: underline; text-underline-offset: 3px; }
+.bio-head { display: flex; gap: 16px; align-items: center; margin-bottom: 8px; }
+.bio-head .card.mini { flex: 0 0 auto; width: 120px; }
+.bio-head h1 { margin: 0 0 4px; }
+.bio-facts .rec strong { font-size: 17px; }
+.bio-text { white-space: normal; background: var(--panel-2); border-radius: 8px; padding: 12px 14px; }
+.bio-edit { width: 100%; box-sizing: border-box; font: inherit; color: var(--text); background: #0d1020; border: 1px solid var(--line); border-radius: 6px; padding: 10px; resize: vertical; }
+@media (max-width: 560px) { .bio-head .card.mini { width: 92px; } }

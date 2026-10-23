@@ -29,6 +29,7 @@ import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
 import type { MailRow, WarriorRow } from '../game/cloud';
+import { AMBROS_GAMES_PER_DAY, AMBROS_TRIES, ambrosBets, guessAmbros, startAmbros, type AmbrosGame } from '../game/ambros';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
 import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, MountId, RaceId, SpecialtyId } from '../game/types';
@@ -38,9 +39,9 @@ import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 import { sound, type TrackId } from './audio';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros';
 
-const VERSION = 'Testversion 0.31';
+const VERSION = 'Testversion 0.32';
 
 interface Ui {
   screen: Screen;
@@ -57,6 +58,10 @@ interface Ui {
   mailOpen: number | null;
   compose: { to: string; toName: string; subject: string; body: string } | null;
   unread: number;
+  bio: WarriorRow | null;
+  bioNews: NewsRow[] | null;
+  statue: string | null;          // Name des letzten Drachentöters (Denkmal im Dorf)
+  ambros: AmbrosGame | null;
   unreadAt: number;            // Handy: Fähigkeiten statt Kampfbefehlen in der Leiste
   dkPoint: DragonPoint | null;   // Auswahl nach dem Drachenkill
   dkSpec: SpecialtyId | null;
@@ -72,7 +77,7 @@ interface Ui {
   devTaps: number;
   menuOpen: boolean;        // Handy: Menü von unten aufgeklappt
   pvp: { targets: PvpTarget[] | null; loading: boolean; busy: boolean; error: string; fightsLeft: number | null; immune: boolean };
-  square: { comments: CommentRow[] | null; loading: boolean; at: number; error: string };
+  squares: Record<ChatSection, { comments: CommentRow[] | null; loading: boolean; at: number; error: string }>;
   newsRows: NewsRow[] | null;
   sayText: string;
   acctEmail: string;        // Spielerkonto: eingegebene Adresse
@@ -85,7 +90,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, square: { comments: null, loading: false, at: 0, error: '' }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -306,6 +311,7 @@ function villageScreen(s: GameState): string {
       <p class="muted">Der Spielstand liegt in diesem Browser. Nicht im privaten Fenster spielen, sonst ist er weg.</p>
       <button type="button" class="btn" data-act="welcome">Los geht’s</button>
     </section>`}
+    <p class="statue">${statueText(s)}</p>
     ${flashHtml()}
     ${s.news.length ? `<section class="news"><h2>Neuigkeiten</h2>${s.news.slice(-4).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}
     ${cloud.enabled ? squareHtml() : ''}`;
@@ -326,6 +332,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:bestiary', label: 'Bestiarium', key: 'b', hint: `${found} / ${MONSTERS.length}` },
       ...(cloud.enabled ? [{ act: 'go:news', label: 'Tagesneuigkeiten', key: 'n' }] : []),
       { act: 'go:fame', label: 'Ruhmeshalle', key: 'r' },
+      { act: 'go:ambros', label: 'Der alte Ambros', key: 'a', hint: (p.ambrosGames ?? 0) >= AMBROS_GAMES_PER_DAY ? 'schläft' : 'Zahlenraten' },
       ...(cloud.enabled ? [
         { act: 'go:warriors', label: 'Kriegerliste', key: 'l', hint: cloud.signedIn ? '' : 'nur mit Spielerkonto', disabled: !cloud.signedIn },
         { act: 'go:mail', label: 'Briefe', key: 'i', hint: !cloud.signedIn ? 'nur mit Spielerkonto' : ui.unread ? `${ui.unread} neu` : '', disabled: !cloud.signedIn },
@@ -548,7 +555,8 @@ function innScreen(s: GameState): string {
     ${cloud.enabled && p.innRoom ? '<p class="muted">Du hast für heute ein Zimmer. Wenn du jetzt aufhörst zu spielen, schläfst du hier sicherer als draußen auf den Feldern.</p>' : ''}
     <section class="table-talk"><h2>Am Stammtisch</h2>
       ${regularsSay(s).map((l) => `<p><span class="npc">${esc(l.who.charAt(0).toUpperCase() + l.who.slice(1))}:</span> ${esc(l.t)}</p>`).join('')}
-    </section>`;
+    </section>
+    ${cloud.enabled ? squareHtml('gasthaus') : ''}`;
   const talksLeft = FRIEDA_TALKS_PER_DAY - p.innTalks;
   return layout(s, main, [
     { title: 'Gasthaus', items: [
@@ -806,23 +814,32 @@ function newsScreen(s: GameState): string {
   return layout(s, main, [{ title: 'Zurück', items: [back] }]);
 }
 
-function squareHtml(): string {
-  const sq = ui.square;
+type ChatSection = 'dorfplatz' | 'gasthaus' | 'schattenreich';
+const CHAT: Record<ChatSection, { title: string; empty: string; screen: Screen; place: string }> = {
+  dorfplatz: { title: 'Auf dem Dorfplatz', empty: 'Auf dem Dorfplatz ist es still. Sag doch was.', screen: 'village', place: 'Dorfplatz' },
+  gasthaus: { title: 'Am Tresen', empty: 'Am Tresen schweigt man heute. Frieda poliert Gläser.', screen: 'inn', place: 'Tresen' },
+  schattenreich: { title: 'Flüstern am Nebelfluss', empty: 'Nur der Fluss rauscht. Flüstere den anderen Seelen etwas zu.', screen: 'shadows', place: 'Nebelfluss' },
+};
+
+/** Gespräche wie im Original: Dorfplatz, Gasthaus und Schattenreich haben jeweils ihre eigene Runde. */
+function squareHtml(section: ChatSection = 'dorfplatz'): string {
+  const sq = ui.squares[section];
+  const c = CHAT[section];
   const list = sq.comments === null ? '<p class="muted">…</p>'
-    : sq.comments.length ? sq.comments.slice().reverse().map((c) => `<p class="say"><span class="npc">${esc(c.name)}</span> <span class="muted">${when(c.created_at)}</span><br>${esc(c.body)}</p>`).join('')
-    : '<p class="muted">Auf dem Dorfplatz ist es still. Sag doch was.</p>';
+    : sq.comments.length ? sq.comments.slice().reverse().map((x) => `<p class="say"><span class="npc">${esc(x.name)}</span> <span class="muted">${when(x.created_at)}</span><br>${esc(x.body)}</p>`).join('')
+    : `<p class="muted">${c.empty}</p>`;
   const input = cloud.signedIn
-    ? `<div class="row say-row"><input type="text" id="say" maxlength="200" placeholder="Sag etwas …" value="${esc(ui.sayText)}" aria-label="Spruch für den Dorfplatz"><button type="button" class="tbtn" data-act="say">Sagen</button></div>`
+    ? `<div class="row say-row"><input type="text" id="say" data-section="${section}" maxlength="200" placeholder="${section === 'schattenreich' ? 'Flüstere etwas …' : 'Sag etwas …'}" value="${esc(ui.sayText)}" aria-label="Spruch für ${c.place}"><button type="button" class="tbtn" data-act="say:${section}">${section === 'schattenreich' ? 'Flüstern' : 'Sagen'}</button></div>`
     : '<p class="muted">Mit einem Spielerkonto kannst du hier mitreden (Einstellungen).</p>';
-  return `<section class="square"><h2>Auf dem Dorfplatz</h2>${list}${sq.error ? `<p class="warn">${esc(sq.error)}</p>` : ''}${input}</section>`;
+  return `<section class="square ${section}"><h2>${c.title}</h2>${list}${sq.error ? `<p class="warn">${esc(sq.error)}</p>` : ''}${input}</section>`;
 }
 
-function loadSquare(force = false): void {
-  const sq = ui.square;
+function loadSquare(section: ChatSection = 'dorfplatz', force = false): void {
+  const sq = ui.squares[section];
   if (!cloud.enabled || sq.loading || (!force && Date.now() - sq.at < 20_000)) return;
   sq.loading = true;
-  cloud.comments('dorfplatz', 12).then((rows) => { sq.comments = rows; sq.error = ''; }, () => { sq.comments = sq.comments ?? []; })
-    .finally(() => { sq.loading = false; sq.at = Date.now(); if (currentScreen() === 'village') render(); });
+  cloud.comments(section, 12).then((rows) => { sq.comments = rows; sq.error = ''; }, () => { sq.comments = sq.comments ?? []; })
+    .finally(() => { sq.loading = false; sq.at = Date.now(); if (currentScreen() === CHAT[section].screen) render(); });
 }
 
 function loadTargets(place: 'felder' | 'gasthaus'): void {
@@ -845,6 +862,82 @@ function statusOf(w: WarriorRow): string {
   if (w.online) return '<span class="on-dot"></span> unterwegs';
   if (!w.alive) return 'bei Morwen';
   return w.inInn ? 'schläft im Gasthaus' : 'schläft auf den Feldern';
+}
+
+/** Denkmal wie die Statue im Original: der letzte Drachentöter des Dorfes. */
+function statueText(s: GameState): string {
+  const own = s.player.dragonKills > 0 ? s.player.name : '';
+  const name = ui.statue ?? (own || 'Brunhild Eisenhand');
+  return `Mitten auf dem Platz steht ein moosbewachsenes Denkmal. Die Inschrift lautet: „<span class="gold">${esc(name)}</span>. Zuletzt bezwang diese Klinge den Brackenwyrm.“`;
+}
+
+let statueLoaded = false;
+function loadStatue(): void {
+  if (statueLoaded || !cloud.enabled) return;
+  statueLoaded = true;
+  cloud.newsAbout('hat den Brackenwyrm', 5).then((rows) => {
+    const hit = rows.find((r) => r.body.includes('besiegt'));
+    if (hit) { ui.statue = hit.body.split(' hat den Brackenwyrm')[0].trim(); if (currentScreen() === 'village') render(); }
+  }, () => { statueLoaded = false; });
+}
+
+function bioScreen(s: GameState): string {
+  const w = ui.bio;
+  if (!w) return warriorsScreen(s);
+  const me = w.userId === cloud.userId;
+  const mounts = MOUNTS as Record<string, { name: string }>;
+  const partners = PARTNERS as Record<string, { name: string }>;
+  const mount = w.mount && mounts[w.mount] ? mounts[w.mount].name : '';
+  const spouse = w.marriedTo && partners[w.marriedTo] ? partners[w.marriedTo].name : '';
+  const row = (k: string, v: string) => `<div class="rec"><span>${k}</span><strong>${v}</strong></div>`;
+  const text = me ? s.player.bio ?? '' : w.bio ?? '';
+  const news = ui.bioNews;
+  const main = `<div class="bio-head">${cardHtml(pvpCard(w.name, w.level, w.race, w.specialty, w.gender), { cls: 'mini' })}
+      <div><h1><span class="t-title">${esc(titleFor(w.dragonKills, w.gender))}</span> ${esc(w.name)}</h1>
+      <p class="lead">${statusOf(w)}</p></div></div>
+    ${flashHtml()}
+    <div class="records bio-facts">
+      ${row('Stufe', String(w.level))}
+      ${row('Rasse', raceName(w.race, w.gender))}
+      ${row('Fähigkeit', SPECIALTIES[w.specialty].name)}
+      ${row('Drachenkills', String(w.dragonKills))}
+      ${row('Spieltage', String(w.daysPlayed))}
+      ${row('Reittier', esc(mount || 'zu Fuß'))}
+      ${row('Verheiratet', spouse ? `mit ${esc(spouse)}` : 'nein')}
+    </div>
+    <h2>Steckbrief</h2>
+    ${me ? `<textarea id="bio-text" class="bio-edit" maxlength="400" rows="5" placeholder="Erzähl etwas über deinen Helden …">${esc(text)}</textarea>
+      <div class="row"><button type="button" class="tbtn" data-act="biosave">Steckbrief speichern</button><span class="muted">höchstens 400 Zeichen</span></div>`
+      : `<p class="bio-text">${text ? esc(text).replace(/\n/g, '<br>') : '<span class="muted">Noch kein Steckbrief geschrieben.</span>'}</p>`}
+    <h2>Zuletzt in den Neuigkeiten</h2>
+    ${news === null ? '<p class="muted">…</p>' : news.length ? `<ul class="newsboard">${news.map((n) => `<li><time>${when(n.created_at)}</time> ${esc(n.body)}</li>`).join('')}</ul>` : '<p class="muted">Noch nichts Erwähnenswertes.</p>'}`;
+  return layout(s, main, [
+    { title: 'Steckbrief', items: [
+      ...(me ? [] : [{ act: `write:${w.userId}`, label: 'Brief schreiben', key: 'b', primary: true }]),
+      { act: 'go:warriors', label: 'Zur Kriegerliste', key: 'l' },
+    ] },
+    { title: 'Zurück', items: [back] },
+  ]);
+}
+
+function ambrosScreen(s: GameState): string {
+  const p = s.player;
+  const g = ui.ambros;
+  const left = AMBROS_GAMES_PER_DAY - (p.ambrosGames ?? 0);
+  const last = g ? g.hints.length - 1 : -1;
+  const main = `<h1>Der alte Ambros</h1>
+    <p class="lead">Auf der Bank am Brunnen sitzt der alte Ambros und schnitzt an einem Stock. „Ich denk mir eine Zahl zwischen 1 und 100“, sagt er. „Du hast ${AMBROS_TRIES} Versuche. Errätst du sie, zahle ich dir deinen Einsatz doppelt. Wenn nicht, gehört er mir.“</p>
+    ${flashHtml()}
+    ${g ? `<div class="event-box log">${g.hints.length ? g.hints.map((h, i) => `<p class="${i === last && g.over === 'win' ? 'gold' : i === last && g.over === 'lose' ? 'bad' : 'info'}">${esc(h)}</p>`).join('') : `<p class="info">Einsatz: ${g.bet} Gold. Ambros kneift ein Auge zu. „Na los.“</p>`}</div>
+      ${g.over ? '' : `<div class="row say-row"><input type="number" id="guess" min="1" max="100" inputmode="numeric" placeholder="1–100" aria-label="Deine Zahl"><button type="button" class="tbtn" data-act="guess">Raten</button></div>`}` : ''}
+    <p class="muted">${left > 0 ? `Heute noch ${left} ${left === 1 ? 'Spiel' : 'Spiele'}.` : 'Für heute ist Ambros fertig mit Rechnen und döst in der Sonne.'}</p>`;
+  const playing = !!g && !g.over;
+  const groups: Group[] = [];
+  if (!playing) groups.push({ title: 'Zahlenraten', items: ambrosBets(p.level).map((b, i) => ({
+    act: `ambros:${b}`, label: `Um ${b} Gold spielen`, key: String(i + 1), disabled: left <= 0 || p.gold < b, primary: i === 0,
+  })) });
+  groups.push({ title: 'Zurück', items: [back] });
+  return layout(s, main, groups);
 }
 
 function hauntScreen(s: GameState): string {
@@ -875,9 +968,9 @@ function warriorsScreen(s: GameState): string {
     : !list.length ? '<p class="muted">Noch niemand eingetragen.</p>'
     : `<ul class="warriors">${list.map((w) => `<li class="warrior ${w.userId === me ? 'me' : ''}">
         <span class="t-portrait">${heroPortrait(w.race, w.specialty, w.gender)}</span>
-        <span class="t-info"><strong><span class="t-title">${esc(titleFor(w.dragonKills, w.gender))}</span> ${esc(w.name)}</strong>
+        <button type="button" class="t-info w-link" data-act="bio:${w.userId}" title="Steckbrief ansehen"><strong><span class="t-title">${esc(titleFor(w.dragonKills, w.gender))}</span> ${esc(w.name)}</strong>
           <small>Stufe ${w.level} · ${raceName(w.race, w.gender)} · ${SPECIALTIES[w.specialty].name}${w.dragonKills ? ` · Drachentöter ${w.dragonKills}×` : ''}</small>
-          <small class="w-status">${statusOf(w)}</small></span>
+          <small class="w-status">${statusOf(w)}</small></button>
         ${w.userId === me ? '<span class="muted">du</span>' : `<button type="button" class="tbtn" data-act="write:${w.userId}">Brief</button>`}
       </li>`).join('')}</ul>`;
   const online = list ? list.filter((w) => w.online).length : 0;
@@ -886,7 +979,7 @@ function warriorsScreen(s: GameState): string {
     ${ui.listErr ? `<p class="warn-box">${esc(ui.listErr)}</p>` : ''}
     ${rows}`;
   return layout(s, main, [
-    { title: 'Kriegerliste', items: [{ act: 'reloadlist', label: 'Neu laden', key: 'n' }, { act: 'go:mail', label: 'Briefe', key: 'i', hint: ui.unread ? `${ui.unread} neu` : '' }] },
+    { title: 'Kriegerliste', items: [{ act: `bio:${me}`, label: 'Mein Steckbrief', key: 's', disabled: !list?.some((w) => w.userId === me) }, { act: 'reloadlist', label: 'Neu laden', key: 'n' }, { act: 'go:mail', label: 'Briefe', key: 'i', hint: ui.unread ? `${ui.unread} neu` : '' }] },
     { title: 'Zurück', items: [back] },
   ]);
 }
@@ -997,7 +1090,8 @@ function shadowsScreen(s: GameState): string {
       ${canBack ? '<span class="place">Du hast genug Gunst für die Rückkehr.</span>' : `Dafür brauchst du <span class="gem">${RESURRECT_FAVOR} Gunst</span>, du hast ${p.favor}.`}</p>
     <div class="progress">${bar(p.favor, RESURRECT_FAVOR, 'favor')}</div>
     <p class="muted">Neuer Tag in ${Math.floor(mins / 60)} Std. ${mins % 60} Min. Gold im Kontor ist sicher.</p>
-    ${flashHtml()}`;
+    ${flashHtml()}
+    ${cloud.enabled ? squareHtml('schattenreich') : ''}`;
   return layout(s, main, [{ title: 'Am Nebelfluss', items: [
     { act: 'grave', label: 'Gegen Seelen kämpfen', key: 'k', hint: `${p.graveFights} Schattenkämpfe`, disabled: p.graveFights <= 0 || p.soul <= 0, primary: !canBack },
     { act: 'resurrect', label: 'Morwen um Rückkehr bitten', key: 'r', hint: `${p.favor} / ${RESURRECT_FAVOR} Gunst`, disabled: !canBack, primary: canBack },
@@ -1076,12 +1170,14 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!),
   };
   root.innerHTML = views[scr]();
   sound.music(trackFor(scr));
   soundCues();
-  if (scr === 'village') { loadSquare(); checkMail(); }
+  if (scr === 'village') { loadSquare('dorfplatz'); checkMail(); loadStatue(); }
+  if (scr === 'inn') loadSquare('gasthaus');
+  if (scr === 'shadows') loadSquare('schattenreich');
   // Der neueste Kampftext steht unten, also dorthin scrollen.
   const fl = root.querySelector<HTMLElement>('.battle .fight-log');
   if (fl) fl.scrollTop = fl.scrollHeight;
@@ -1230,6 +1326,40 @@ function handle(act: string, el: HTMLElement): void {
     case 'menu': ui.menuOpen = !ui.menuOpen; render(); return;
     case 'skills': ui.skillMenu = !ui.skillMenu; render(); return;
     case 'reloadlist': loadWarriors(); return;
+    case 'bio': {
+      const w = ui.warriors?.find((x) => x.userId === a);
+      if (!w) return;
+      ui.bio = w; ui.bioNews = null; ui.flash = [];
+      go('bio');
+      cloud.newsAbout(w.name, 6).then((r) => { ui.bioNews = r; }, () => { ui.bioNews = []; }).finally(() => { if (currentScreen() === 'bio') render(); });
+      return;
+    }
+    case 'biosave': {
+      if (!s) return;
+      s.player.bio = ((document.getElementById('bio-text') as HTMLTextAreaElement | null)?.value ?? '').slice(0, 400).trim();
+      if (ui.bio && ui.bio.userId === cloud.userId) ui.bio = { ...ui.bio, bio: s.player.bio };
+      saveGame(s); scheduleSync(300);
+      say('Dein Steckbrief hängt jetzt am Rathaus.', 'good'); render();
+      return;
+    }
+    case 'ambros': {
+      if (!s) return;
+      const r = startAmbros(s, Number(a));
+      if (typeof r === 'string') { say(r, 'warn'); render(); return; }
+      ui.ambros = r; ui.flash = []; commit();
+      (document.getElementById('guess') as HTMLInputElement | null)?.focus();
+      return;
+    }
+    case 'guess': {
+      if (!s || !ui.ambros || ui.ambros.over) return;
+      const n = Math.round(Number((document.getElementById('guess') as HTMLInputElement | null)?.value));
+      if (!(n >= 1 && n <= 100)) { say('Eine Zahl von 1 bis 100, bitte.', 'warn'); render(); return; }
+      ui.flash = [];
+      guessAmbros(s, ui.ambros, n);
+      commit();
+      (document.getElementById('guess') as HTMLInputElement | null)?.focus();
+      return;
+    }
     case 'haunt': {
       if (!s || ui.pvp.busy || s.player.favor < HAUNT_FAVOR) return;
       ui.pvp.busy = true; render();
@@ -1406,11 +1536,12 @@ function handle(act: string, el: HTMLElement): void {
     }
     case 'say': {
       const inp = document.getElementById('say') as HTMLInputElement | null;
+      const section = ((a || inp?.dataset.section || 'dorfplatz') as ChatSection);
       const text = (inp?.value ?? '').trim();
       if (!text) return;
       ui.sayText = text;
-      cloud.postComment(text).then(() => { ui.sayText = ''; ui.square.error = ''; loadSquare(true); },
-        (e) => { ui.square.error = e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'; render(); });
+      cloud.postComment(text, section).then(() => { ui.sayText = ''; ui.squares[section].error = ''; loadSquare(section, true); },
+        (e) => { ui.squares[section].error = e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'; render(); });
       return;
     }
     case 'resurrect': {
@@ -1625,6 +1756,7 @@ function onKey(e: KeyboardEvent): void {
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'name') handle('create', t);
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'acct-pass') handle('acct:in', t);
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'say') handle('say', t);
+    if (e.key === 'Enter' && (t as HTMLInputElement).id === 'guess') handle('guess', t);
     return;
   }
   if (e.key === 'Escape' && ui.menuOpen) { ui.menuOpen = false; render(); return; }

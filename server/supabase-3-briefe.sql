@@ -1,13 +1,23 @@
--- Brackenwyrm, Teil 3: Kriegerliste und Briefe zwischen Spielern (wie "List Warriors" und "Ye Olde Mail" im Original).
+-- Brackenwyrm, Teil 3: Kriegerliste, Steckbriefe, Briefe und Spuken (wie im Original).
 -- Nach Teil 1 und Teil 2 einmal im SQL Editor ausführen. Kann gefahrlos erneut ausgeführt werden.
 
 -- ---------------------------------------------------------------------------------------------
+-- Steckbrief (wie die Bio im Original): eigener Text, Reittier und Ehepartner, für alle sichtbar.
+alter table public.fighters add column if not exists bio text not null default '' check (char_length(bio) <= 400);
+alter table public.fighters add column if not exists mount text not null default '';
+alter table public.fighters add column if not exists married_to text not null default '';
+grant insert (bio, mount, married_to) on public.fighters to authenticated;
+grant update (bio, mount, married_to) on public.fighters to authenticated;
+
 -- Kriegerliste: alle Helden mit öffentlichen Angaben. Gold, Erfahrung und Kampfwerte bleiben geheim.
+drop function if exists public.warriors();
 create or replace function public.warriors()
-returns table (user_id uuid, name text, gender text, level int, race text, specialty text, dragon_kills int, alive boolean, online boolean, in_inn boolean, last_seen timestamptz)
+returns table (user_id uuid, name text, gender text, level int, race text, specialty text, dragon_kills int, alive boolean, online boolean, in_inn boolean, last_seen timestamptz,
+               bio text, mount text, married_to text, days_played int)
 language sql stable security definer set search_path = public as $$
   select f.user_id, f.name, f.gender, f.level, f.race, f.specialty, f.dragon_kills, f.alive,
-         f.last_seen > now() - interval '5 minutes', f.in_inn, f.last_seen
+         f.last_seen > now() - interval '5 minutes', f.in_inn, f.last_seen,
+         f.bio, f.mount, f.married_to, f.days_played
   from public.fighters f
   order by f.dragon_kills desc, f.level desc, f.name
   limit 300

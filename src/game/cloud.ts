@@ -23,7 +23,7 @@ export interface PvpResult {
 }
 export interface PvpEvent { id: number; kind: 'slain' | 'defended' | 'haunted'; other_name: string; place: string; gold: number; exp: number; created_at: string }
 export interface NewsRow { created_at: string; body: string }
-export interface WarriorRow { userId: string; name: string; gender: Gender; level: number; race: RaceId; specialty: SpecialtyId; dragonKills: number; alive: boolean; online: boolean; inInn: boolean; lastSeen: string }
+export interface WarriorRow { userId: string; name: string; gender: Gender; level: number; race: RaceId; specialty: SpecialtyId; dragonKills: number; alive: boolean; online: boolean; inInn: boolean; lastSeen: string; bio: string; mount: string; marriedTo: string; daysPlayed: number }
 export interface MailRow { id: number; created_at: string; from_user: string | null; from_name: string; subject: string; body: string; seen: boolean }
 export interface CommentRow { id: number; created_at: string; name: string; body: string }
 
@@ -136,19 +136,22 @@ export class Cloud {
       gold: Math.max(0, p.gold), hp: Math.max(0, p.hp), base_max_hp: p.baseMaxHp, bonus_atk: p.bonusAtk, bonus_def: p.bonusDef,
       weapon_tier: p.weaponTier, armor_tier: p.armorTier, dragon_kills: p.dragonKills, days_played: state.stats.realDays,
       alive: p.alive, in_inn: p.alive && p.innRoom,
+      bio: (p.bio ?? '').slice(0, 400), mount: p.mount, married_to: p.marriedTo,
     };
     const send = (b: object) => this.call('/rest/v1/fighters', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: b });
-    try {
-      await send(body);
-    } catch (e) {
-      if (e instanceof CloudError && /404|42P01|PGRST205/.test(e.message)) return;  // Tabelle gibt es (noch) nicht
-      // Datenbank noch auf altem Stand (ohne Rasse, alte Fähigkeiten): so speichern, wie sie es kennt
-      if (e instanceof CloudError && /race|PGRST204|42703|23514|check/i.test(e.message)) {
-        const { race: _race, ...old } = body;
-        await send({ ...old, specialty: LEGACY_REVERSE[p.specialty] });
+    // Ältere Datenbanken kennen manche Spalten noch nicht: dann Schritt für Schritt einfacher speichern.
+    const { bio: _b, mount: _m, married_to: _w, ...noBio } = body;
+    const { race: _r, ...noRace } = noBio;
+    const attempts: Record<string, unknown>[] = [body, noBio, { ...noRace, specialty: LEGACY_REVERSE[p.specialty] }];
+    for (let i = 0; i < attempts.length; i++) {
+      try {
+        await send(attempts[i]);
         return;
+      } catch (e) {
+        if (e instanceof CloudError && /404|42P01|PGRST205/.test(e.message)) return;  // Tabelle gibt es (noch) nicht
+        const schemaError = e instanceof CloudError && /bio|mount|married|race|PGRST204|42703|42501|23514|check/i.test(e.message) && e.code === 'server';
+        if (!schemaError || i === attempts.length - 1) throw e;
       }
-      throw e;
     }
   }
 
@@ -196,6 +199,13 @@ export class Cloud {
     return Array.isArray(rows) ? rows : [];
   }
 
+  /** Neuigkeiten, in denen ein Name vorkommt (für Steckbrief und Denkmal). */
+  async newsAbout(text: string, limit = 5): Promise<NewsRow[]> {
+    const q = encodeURIComponent(`*${text.replace(/[*,()]/g, '')}*`);
+    const rows = await this.call(`/rest/v1/news?select=created_at,body&body=like.${q}&order=created_at.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+    return Array.isArray(rows) ? rows : [];
+  }
+
   async postNews(body: string): Promise<void> {
     await this.ensureSession();
     await this.call('/rest/v1/news', { method: 'POST', prefer: 'return=minimal', body: { body: body.slice(0, 200) } });
@@ -225,6 +235,7 @@ export class Cloud {
       return (Array.isArray(rows) ? rows : []).map((r: Record<string, unknown>) => ({
         userId: String(r.user_id), name: String(r.name), gender: r.gender === 'f' ? 'f' : 'm', level: Number(r.level), race: normalizeRace(r.race),
         specialty: normalizeSpecialty(r.specialty), dragonKills: Number(r.dragon_kills), alive: !!r.alive, online: !!r.online, inInn: !!r.in_inn, lastSeen: String(r.last_seen),
+        bio: String(r.bio ?? ''), mount: String(r.mount ?? ''), marriedTo: String(r.married_to ?? ''), daysPlayed: Number(r.days_played ?? 0),
       }));
     } catch (e) {
       if (this.missingPart3(e)) throw new CloudError('server', 'Die Kriegerliste ist auf dem Server noch nicht eingerichtet (Teil 3).');

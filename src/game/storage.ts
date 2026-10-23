@@ -70,6 +70,7 @@ export function validate(x: unknown): GameState | null {
   s.player.mount = s.player.mount === 'pony' || s.player.mount === 'wallach' || s.player.mount === 'hengst' ? s.player.mount : '';
   s.player.mountFed = !!s.player.mountFed;
   if (typeof s.player.hauntedBy !== 'string' || !s.player.hauntedBy) delete s.player.hauntedBy;
+  s.player.bio = typeof s.player.bio === 'string' ? s.player.bio.slice(0, 400) : '';
   if (s.player.loverPref !== 'frieda' && s.player.loverPref !== 'florian') delete s.player.loverPref;
   s.outbox = Array.isArray(s.outbox) ? s.outbox.slice(-20) : [];
   s.stats = Object.assign(newStats(1), s.stats ?? {});

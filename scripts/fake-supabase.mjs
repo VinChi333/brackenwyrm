@@ -34,7 +34,7 @@ const admin = (sql, params = []) => { const p = queue.then(() => db.query(sql, p
 const COLS = {
   saves: ['user_id', 'data', 'saved_at'],
   profiles: ['user_id', 'name', 'level', 'dragon_kills', 'gender'],
-  fighters: ['user_id', 'name', 'specialty', 'race', 'gender', 'level', 'exp', 'gold', 'hp', 'base_max_hp', 'bonus_atk', 'bonus_def', 'weapon_tier', 'armor_tier', 'dragon_kills', 'days_played', 'alive', 'in_inn'],
+  fighters: ['user_id', 'name', 'specialty', 'race', 'gender', 'level', 'exp', 'gold', 'hp', 'base_max_hp', 'bonus_atk', 'bonus_def', 'weapon_tier', 'armor_tier', 'dragon_kills', 'days_played', 'alive', 'in_inn', 'bio', 'mount', 'married_to'],
   news: ['body'],
   commentary: ['section', 'body'],
   mail: ['to_user', 'subject', 'body'],
@@ -46,6 +46,7 @@ function filters(params) {
     if (['select', 'order', 'limit'].includes(k)) continue;
     const [op, ...rest] = v.split('.'); const val = rest.join('.');
     if (op === 'eq') { vals.push(val === 'false' ? false : val === 'true' ? true : val); where.push(`${k} = $${vals.length}`); }
+    else if (op === 'like' || op === 'ilike') { vals.push(val.replace(/\*/g, '%')); where.push(`${k} ${op} $${vals.length}`); }
     else if (op === 'in') { const items = val.replace(/[()]/g, '').split(',').map(Number); vals.push(items); where.push(`${k} = any($${vals.length})`); }
   }
   return { where: where.length ? 'where ' + where.join(' and ') : '', vals };

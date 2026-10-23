@@ -169,6 +169,8 @@ export interface Player {
   mount: MountId | '';         // Reittier aus Mertens Stall (bleibt über Drachenkills)
   mountFed: boolean;           // heute schon gefüttert
   hauntedBy?: string;          // von einem Geist heimgesucht: morgen früh weniger Waldkämpfe
+  bio?: string;                // eigener Text für den Steckbrief
+  ambrosGames?: number;        // Zahlenraten mit Ambros heute
 }
 
 export type DragonPoint = 'atk' | 'def' | 'hp' | 'ff';
