@@ -15,6 +15,8 @@ export type TrackId = 'titel' | 'dorf' | 'wald' | 'kampf' | 'gasthaus' | 'schatt
 
 export interface SoundPrefs { musicVol: number; sfxVol: number; muted: boolean }
 
+interface Track { id: TrackId; el: HTMLAudioElement; gain: GainNode; retired: boolean; blocked: boolean }
+
 const MUSIC_BASE = 'audio/music/';
 const FADE = 1.6;
 
@@ -24,7 +26,7 @@ class SoundSystem {
   private musicBus!: GainNode;
   private sfxBus!: GainNode;
   private buffers = new Map<string, Promise<AudioBuffer | null>>();
-  private current: { id: TrackId; el: HTMLAudioElement; gain: GainNode } | null = null;
+  private current: Track | null = null;
   private wanted: TrackId | null = null;
   private missing = new Set<string>();
   private prefs: SoundPrefs = { musicVol: 0.5, sfxVol: 0.8, muted: false };
@@ -50,7 +52,8 @@ class SoundSystem {
       });
     }
     if (this.ctx.state === 'suspended' && !document.hidden) void this.ctx.resume();
-    if (this.wanted && !this.current) this.music(this.wanted);
+    if (this.current?.blocked) this.start(this.current);
+    else if (this.wanted && !this.current) this.music(this.wanted);
   }
 
   get ready(): boolean { return !!this.ctx; }
@@ -98,22 +101,18 @@ class SoundSystem {
   music(id: TrackId | null): void {
     this.wanted = id;
     if (!this.ctx) return;
-    if (this.current?.id === id) return;
+    if (this.current?.id === id) {
+      if (this.current.blocked) this.start(this.current);
+      return;
+    }
     const old = this.current;
     this.current = null;
-    if (old) {
-      const t = this.ctx.currentTime;
-      old.gain.gain.cancelScheduledValues(t);
-      old.gain.gain.setValueAtTime(old.gain.gain.value, t);
-      old.gain.gain.linearRampToValueAtTime(0, t + FADE);
-      window.setTimeout(() => { old.el.pause(); old.el.src = ''; old.gain.disconnect(); }, FADE * 1000 + 100);
-    }
+    if (old) this.retire(old);
     if (!id || this.missing.has(id)) return;
     const el = new Audio();
     el.loop = true;
     el.preload = 'auto';
     el.crossOrigin = 'anonymous';
-    el.src = `${MUSIC_BASE}musik-${id}.mp3`;
     const gain = this.ctx.createGain();
     gain.gain.value = 0;
     try {
@@ -122,15 +121,51 @@ class SoundSystem {
       return;
     }
     gain.connect(this.musicBus);
-    const entry = { id, el, gain };
+    const entry: Track = { id, el, gain, retired: false, blocked: false };
+    // Nur ein echter Ladefehler (Datei fehlt) sperrt das Stück, nicht das absichtliche Anhalten beim Ortswechsel.
+    el.addEventListener('error', () => {
+      if (entry.retired) return;
+      this.missing.add(id);
+      if (this.current === entry) this.current = null;
+    });
+    el.src = `${MUSIC_BASE}musik-${id}.mp3`;
     this.current = entry;
-    el.addEventListener('error', () => { this.missing.add(id); if (this.current === entry) this.current = null; }, { once: true });
-    el.play().then(() => {
-      if (!this.ctx) return;
+    this.start(entry);
+  }
+
+  private start(entry: Track): void {
+    entry.blocked = false;
+    entry.el.play().then(() => {
+      if (!this.ctx || entry.retired || this.current !== entry) return;
       const t = this.ctx.currentTime;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(1, t + FADE);
-    }).catch(() => { /* noch nicht freigeschaltet oder Datei fehlt */ });
+      entry.gain.gain.cancelScheduledValues(t);
+      entry.gain.gain.setValueAtTime(entry.gain.gain.value, t);
+      entry.gain.gain.linearRampToValueAtTime(1, t + FADE);
+    }).catch((e: unknown) => {
+      // Vom Browser blockiert (noch keine Berührung): beim nächsten Tippen erneut versuchen.
+      if (!entry.retired && (e as { name?: string })?.name === 'NotAllowedError') entry.blocked = true;
+    });
+  }
+
+  /** Altes Stück ausblenden und danach aufräumen. */
+  private retire(old: Track): void {
+    old.retired = true;
+    const t = this.ctx!.currentTime;
+    old.gain.gain.cancelScheduledValues(t);
+    old.gain.gain.setValueAtTime(old.gain.gain.value, t);
+    old.gain.gain.linearRampToValueAtTime(0, t + FADE);
+    window.setTimeout(() => {
+      old.el.pause();
+      old.el.removeAttribute('src');
+      old.el.load();
+      old.gain.disconnect();
+    }, FADE * 1000 + 100);
+  }
+
+  /** Für Tests: was gerade läuft. */
+  status(): { track: string | null; playing: boolean; missing: string[] } {
+    const c = this.current;
+    return { track: c?.id ?? null, playing: !!c && !c.el.paused && !c.blocked, missing: [...this.missing] };
   }
 
   /** Kurzes Musikstück darüber (Siegesfanfare): die laufende Musik wird solange leiser. */
@@ -158,3 +193,5 @@ class SoundSystem {
 }
 
 export const sound = new SoundSystem();
+// Für Tests im Browser
+(globalThis as unknown as { __bwSound?: SoundSystem }).__bwSound = sound;

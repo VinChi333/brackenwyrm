@@ -40,7 +40,7 @@ import { sound, type TrackId } from './audio';
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt';
 
-const VERSION = 'Testversion 0.30';
+const VERSION = 'Testversion 0.31';
 
 interface Ui {
   screen: Screen;
