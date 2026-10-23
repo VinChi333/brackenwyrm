@@ -109,12 +109,15 @@ export interface Prefs {
   lastSyncedAt: number;   // savedAt des Stands, der zuletzt mit dem Server übereinstimmte (0 = nie)
   welcomed: boolean;      // Tester-Begrüßung gesehen
   fightHint: boolean;     // Hinweis "Befehle stehen links" schon gesehen
+  musicVol: number;       // 0–1
+  sfxVol: number;         // 0–1
+  muted: boolean;
 }
 
 const PREFS_KEY = 'brackenwyrm.prefs';
 
 export function loadPrefs(): Prefs {
-  const base: Prefs = { reducedMotion: false, dev: false, welcomed: false, fightHint: false, lastSyncedAt: 0 };
+  const base: Prefs = { reducedMotion: false, dev: false, welcomed: false, fightHint: false, lastSyncedAt: 0, musicVol: 0.5, sfxVol: 0.8, muted: false };
   try {
     const raw = localStorage.getItem(PREFS_KEY);
     return raw ? Object.assign(base, JSON.parse(raw)) : base;

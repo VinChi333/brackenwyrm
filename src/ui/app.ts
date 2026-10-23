@@ -35,11 +35,12 @@ import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, MountId, 
 import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard, mountCard, tierFor } from './art/cards';
 import type { CardInfo } from './art/cards';
 import { applyPvpEvents, applyPvpResult } from '../game/pvp';
+import { sound, type TrackId } from './audio';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt';
 
-const VERSION = 'Testversion 0.28';
+const VERSION = 'Testversion 0.29';
 
 interface Ui {
   screen: Screen;
@@ -955,6 +956,10 @@ function settingsScreen(s: GameState): string {
   const main = `<h1>Einstellungen</h1>
     ${flashHtml()}
     <label class="toggle"><input type="checkbox" id="opt-motion" data-act="toggle:motion" ${prefs.reducedMotion ? 'checked' : ''}> Weniger Bewegung im Kampf</label>
+    <h2>Ton</h2>
+    <label class="slider">Musik <input type="range" min="0" max="100" step="5" data-act="vol:music" value="${Math.round(prefs.musicVol * 100)}" aria-label="Lautstärke Musik"></label>
+    <label class="slider">Effekte <input type="range" min="0" max="100" step="5" data-act="vol:sfx" value="${Math.round(prefs.sfxVol * 100)}" aria-label="Lautstärke Effekte"></label>
+    <label class="toggle"><input type="checkbox" data-act="toggle:muted" ${prefs.muted ? 'checked' : ''}> Ton ganz aus</label>
     <h2>Im Gasthaus umwerben</h2>
     <div class="seg" role="radiogroup" aria-label="Wen umwerben">
       ${(['frieda', 'florian'] as const).map((id) => `<button type="button" class="seg-btn ${partnerOf(s.player) === id ? 'on' : ''}" role="radio" aria-checked="${partnerOf(s.player) === id}" data-act="lover:${id}">${id === 'frieda' ? 'Wirtin Frieda' : 'Barde Florian'}</button>`).join('')}
@@ -1074,10 +1079,59 @@ export function render(): void {
     settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!),
   };
   root.innerHTML = views[scr]();
+  sound.music(trackFor(scr));
+  soundCues();
   if (scr === 'village') { loadSquare(); checkMail(); }
   // Der neueste Kampftext steht unten, also dorthin scrollen.
   const fl = root.querySelector<HTMLElement>('.battle .fight-log');
   if (fl) fl.scrollTop = fl.scrollHeight;
+}
+
+/** Welche Musik zu welchem Ort gehört. */
+function trackFor(scr: Screen): TrackId {
+  const s = state;
+  if (scr === 'title' || scr === 'create' || scr === 'login' || !s) return 'titel';
+  if (scr === 'fight' && s.fight) return s.fight.kind === 'dragon' ? 'drache' : s.fight.kind === 'grave' ? 'schattenreich' : 'kampf';
+  if (!s.player.alive || scr === 'shadows' || scr === 'haunt') return 'schattenreich';
+  if (scr === 'forest') return 'wald';
+  if (scr === 'inn' || scr === 'flirt' || scr === 'innGuests') return 'gasthaus';
+  return 'dorf';
+}
+
+// Klänge ergeben sich aus dem, was sich seit dem letzten Bild geändert hat. So muss nicht jede Aktion selbst Töne auslösen.
+let lastAct = 0;
+let snap: { gold: number; gems: number; level: number; seq: number; fightKey: string; over: string; alive: boolean; card: string | null; event: string; unread: number } | null = null;
+
+function soundCues(): void {
+  const s = state;
+  if (!s) { snap = null; return; }
+  const p = s.player;
+  const f = s.fight;
+  const now = { gold: p.gold, gems: p.gems, level: p.level, seq: f?.seq ?? 0, fightKey: f ? `${f.monsterId}:${f.foe.maxHp}` : '', over: f?.over ?? '', alive: p.alive, card: ui.newCard, event: s.pendingEvent?.id ?? '', unread: ui.unread };
+  const before = snap;
+  snap = now;
+  if (!before || !sound.ready) return;
+  if (now.unread > before.unread) sound.play('letter');
+  if (Date.now() - lastAct > 4000) return;  // nur auf eigene Aktionen reagieren, nicht auf den Abgleich im Hintergrund
+  if (f && now.fightKey === before.fightKey && now.seq !== before.seq) {
+    if (f.lastSpecial) sound.play(s.player.specialty);
+    if (f.lastCrit) sound.play('crit', { delay: 0.05 });
+    else if (f.lastHeroDmg > 0) sound.play('hit', { delay: 0.05, vary: true });
+    else if (f.lastHeroMiss) sound.play('miss', { vary: true });
+    if (f.lastFoeDmg > 0) sound.play('hurt', { delay: 0.3, vary: true });
+    else if (f.lastFoeMiss && !f.over) sound.play('miss', { delay: 0.3, volume: 0.6, vary: true });
+    if (f.over === 'win' && before.over !== 'win') {
+      if (f.kind === 'dragon') sound.jingle('fanfare'); else sound.play('win', { delay: 0.35 });
+    }
+    if (f.over === 'lose' && before.over !== 'lose') sound.play('death', { delay: 0.4 });
+  }
+  if (!now.alive && before.alive && !f) sound.play('death');
+  if (now.level > before.level) sound.play('levelup', { delay: 0.6 });
+  if (now.card && now.card !== before.card) sound.play('card', { delay: 0.9 });
+  if (now.event && now.event !== before.event) sound.play('event');
+  if (now.gold > before.gold) sound.play('coins', { delay: f?.over === 'win' ? 0.6 : 0 });
+  else if (now.gold < before.gold && now.alive) sound.play('buy');
+  if (now.gems > before.gems) sound.play('gem', { delay: 0.3 });
 }
 
 function go(screen: Screen): void {
@@ -1506,9 +1560,17 @@ function handle(act: string, el: HTMLElement): void {
     }
     case 'toggle':
       if (a === 'motion') prefs.reducedMotion = (el as HTMLInputElement).checked;
+      if (a === 'muted') { prefs.muted = (el as HTMLInputElement).checked; sound.setPrefs(prefs); }
       savePrefs(prefs);
       render();
       return;
+    case 'vol': {
+      const v = Math.max(0, Math.min(100, Number((el as HTMLInputElement).value))) / 100;
+      if (a === 'music') prefs.musicVol = v; else prefs.sfxVol = v;
+      savePrefs(prefs); sound.setPrefs(prefs);
+      if (a === 'sfx') sound.play('coins');
+      return;
+    }
     case 'testday':
       startNewDay(s);
       ui.flash = [{ t: 'Testmodus: Ein neuer Tag beginnt.', k: 'info' }];
@@ -1640,8 +1702,15 @@ export function start(el: HTMLElement): void {
     const target = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
     if (!target || (target as HTMLButtonElement).disabled) return;
     if (target.tagName === 'INPUT') return;
+    lastAct = Date.now();
+    if (!target.dataset.act!.startsWith('fight:')) sound.play('click', { volume: 0.5 });
     handle(target.dataset.act!, target);
   });
+  // Ton geht erst nach der ersten Berührung (Vorgabe der Browser).
+  const unlock = () => sound.unlock();
+  window.addEventListener('pointerdown', unlock);
+  window.addEventListener('keydown', unlock);
+  sound.setPrefs(prefs);
   root.addEventListener('change', (e) => {
     const target = e.target as HTMLElement;
     if (target.tagName === 'INPUT' && target.dataset.act) handle(target.dataset.act, target);

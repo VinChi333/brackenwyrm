@@ -584,3 +584,7 @@ ul.plain { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 .mail-body { padding: 0 12px 12px; }
 .mail-body p { margin: 0 0 10px; white-space: normal; }
 textarea#mail-body { width: 100%; font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; resize: vertical; }
+
+/* Lautstärke */
+.slider { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 12px; margin: 8px 0; }
+.slider input[type=range] { width: 100%; accent-color: var(--gold); }
