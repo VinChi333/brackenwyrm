@@ -28,7 +28,9 @@ import {
 import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
-import type { MailRow, WarriorRow } from '../game/cloud';
+import type { BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
+import { censor, isClean } from '../content/badwords';
+import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
 import { AMBROS_GAMES_PER_DAY, AMBROS_TRIES, ambrosBets, guessAmbros, startAmbros, type AmbrosGame } from '../game/ambros';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
@@ -39,9 +41,10 @@ import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 import { sound, type TrackId } from './audio';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
-  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros';
+  | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros'
+  | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount';
 
-const VERSION = 'Testversion 0.32';
+const VERSION = 'Testversion 0.33';
 
 interface Ui {
   screen: Screen;
@@ -62,6 +65,13 @@ interface Ui {
   bioNews: NewsRow[] | null;
   statue: string | null;          // Name des letzten Drachentöters (Denkmal im Dorf)
   ambros: AmbrosGame | null;
+  blocked: Set<string>;               // blockierte Spieler (ihre Beiträge und Briefe werden ausgeblendet)
+  blocksList: BlockRow[] | null;
+  isAdmin: boolean;                   // gehört zur Wache (Moderation)
+  repConfirm: string;                 // "Wirklich melden?" für diesen Beitrag
+  legalFrom: Screen;
+  delMsg: string;
+  wache: { tab: 'reports' | 'banned' | 'cheats'; reports: ModReport[] | null; banned: ModBanned[] | null; cheats: ModCheat[] | null; err: string };
   unreadAt: number;            // Handy: Fähigkeiten statt Kampfbefehlen in der Leiste
   dkPoint: DragonPoint | null;   // Auswahl nach dem Drachenkill
   dkSpec: SpecialtyId | null;
@@ -90,7 +100,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -248,8 +258,23 @@ function titleScreen(): string {
         ...(cloud.enabled && !cloud.signedIn ? [{ act: 'go:login', label: 'Mit Spielerkonto anmelden', key: 'k', hint: 'auf einem anderen Gerät weiterspielen' }] : []),
       ] }])}</div>
       <p class="fine" data-act="devtap">${VERSION} · Tastenkürzel am Computer, Tippen am Handy${prefs.dev ? ' · Entwicklermodus' : ''}</p>
+      <p class="fine legal-links"><button type="button" class="linkish" data-act="legal:impressum">Impressum</button> · <button type="button" class="linkish" data-act="legal:datenschutz">Datenschutz</button></p>
     </div>
   </div>`;
+}
+
+/** Impressum und Datenschutz: vom Titel aus ohne Spielstand, sonst im normalen Rahmen. */
+function legalScreen(kind: 'impressum' | 'datenschutz'): string {
+  const title = kind === 'impressum' ? 'Impressum' : 'Datenschutzerklärung';
+  const body = `<article class="legal">${legalIncomplete() ? '<p class="warn-box">Hinweis für den Betreiber: In src/content/legal.ts fehlen noch Angaben (in eckigen Klammern).</p>' : ''}
+    ${kind === 'impressum' ? impressumHtml() : datenschutzHtml()}</article>`;
+  const other = kind === 'impressum' ? { act: 'legal:datenschutz', label: 'Datenschutz', key: 'p' } : { act: 'legal:impressum', label: 'Impressum', key: 'i' };
+  const backAct = ui.legalFrom === 'title' || !state ? 'go:title' : `go:${ui.legalFrom}`;
+  if (!state || ui.legalFrom === 'title') {
+    return `<div class="solo"><div class="solo-panel legal-panel"><h1 class="legal-title">${title}</h1>${body}
+      <div class="row"><button type="button" class="btn ghost" data-act="${backAct}">Zurück</button><button type="button" class="btn ghost" data-act="${other.act}">${other.label}</button></div></div></div>`;
+  }
+  return layout(state, `<h1 class="legal-title">${title}</h1>${body}`, [{ title: 'Rechtliches', items: [other, { act: backAct, label: 'Zurück', key: 'z' }] }]);
 }
 
 function loginScreen(): string {
@@ -738,7 +763,8 @@ function accountHtml(): string {
       <label class="field">E-Mail<input type="email" id="acct-email" autocomplete="email" placeholder="deine@mail.at" value="${esc(ui.acctEmail)}"></label>
       <label class="field">Passwort<input type="password" id="acct-pass" autocomplete="current-password" placeholder="mindestens 6 Zeichen"></label>
     </div>
-    <div class="row"><button type="button" class="btn" data-act="acct:in">Anmelden</button><button type="button" class="btn ghost" data-act="acct:up">Neues Konto anlegen</button></div>${msg}`;
+    <div class="row"><button type="button" class="btn" data-act="acct:in">Anmelden</button><button type="button" class="btn ghost" data-act="acct:up">Neues Konto anlegen</button></div>
+    <p class="fine">Mit einem neuen Konto gilt die <button type="button" class="linkish" data-act="legal:datenschutz">Datenschutzerklärung</button>. Ein Konto ab 14 Jahren, jünger nur mit Einverständnis der Eltern.</p>${msg}`;
 }
 
 function summary(st: GameState): string {
@@ -826,12 +852,32 @@ function squareHtml(section: ChatSection = 'dorfplatz'): string {
   const sq = ui.squares[section];
   const c = CHAT[section];
   const list = sq.comments === null ? '<p class="muted">…</p>'
-    : sq.comments.length ? sq.comments.slice().reverse().map((x) => `<p class="say"><span class="npc">${esc(x.name)}</span> <span class="muted">${when(x.created_at)}</span><br>${esc(x.body)}</p>`).join('')
+    : sq.comments.length ? sq.comments.filter((x) => !(x.user_id && ui.blocked.has(x.user_id))).reverse().map((x) => `<p class="say"><span class="npc">${esc(x.name)}</span> <span class="muted">${when(x.created_at)}</span>${reportBtn('chat', x.id, x.user_id)}<br>${esc(x.body)}</p>`).join('')
     : `<p class="muted">${c.empty}</p>`;
   const input = cloud.signedIn
     ? `<div class="row say-row"><input type="text" id="say" data-section="${section}" maxlength="200" placeholder="${section === 'schattenreich' ? 'Flüstere etwas …' : 'Sag etwas …'}" value="${esc(ui.sayText)}" aria-label="Spruch für ${c.place}"><button type="button" class="tbtn" data-act="say:${section}">${section === 'schattenreich' ? 'Flüstern' : 'Sagen'}</button></div>`
     : '<p class="muted">Mit einem Spielerkonto kannst du hier mitreden (Einstellungen).</p>';
   return `<section class="square ${section}"><h2>${c.title}</h2>${list}${sq.error ? `<p class="warn">${esc(sq.error)}</p>` : ''}${input}</section>`;
+}
+
+/** Kleiner Melden-Knopf (erst Tippen fragt nach, zweites Tippen meldet). */
+function reportBtn(kind: ReportKind, ref: number | string, owner?: string | null): string {
+  if (!cloud.signedIn || !owner || owner === cloud.userId) return '';
+  const key = `${kind}:${ref}`;
+  const sure = ui.repConfirm === key;
+  return ` <button type="button" class="flag ${sure ? 'sure' : ''}" data-act="rep:${key}" title="Melden" aria-label="${sure ? 'Wirklich melden' : 'Melden'}">${sure ? 'Wirklich melden?' : '⚑'}</button>`;
+}
+
+let safetyLoaded = false;
+/** Blockierliste und Wache-Status nach dem Anmelden holen. */
+function loadSafety(): void {
+  safetyLoaded = true;
+  cloud.blocks().then((rows) => { ui.blocksList = rows; ui.blocked = new Set(rows.map((r) => r.blocked)); render(); }, () => { safetyLoaded = false; });
+  cloud.isAdmin().then((a) => { if (a !== ui.isAdmin) { ui.isAdmin = a; render(); } }, () => {});
+}
+
+function resetSafety(): void {
+  safetyLoaded = false; ui.blocked = new Set(); ui.blocksList = null; ui.isAdmin = false;
 }
 
 function loadSquare(section: ChatSection = 'dorfplatz', force = false): void {
@@ -875,10 +921,16 @@ let statueLoaded = false;
 function loadStatue(): void {
   if (statueLoaded || !cloud.enabled) return;
   statueLoaded = true;
-  cloud.newsAbout('hat den Brackenwyrm', 5).then((rows) => {
-    const hit = rows.find((r) => r.body.includes('besiegt'));
-    if (hit) { ui.statue = hit.body.split(' hat den Brackenwyrm')[0].trim(); if (currentScreen() === 'village') render(); }
-  }, () => { statueLoaded = false; });
+  const show = (name: string) => { ui.statue = name; if (currentScreen() === 'village') render(); };
+  cloud.lastDragonSlayer().then((r) => {
+    if (r) { show(r.name); return; }
+    if (r === null) return;
+    // Server noch ohne Teil 4: aus den Neuigkeiten lesen
+    return cloud.newsAbout('hat den Brackenwyrm', 5).then((rows) => {
+      const hit = rows.find((x) => x.body.includes('besiegt'));
+      if (hit) show(hit.body.split(' hat den Brackenwyrm')[0].trim());
+    });
+  }).catch(() => { statueLoaded = false; });
 }
 
 function bioScreen(s: GameState): string {
@@ -916,6 +968,13 @@ function bioScreen(s: GameState): string {
       ...(me ? [] : [{ act: `write:${w.userId}`, label: 'Brief schreiben', key: 'b', primary: true }]),
       { act: 'go:warriors', label: 'Zur Kriegerliste', key: 'l' },
     ] },
+    ...(me ? [] : [{ title: 'Ärger?', items: [
+      ui.blocked.has(w.userId)
+        ? { act: `unblock:${w.userId}`, label: 'Nicht mehr blockieren', key: 'k' }
+        : { act: `block:${w.userId}`, label: 'Blockieren', key: 'k', hint: 'keine Briefe, Gespräche ausgeblendet' },
+      { act: `rep:steckbrief:${w.userId}`, label: ui.repConfirm === `steckbrief:${w.userId}` ? 'Wirklich melden?' : 'Steckbrief melden', key: 'm' },
+      { act: `rep:name:${w.userId}`, label: ui.repConfirm === `name:${w.userId}` ? 'Wirklich melden?' : 'Namen melden', key: 'n' },
+    ] }]),
     { title: 'Zurück', items: [back] },
   ]);
 }
@@ -1000,7 +1059,7 @@ function mailScreen(s: GameState): string {
   const list = ui.mail;
   const rows = list === null ? '<p class="muted">Du siehst nach, ob Post da ist …</p>'
     : !list.length ? '<p class="muted">Dein Postfach ist leer. Schreib doch jemandem aus der Kriegerliste.</p>'
-    : `<ul class="mails">${list.map((m) => {
+    : `<ul class="mails">${list.filter((m) => !(m.from_user && ui.blocked.has(m.from_user))).map((m) => {
         const open = ui.mailOpen === m.id;
         return `<li class="mail ${m.seen ? '' : 'unread'} ${open ? 'open' : ''}">
           <button type="button" class="mail-head" data-act="mailopen:${m.id}" aria-expanded="${open}">
@@ -1008,7 +1067,9 @@ function mailScreen(s: GameState): string {
             <span class="mail-subj">${esc(m.subject || '(ohne Betreff)')}</span></button>
           ${open ? `<div class="mail-body"><p>${esc(m.body).replace(/\n/g, '<br>')}</p>
             <div class="row">${m.from_user ? `<button type="button" class="tbtn" data-act="reply:${m.id}">Antworten</button>` : ''}
-            <button type="button" class="tbtn" data-act="maildel:${m.id}">Wegwerfen</button></div></div>` : ''}
+            <button type="button" class="tbtn" data-act="maildel:${m.id}">Wegwerfen</button>
+            ${m.from_user ? `<button type="button" class="tbtn ghost" data-act="rep:brief:${m.id}">${ui.repConfirm === `brief:${m.id}` ? 'Wirklich melden?' : 'Melden'}</button>
+            <button type="button" class="tbtn ghost" data-act="block:${m.from_user}">Absender blockieren</button>` : ''}</div></div>` : ''}
         </li>`;
       }).join('')}</ul>`;
   const main = `<h1>Briefe</h1>
@@ -1069,9 +1130,91 @@ function settingsScreen(s: GameState): string {
     { title: 'Spielstand', items: [
       ...(prefs.dev ? [{ act: 'testday', label: 'Neuer Tag (Testmodus)', key: 'n', hint: 'sonst um Mitternacht' }] : []),
       { act: 'feedback', label: 'Rückmeldung geben', key: 'm' },
-      { act: 'delete', label: ui.confirmDelete ? 'Wirklich löschen? Nochmal drücken.' : 'Spielstand löschen', key: 'x' },
+      { act: 'delete', label: ui.confirmDelete ? 'Wirklich löschen? Nochmal drücken.' : 'Spielstand löschen', key: 'x', hint: 'nur auf diesem Gerät' },
+    ] },
+    ...(cloud.signedIn ? [{ title: 'Spielerkonto', items: [
+      ...(ui.isAdmin ? [{ act: 'go:wache', label: 'Die Wache', key: 'w', hint: 'Meldungen prüfen' }] : []),
+      { act: 'go:blocks', label: 'Blockierte Spieler', key: 'b', hint: ui.blocked.size ? String(ui.blocked.size) : '' },
+      { act: 'go:deleteAccount', label: 'Konto löschen', key: 'l', hint: 'mit allen Daten' },
+    ] }] : []),
+    { title: 'Rechtliches', items: [
+      { act: 'legal:datenschutz', label: 'Datenschutz', key: 'p' },
+      { act: 'legal:impressum', label: 'Impressum', key: 'i' },
     ] },
     { title: 'Zurück', items: [back] },
+  ]);
+}
+
+function blocksScreen(s: GameState): string {
+  const list = ui.blocksList;
+  const main = `<h1>Blockierte Spieler</h1>
+    <p class="lead">Von blockierten Spielern bekommst du keine Briefe mehr, und ihre Gespräche siehst du nicht. Sie erfahren nicht, dass du sie blockiert hast.</p>
+    ${flashHtml()}
+    ${list === null ? '<p class="muted">…</p>' : list.length ? `<ul class="warriors">${list.map((b) => `<li class="warrior"><span></span><span class="t-info"><strong>${esc(b.name)}</strong></span>
+      <button type="button" class="tbtn" data-act="unblock:${b.blocked}">Nicht mehr blockieren</button></li>`).join('')}</ul>`
+      : '<p class="muted">Du hast niemanden blockiert. Blockieren kannst du im Steckbrief eines Helden (Kriegerliste) oder bei einem Brief.</p>'}`;
+  return layout(s, main, [{ title: 'Zurück', items: [{ act: 'go:settings', label: 'Einstellungen', key: 'e' }, back] }]);
+}
+
+function deleteAccountScreen(s: GameState): string {
+  const main = `<h1>Konto löschen</h1>
+    <p class="lead">Damit werden dein Spielerkonto und alles, was dazu auf dem Server liegt, sofort und endgültig gelöscht: Spielstand, Held in der Kriegerliste und Ruhmeshalle, deine Gespräche, Briefe an dich und deine Neuigkeiten. Das lässt sich nicht rückgängig machen.</p>
+    <p>Der Spielstand auf diesem Gerät wird ebenfalls gelöscht. Wenn du ihn behalten willst, kopiere vorher den Code unter Einstellungen.</p>
+    ${flashHtml()}
+    <label class="field">Zum Bestätigen <strong>LÖSCHEN</strong> eintippen<input type="text" id="del-confirm" autocomplete="off" placeholder="LÖSCHEN"></label>
+    ${ui.delMsg ? `<p class="warn">${esc(ui.delMsg)}</p>` : ''}
+    <div class="row"><button type="button" class="btn danger" data-act="delacct">Konto endgültig löschen</button></div>`;
+  return layout(s, main, [{ title: 'Zurück', items: [{ act: 'go:settings', label: 'Doch nicht', key: 'z', primary: true }] }]);
+}
+
+function loadWache(): void {
+  const w = ui.wache;
+  w.err = '';
+  const fail = (e: unknown) => { w.err = e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'; };
+  if (w.tab === 'reports') { w.reports = null; cloud.modReports().then((r) => { w.reports = r; }, fail).finally(render); }
+  if (w.tab === 'banned') { w.banned = null; cloud.modBanned().then((r) => { w.banned = r; }, fail).finally(render); }
+  if (w.tab === 'cheats') { w.cheats = null; cloud.modCheats().then((r) => { w.cheats = r; }, fail).finally(render); }
+  render();
+}
+
+const KIND_NAMES: Record<ReportKind, string> = { chat: 'Gespräch', brief: 'Brief', steckbrief: 'Steckbrief', name: 'Name' };
+
+function wacheScreen(s: GameState): string {
+  const w = ui.wache;
+  let body = '';
+  if (w.tab === 'reports') {
+    body = w.reports === null ? '<p class="muted">…</p>' : !w.reports.length ? '<p class="muted">Keine offenen Meldungen. Ruhig in Moosgrund.</p>'
+      : `<ul class="mod-list">${w.reports.map((r, i) => `<li class="mod-item">
+          <div class="mod-head"><strong>${KIND_NAMES[r.kind]}</strong> von <strong>${esc(r.target_name)}</strong>
+            <span class="muted">${r.reports}× gemeldet · ${when(r.first_at)}${r.hidden ? ' · ausgeblendet' : ''}${r.banned ? ' · gesperrt' : ''}</span></div>
+          <blockquote>${esc(r.content).replace(/\n/g, '<br>') || '<span class="muted">(leer)</span>'}</blockquote>
+          <div class="row">
+            <button type="button" class="tbtn" data-act="mod:ok:${i}">${r.kind === 'brief' ? 'Erledigt' : 'Fehlalarm, zeigen'}</button>
+            ${r.kind === 'brief' ? '' : `<button type="button" class="tbtn" data-act="mod:hide:${i}">Ausblenden</button>`}
+            ${r.target && !r.banned ? `<button type="button" class="tbtn danger" data-act="mod:ban:${i}">Sperren</button>` : ''}
+          </div></li>`).join('')}</ul>`;
+  } else if (w.tab === 'banned') {
+    body = w.banned === null ? '<p class="muted">…</p>' : !w.banned.length ? '<p class="muted">Niemand ist gesperrt.</p>'
+      : `<ul class="warriors">${w.banned.map((b) => `<li class="warrior"><span></span><span class="t-info"><strong>${esc(b.name)}</strong><small>Stufe ${b.level} · ${b.dragon_kills} Drachenkills</small></span>
+          <button type="button" class="tbtn" data-act="modban:${b.user_id}:off">Entsperren</button></li>`).join('')}</ul>`;
+  } else {
+    body = w.cheats === null ? '<p class="muted">…</p>' : !w.cheats.length ? '<p class="muted">Nichts Auffälliges.</p>'
+      : `<p class="muted">Hier landet, was der Server an Spielwerten korrigiert hat. Einzelne Einträge können von Offline-Spielen kommen; wiederholt hohe Werte deuten auf Schummeln.</p>
+        <table class="mod-table"><thead><tr><th>Wann</th><th>Held</th><th>Wert</th><th>geschickt</th><th>behalten</th><th></th></tr></thead><tbody>
+        ${w.cheats.map((c) => `<tr><td>${when(c.created_at)}</td><td>${esc(c.name)}</td><td>${esc(c.field)}</td><td>${esc(c.sent)}</td><td>${esc(c.kept)}</td>
+          <td>${c.banned ? 'gesperrt' : `<button type="button" class="tbtn danger" data-act="modban:${c.user_id}:on">Sperren</button>`}</td></tr>`).join('')}</tbody></table>`;
+  }
+  const main = `<h1>Die Wache</h1>
+    <p class="lead">Hier prüfst du, was Spieler gemeldet haben. Ab drei Meldungen ist ein Beitrag schon ausgeblendet, bis du entscheidest.</p>
+    ${flashHtml()}${w.err ? `<p class="warn-box">${esc(w.err)}</p>` : ''}
+    ${body}`;
+  return layout(s, main, [
+    { title: 'Die Wache', items: [
+      { act: 'wache:reports', label: 'Meldungen', key: 'm', hint: w.reports?.length ? String(w.reports.length) : '', primary: w.tab === 'reports' },
+      { act: 'wache:cheats', label: 'Auffällige Spielstände', key: 'a', primary: w.tab === 'cheats' },
+      { act: 'wache:banned', label: 'Gesperrte', key: 'g', primary: w.tab === 'banned' },
+    ] },
+    { title: 'Zurück', items: [{ act: 'go:settings', label: 'Einstellungen', key: 'e' }, back] },
   ]);
 }
 
@@ -1151,13 +1294,14 @@ function dragonBonusScreen(s: GameState): string {
 // ---------- Steuerung ----------
 
 function currentScreen(): Screen {
+  if (ui.screen === 'impressum' || ui.screen === 'datenschutz') return ui.screen;
   if (!state) return ui.screen === 'create' || ui.screen === 'login' ? ui.screen : 'title';
   if (ui.screen === 'title' || ui.screen === 'create' || ui.screen === 'login') return ui.screen;
   if (state.pendingDragonBonus && !state.fight) return 'dragonBonus';
   if (ui.conflict) return 'syncConflict';
   if (state.fight) return 'fight';
   // Tote bleiben im Schattenreich, dürfen aber spuken, Briefe lesen und die Neuigkeiten sehen.
-  if (!state.player.alive && !['settings', 'feedback', 'haunt', 'mail', 'warriors', 'news'].includes(ui.screen)) return 'shadows';
+  if (!state.player.alive && !['settings', 'feedback', 'haunt', 'mail', 'warriors', 'news', 'bio', 'wache', 'blocks', 'deleteAccount'].includes(ui.screen)) return 'shadows';
   return ui.screen;
 }
 
@@ -1171,10 +1315,12 @@ export function render(): void {
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
     settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!),
+    impressum: () => legalScreen('impressum'), datenschutz: () => legalScreen('datenschutz'), wache: () => wacheScreen(s!), blocks: () => blocksScreen(s!), deleteAccount: () => deleteAccountScreen(s!),
   };
   root.innerHTML = views[scr]();
   sound.music(trackFor(scr));
   soundCues();
+  if (cloud.signedIn && !safetyLoaded) loadSafety();
   if (scr === 'village') { loadSquare('dorfplatz'); checkMail(); loadStatue(); }
   if (scr === 'inn') loadSquare('gasthaus');
   if (scr === 'shadows') loadSquare('schattenreich');
@@ -1326,6 +1472,63 @@ function handle(act: string, el: HTMLElement): void {
     case 'menu': ui.menuOpen = !ui.menuOpen; render(); return;
     case 'skills': ui.skillMenu = !ui.skillMenu; render(); return;
     case 'reloadlist': loadWarriors(); return;
+    case 'legal':
+      if (ui.screen !== 'impressum' && ui.screen !== 'datenschutz') ui.legalFrom = state ? currentScreen() : 'title';
+      go(a as Screen); window.scrollTo(0, 0); return;
+    case 'rep': {
+      const key = `${a}:${b}`;
+      if (ui.repConfirm !== key) { ui.repConfirm = key; render(); return; }
+      ui.repConfirm = '';
+      const kind = a as ReportKind;
+      const byId = kind === 'chat' || kind === 'brief';
+      cloud.report(kind, byId ? Number(b) : 0, byId ? null : b).then((m) => say(m, 'good'), (e) => say(e instanceof CloudError ? e.message : 'Melden hat nicht geklappt.', 'warn')).finally(render);
+      return;
+    }
+    case 'block': {
+      if (!a || a === cloud.userId) return;
+      cloud.block(a).then(() => {
+        ui.blocked.add(a);
+        const name = ui.warriors?.find((w) => w.userId === a)?.name ?? ui.mail?.find((m) => m.from_user === a)?.from_name ?? 'Unbekannt';
+        ui.blocksList = [...(ui.blocksList ?? []).filter((x) => x.blocked !== a), { blocked: a, name }];
+        ui.mailOpen = null;
+        say('Blockiert. Von diesem Helden hörst du nichts mehr.', 'good');
+      }, (e) => say(e instanceof CloudError ? e.message : 'Blockieren hat nicht geklappt.', 'warn')).finally(render);
+      return;
+    }
+    case 'unblock': {
+      cloud.unblock(a).then(() => {
+        ui.blocked.delete(a);
+        ui.blocksList = (ui.blocksList ?? []).filter((x) => x.blocked !== a);
+        say('Nicht mehr blockiert.', 'good');
+      }, (e) => say(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.', 'warn')).finally(render);
+      return;
+    }
+    case 'wache': ui.wache.tab = a as 'reports' | 'banned' | 'cheats'; ui.flash = []; loadWache(); return;
+    case 'mod': {
+      const r = ui.wache.reports?.[Number(b)];
+      if (!r) return;
+      cloud.modDecide(r.kind, r.ref_id, r.target, a as 'ok' | 'hide' | 'ban').then(() => {
+        say(a === 'ban' ? `${r.target_name} ist gesperrt.` : a === 'hide' ? 'Ausgeblendet.' : 'Erledigt.', 'good');
+        loadWache();
+      }, (e) => { say(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.', 'warn'); render(); });
+      return;
+    }
+    case 'modban': {
+      cloud.modBan(a, b === 'on').then(() => { say(b === 'on' ? 'Gesperrt.' : 'Entsperrt.', 'good'); loadWache(); },
+        (e) => { say(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.', 'warn'); render(); });
+      return;
+    }
+    case 'delacct': {
+      const typed = ((document.getElementById('del-confirm') as HTMLInputElement | null)?.value ?? '').trim().toUpperCase();
+      if (typed !== 'LÖSCHEN' && typed !== 'LOESCHEN') { ui.delMsg = 'Bitte zum Bestätigen LÖSCHEN eintippen.'; render(); return; }
+      ui.delMsg = '';
+      cloud.deleteAccount().then(() => {
+        resetSafety(); prefs.lastSyncedAt = 0; savePrefs(prefs);
+        deleteGame(); state = null;
+        go('title'); say('Dein Konto und alle Daten dazu sind gelöscht. Mach’s gut, und danke fürs Spielen.', 'good'); render();
+      }, (e) => { ui.delMsg = e instanceof CloudError ? e.message : 'Das Löschen hat nicht geklappt.'; render(); });
+      return;
+    }
     case 'bio': {
       const w = ui.warriors?.find((x) => x.userId === a);
       if (!w) return;
@@ -1336,7 +1539,7 @@ function handle(act: string, el: HTMLElement): void {
     }
     case 'biosave': {
       if (!s) return;
-      s.player.bio = ((document.getElementById('bio-text') as HTMLTextAreaElement | null)?.value ?? '').slice(0, 400).trim();
+      s.player.bio = censor(((document.getElementById('bio-text') as HTMLTextAreaElement | null)?.value ?? '').slice(0, 400).trim()).slice(0, 400);
       if (ui.bio && ui.bio.userId === cloud.userId) ui.bio = { ...ui.bio, bio: s.player.bio };
       saveGame(s); scheduleSync(300);
       say('Dein Steckbrief hängt jetzt am Rathaus.', 'good'); render();
@@ -1416,6 +1619,9 @@ function handle(act: string, el: HTMLElement): void {
       if (a === 'warriors' && cloud.signedIn) { go('warriors'); loadWarriors(); return; }
       if (a === 'haunt' && cloud.signedIn) { go('haunt'); loadWarriors(); return; }
       if (a === 'mail' && cloud.signedIn) { ui.compose = null; ui.mailOpen = null; go('mail'); loadMail(); return; }
+      if (a === 'wache' && ui.isAdmin) { go('wache'); loadWache(); return; }
+      if (a === 'blocks' && cloud.signedIn) { go('blocks'); cloud.blocks().then((r) => { ui.blocksList = r; ui.blocked = new Set(r.map((x) => x.blocked)); }, () => {}).finally(render); return; }
+      if (a === 'deleteAccount') ui.delMsg = '';
       if (a === 'fame' && cloud.enabled) cloud.hallOfFame().then((rows) => { ui.fame = rows; if (ui.screen === 'fame') render(); }, () => {});
       go(a as Screen);
       return;
@@ -1444,6 +1650,7 @@ function handle(act: string, el: HTMLElement): void {
     case 'create': {
       const name = ((document.getElementById('name') as HTMLInputElement | null)?.value ?? '').trim().slice(0, 20);
       if (!name) { say('Ohne Namen lässt dich der Torwächter nicht ins Dorf.', 'warn'); ui.createName = ''; render(); return; }
+      if (!isClean(name)) { say('Der Torwächter runzelt die Stirn. „So einen Namen lass ich nicht ins Dorf.“', 'warn'); ui.createName = name; render(); return; }
       state = newGame(name, ui.createSpec, ui.createGender, ui.createRace);
       saveGame(state);
       go('village');
@@ -1473,7 +1680,7 @@ function handle(act: string, el: HTMLElement): void {
         done('Gleiche ab …');
         syncNow().then(done);
       } else if (a === 'out') {
-        cloud.signOut(); prefs.lastSyncedAt = 0; savePrefs(prefs); done('Abgemeldet. Der Spielstand bleibt auf diesem Gerät.');
+        cloud.signOut(); prefs.lastSyncedAt = 0; savePrefs(prefs); resetSafety(); done('Abgemeldet. Der Spielstand bleibt auf diesem Gerät.');
       }
       return;
     }

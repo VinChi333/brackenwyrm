@@ -16,7 +16,7 @@ await db.exec(`
   grant usage on schema auth to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
 `);
-for (const f of ['supabase.sql', 'supabase-2-dorf.sql', 'supabase-3-briefe.sql']) await db.exec(readFileSync(new URL(`../server/${f}`, import.meta.url), 'utf8'));
+for (const f of ['supabase.sql', 'supabase-2-dorf.sql', 'supabase-3-briefe.sql', 'supabase-4-schutz.sql']) await db.exec(readFileSync(new URL(`../server/${f}`, import.meta.url), 'utf8'));
 
 let queue = Promise.resolve();
 /** Führt SQL als angemeldeter Spieler (oder anon) aus. Nacheinander, weil PGlite nur eine Verbindung hat. */
@@ -38,6 +38,7 @@ const COLS = {
   news: ['body'],
   commentary: ['section', 'body'],
   mail: ['to_user', 'subject', 'body'],
+  blocks: ['blocked'],
 };
 
 function filters(params) {
@@ -81,7 +82,8 @@ const server = createServer(async (req, res) => {
       const r = await as(uid, `select to_jsonb(x) as j from public.${name}(${args.map((a, i) => `${a} => $${i + 1}`).join(', ')}) x`, args.map((a) => data[a]));
       const rows = r.rows.map((x) => x.j);
       // Funktionen mit einem einzelnen jsonb-Ergebnis liefern bei PostgREST den Wert selbst, Tabellenfunktionen eine Liste
-      return send(200, name === 'pvp_targets' || name === 'warriors' ? rows : rows[0] ?? null);
+      const set = (await admin('select bool_or(proretset) as s from pg_proc where proname = $1', [name])).rows[0]?.s;
+      return send(200, set ? rows : rows[0] ?? null);
     }
     if (req.method === 'GET') {
       const { where, vals } = filters(url.searchParams);
@@ -94,8 +96,9 @@ const server = createServer(async (req, res) => {
       const cols = COLS[name].filter((c) => c in data);
       const vals = cols.map((c) => (typeof data[c] === 'object' && data[c] !== null ? JSON.stringify(data[c]) : data[c]));
       const upsert = (req.headers.prefer ?? '').includes('merge-duplicates');
+      const ignore = (req.headers.prefer ?? '').includes('ignore-duplicates');
       const sql = `insert into public.${name} (${cols.join(', ')}) values (${cols.map((_, i) => `$${i + 1}`).join(', ')})` +
-        (upsert ? ` on conflict (user_id) do update set ${cols.filter((c) => c !== 'user_id').map((c) => `${c} = excluded.${c}`).join(', ')}` : '');
+        (upsert ? ` on conflict (user_id) do update set ${cols.filter((c) => c !== 'user_id').map((c) => `${c} = excluded.${c}`).join(', ')}` : ignore ? ' on conflict do nothing' : '');
       await as(uid, sql, vals);
       return send(201);
     }

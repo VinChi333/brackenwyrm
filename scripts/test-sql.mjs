@@ -2,6 +2,7 @@
 // Test der Supabase-SQL in einem echten Postgres (PGlite) mit nachgebautem auth-Schema und Rollen.
 import { PGlite } from '@electric-sql/pglite';
 import { readFileSync } from 'node:fs';
+import { BAD_WORDS, censor } from '../src/content/badwords.ts';
 const db = new PGlite();
 let fails = 0;
 const ok = (c, m) => { console.log((c ? 'OK  ' : 'FEHLER ') + m); if (!c) fails++; };
@@ -18,6 +19,8 @@ await db.exec(readFileSync(new URL('../server/supabase-2-dorf.sql', import.meta.
 await db.exec(readFileSync(new URL('../server/supabase-2-dorf.sql', import.meta.url), 'utf8')); // zweimal: muss wiederholbar sein
 await db.exec(readFileSync(new URL('../server/supabase-3-briefe.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-3-briefe.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-4-schutz.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-4-schutz.sql', import.meta.url), 'utf8'));
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c', N = '00000000-0000-0000-0000-00000000000d';
 await db.exec(`insert into auth.users values ('${A}','a@x'),('${B}','b@x'),('${C}','c@x'),('${N}','n@x')`);
 async function as(uid, sql, params) {
@@ -154,7 +157,8 @@ ok(r.rows[0].n === 0, 'eigene Briefe lassen sich wegwerfen');
 await as(A, `update public.fighters set bio = 'Ich jage Wyrme.', mount = 'pony', married_to = 'frieda' where user_id = '${A}'`);
 r = await as(B, `select bio, mount, married_to from public.warriors() where name = 'Angreifer'`);
 ok(r.rows[0]?.bio === 'Ich jage Wyrme.' && r.rows[0].mount === 'pony' && r.rows[0].married_to === 'frieda', 'Steckbrief für andere sichtbar');
-let longBio = false; try { await as(A, `update public.fighters set bio = repeat('x', 401) where user_id = '${A}'`); } catch { longBio = true; }
+let longBio = false; try { await as(A, `update public.fighters set bio = repeat('x', 401) where user_id = '${A}'`); longBio = (await db.query(`select char_length(bio) n from public.fighters where user_id = '${A}'`)).rows[0].n === 400; } catch { longBio = true; }
+await as(A, `update public.fighters set bio = 'Ich jage Wyrme.' where user_id = '${A}'`);
 ok(longBio, 'Steckbrief höchstens 400 Zeichen');
 let foreignBio = false; await as(B, `update public.fighters set bio = 'gehackt' where user_id = '${A}'`);
 r = await db.query(`select bio from public.fighters where user_id = '${A}'`); foreignBio = r.rows[0].bio !== 'gehackt';
@@ -183,6 +187,178 @@ ok(limit, 'höchstens 4-mal Spuken am Tag');
 let fakeSys = false; try { await as(A, `insert into public.mail (to_user, body) values ('${B}', 'Ich bin Morwen')`); r = await as(B, `select from_name from public.mail where body = 'Ich bin Morwen'`); fakeSys = r.rows[0]?.from_name !== 'Morwen'; } catch { fakeSys = true; }
 ok(fakeSys, 'Spieler können keine Briefe als Morwen schicken');
 await db.exec(`update public.fighters set alive = true where user_id = '${C}'`);
+
+// ---------- Teil 4: Wortfilter ----------
+r = await db.query(`select word from public.bad_words order by word`);
+ok(JSON.stringify(r.rows.map((x) => x.word).sort()) === JSON.stringify([...BAD_WORDS].sort()), `Wortliste in Datenbank und Spiel gleich (${r.rows.length} Einträge)`);
+const samples = ['Du Arschloch!', 'f1ck dich', 'FIIICK', 'du w.i.c.h.s.e.r', 'Scunthorpe', 'Hure!', 'Churer Rheintal', 'eine Gerade', 'kill   yourself', 'Hallo Moosgrund', 'Spaß im Gasthaus', 'Mist, verdammt', '@rschl0ch', 'fag', 'Fagott spielen', 'Hitlerbart', 'bitches'];
+let same = 0;
+for (const t of samples) {
+  const sv = (await db.query(`select public.bw_censor($1) c`, [t])).rows[0].c;
+  if (sv === censor(t)) same++; else console.log('   anders:', JSON.stringify(t), '→ Server', JSON.stringify(sv), 'Spiel', JSON.stringify(censor(t)));
+}
+ok(same === samples.length, `Spiel und Server filtern gleich (${same}/${samples.length})`);
+r = await db.query(`select public.bw_censor('Du Arschloch!') a, public.bw_censor('Scunthorpe') b, public.bw_censor('Churer Rheintal') c, public.bw_censor('eine Gerade') d, public.bw_censor('Mist, verdammt') e`);
+ok(r.rows[0].a === 'Du ***!' && r.rows[0].b === 'Scunthorpe' && r.rows[0].c === 'Churer Rheintal' && r.rows[0].d === 'eine Gerade' && r.rows[0].e === 'Mist, verdammt', 'Filter trifft Grobes, lässt Harmloses stehen');
+await db.exec(`update public.commentary set created_at = now() - interval '1 minute'`);
+await as(A, `insert into public.commentary (section, body) values ('gasthaus', 'Ihr W1chser!')`);
+r = await db.query(`select body from public.commentary where section = 'gasthaus'`);
+ok(r.rows[0]?.body === 'Ihr ***!', 'Gespräch wird gefiltert: ' + r.rows[0]?.body);
+await db.exec(`update public.mail set created_at = now() - interval '1 minute'`);
+await as(C, `insert into public.mail (to_user, subject, body) values ('${B}', 'Du Fotze', 'Hallo du Hurensohn')`);
+r = await db.query(`select subject, body from public.mail where from_user = '${C}'`);
+ok(r.rows[0]?.subject === 'Du ***' && r.rows[0]?.body === 'Hallo du ***', 'Briefe werden gefiltert');
+await as(B, `update public.fighters set name = 'Bitchy', bio = 'Ich bin ein Arschloch.' where user_id = '${B}'`);
+r = await db.query(`select name, bio from public.fighters where user_id = '${B}'`);
+ok(r.rows[0].name === '***y' && r.rows[0].bio === 'Ich bin ein ***.', 'Name und Steckbrief werden gefiltert');
+await as(B, `update public.fighters set name = 'Opfer', bio = '' where user_id = '${B}'`);
+
+// ---------- Teil 4: Neuigkeiten nur über sich selbst ----------
+const newsBefore = (await db.query(`select count(*)::int n from public.news`)).rows[0].n;
+await as(A, `insert into public.news (body) values ('Opfer hat den Brackenwyrm besiegt!')`);
+await as(A, `insert into public.news (body) values ('Angreifer hat einen Fuck gefunden.')`);
+r = await db.query(`select body from public.news order by id desc limit 2`);
+ok((await db.query(`select count(*)::int n from public.news`)).rows[0].n === newsBefore + 1 && r.rows[0].body === 'Angreifer hat einen *** gefunden.', 'falsche Neuigkeiten über andere fallen weg, eigene werden gefiltert');
+
+// ---------- Teil 4: Schummelschutz ----------
+await db.exec(`update public.fighters set dragon_kills = 0, last_dk_at = null, level = 5, level_day = null, level_gain = 0, bonus_atk = 0, bonus_def = 0, base_max_hp = 0, banned = false where user_id = '${A}'; delete from public.cheat_log`);
+await as(A, `update public.fighters set dragon_kills = 5 where user_id = '${A}'`);
+r = await db.query(`select dragon_kills, last_dk_at is not null as t from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].dragon_kills === 1 && r.rows[0].t, 'Drachenkills: +5 wird zu +1');
+await as(A, `update public.fighters set dragon_kills = 2, level = 1 where user_id = '${A}'`);
+r = await db.query(`select dragon_kills from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].dragon_kills === 1, 'zweiter Drachenkill gleich danach zählt nicht');
+await db.exec(`update public.fighters set last_dk_at = now() - interval '5 days' where user_id = '${A}'`);
+await as(A, `update public.fighters set dragon_kills = 2 where user_id = '${A}'`);
+r = await db.query(`select dragon_kills from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].dragon_kills === 2, 'nach 4 Tagen zählt der nächste');
+r = await db.query(`select name, dragon_kills, level from public.profiles where user_id = '${A}'`);
+ok(r.rows[0].dragon_kills === 2, 'Ruhmeshalle übernimmt die geprüften Drachenkills');
+await as(A, `insert into public.profiles (user_id, name, level, dragon_kills, gender) values ('${A}', 'Angreifer', 15, 99, 'm') on conflict (user_id) do update set level = excluded.level, dragon_kills = excluded.dragon_kills`);
+r = await db.query(`select dragon_kills, level from public.profiles where user_id = '${A}'`);
+ok(r.rows[0].dragon_kills === 2 && r.rows[0].level !== 15, 'Ruhmeshalle lässt sich nicht direkt fälschen');
+await db.exec(`update public.fighters set level = 1, level_day = null, level_gain = 0 where user_id = '${A}'`);
+await as(A, `update public.fighters set level = 15 where user_id = '${A}'`);
+r = await db.query(`select level from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].level === 5, 'Stufen: höchstens 4 Aufstiege am Tag (1 → 5)');
+await as(A, `update public.fighters set level = 6 where user_id = '${A}'`);
+r = await db.query(`select level from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].level === 5, 'fünfter Aufstieg am selben Tag zählt nicht');
+await db.exec(`update public.fighters set dragon_kills = 7, last_dk_at = now() - interval '10 days' where user_id = '${A}'`);
+await as(A, `insert into public.fighters (user_id, name, level, dragon_kills) values ('${A}', 'Angreifer', 5, 7) on conflict (user_id) do update set dragon_kills = excluded.dragon_kills, level = excluded.level`);
+r = await db.query(`select dragon_kills from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].dragon_kills === 7, 'Speichern über "anlegen oder ändern" lässt echte Drachenkills stehen');
+await as(A, `update public.fighters set gold = 99999999, exp = 99999999, weapon_tier = 15, bonus_atk = 50, bonus_def = 50, base_max_hp = 9999 where user_id = '${A}'`);
+r = await db.query(`select gold, exp, weapon_tier, bonus_atk, bonus_def, base_max_hp, public.f_exp_needed(5, 7) need from public.fighters where user_id = '${A}'`);
+const g = r.rows[0];
+ok(g.gold === 30000 && g.exp === 3 * g.need + 1000 && g.weapon_tier === 10 && g.bonus_atk === 7 && g.bonus_def === 0 && g.base_max_hp === 85, `Gold, Erfahrung, Waffe, Drachenpunkte gekappt (${g.gold}, ${g.exp}, ${g.weapon_tier}, ${g.bonus_atk}/${g.bonus_def}, ${g.base_max_hp})`);
+await as(A, `update public.fighters set days_played = 900 where user_id = '${A}'`);
+r = await db.query(`select days_played from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].days_played <= 12, 'Spieltage können nicht springen: ' + r.rows[0].days_played);
+r = await db.query(`select count(*)::int n from public.cheat_log where user_id = '${A}'`);
+ok(r.rows[0].n >= 6, `Auffälliges wird festgehalten (${r.rows[0].n} Einträge)`);
+let logRead = false; try { await as(A, `select * from public.cheat_log`); } catch { logRead = true; }
+ok(logRead, 'Spieler sehen das Protokoll nicht');
+let flagIt = false; try { await as(A, `select public.bw_flag('${B}', 'x', 1, 1)`); } catch { flagIt = true; }
+ok(flagIt, 'Spieler können niemanden anschwärzen');
+const tsExp = await import('../src/game/balance.ts');
+r = await db.query(`select public.f_exp_needed(1, 0) a, public.f_exp_needed(9, 0) b, public.f_exp_needed(14, 6) c`);
+ok(r.rows[0].a === tsExp.expNeeded(1) && r.rows[0].b === tsExp.expNeeded(9) && r.rows[0].c === tsExp.expNeeded(14, 6), 'Erfahrungstabelle in Datenbank und Spiel gleich');
+const asAnon = async (sql) => { await db.exec('reset role; set role anon'); try { return await db.query(sql); } finally { await db.exec('reset role'); } };
+r = await asAnon(`select * from public.last_dragon_slayer()`);
+ok(r.rows?.[0]?.name === 'Angreifer', 'Denkmal: letzter Drachentöter auch ohne Anmeldung');
+
+// ---------- Teil 4: Melden ----------
+await db.exec(`update public.commentary set created_at = now() - interval '1 minute'`);
+await as(A, `insert into public.commentary (section, body) values ('dorfplatz', 'Ihr seid alle doof')`);
+const cid = (await db.query(`select id from public.commentary where body = 'Ihr seid alle doof'`)).rows[0].id;
+r = await as(B, `select public.report('chat', ${cid}, null) m`);
+ok(/Danke/.test(r.rows[0].m), 'Melden: ' + r.rows[0].m);
+r = await as(B, `select public.report('chat', ${cid}, null) m`);
+ok(/schon gemeldet/.test(r.rows[0].m), 'doppelt melden zählt nicht');
+let self = false; try { await as(A, `select public.report('chat', ${cid}, null)`); } catch (e) { self = /selbst/.test(e.message); }
+ok(self, 'sich selbst kann man nicht melden');
+await as(C, `select public.report('chat', ${cid}, null)`);
+r = await as(B, `select count(*)::int n from public.commentary where id = ${cid}`);
+ok(r.rows[0].n === 1, 'nach 2 Meldungen noch sichtbar');
+await as(N, `select public.report('chat', ${cid}, null)`);
+r = await as(B, `select count(*)::int n from public.commentary where id = ${cid}`);
+ok(r.rows[0].n === 0, 'nach 3 Meldungen sofort ausgeblendet');
+r = await db.query(`select content from public.reports where kind = 'chat' limit 1`);
+ok(/Angreifer: Ihr seid alle doof/.test(r.rows[0].content), 'Meldung hält fest, was dastand');
+let readRep = false; try { await as(B, `select * from public.reports`); } catch { readRep = true; }
+ok(readRep, 'Meldungen sind für Spieler nicht lesbar');
+const mid = (await db.query(`select id from public.mail where from_user = '${C}' limit 1`)).rows[0].id;
+let foreignMail = false; try { await as(A, `select public.report('brief', ${mid}, null)`); } catch (e) { foreignMail = /nicht mehr/.test(e.message); }
+ok(foreignMail, 'fremde Briefe kann man nicht melden');
+r = await as(B, `select public.report('brief', ${mid}, null) m`);
+ok(/Danke/.test(r.rows[0].m), 'eigenen Brief melden');
+await as(B, `select public.report('steckbrief', 0, '${A}')`);
+
+// ---------- Teil 4: Blockieren ----------
+await as(B, `insert into public.blocks (blocked) values ('${A}')`);
+await db.exec(`update public.mail set created_at = now() - interval '1 minute'`);
+await as(A, `insert into public.mail (to_user, subject, body) values ('${B}', 'Na?', 'Bist du noch sauer?')`);
+r = await db.query(`select count(*)::int n from public.mail where subject = 'Na?'`);
+ok(r.rows[0].n === 0, 'Briefe von Blockierten kommen nicht an (ohne Fehlermeldung)');
+r = await as(B, `select * from public.my_blocks()`);
+ok(r.rows.length === 1 && r.rows[0].name === 'Angreifer', 'Liste der Blockierten mit Namen');
+r = await as(A, `select count(*)::int n from public.blocks`);
+ok(r.rows[0].n === 0, 'man sieht nicht, wer einen blockiert hat');
+await as(B, `delete from public.blocks where blocked = '${A}'`);
+r = await as(B, `select * from public.my_blocks()`);
+ok(r.rows.length === 0, 'Blockierung aufheben');
+
+// ---------- Teil 4: die Wache ----------
+let notAdmin = false; try { await as(B, `select * from public.mod_reports()`); } catch (e) { notAdmin = /Wache/.test(e.message); }
+ok(notAdmin, 'Meldungen nur für die Wache');
+await db.exec(`insert into public.admins values ('${C}')`);
+r = await as(C, `select public.is_admin() a`);
+ok(r.rows[0].a === true, 'Wache erkannt');
+r = await as(C, `select * from public.mod_reports()`);
+const chatRep = r.rows.find((x) => x.kind === 'chat');
+ok(r.rows.length === 3 && chatRep.reports === 3 && chatRep.hidden === true && chatRep.target_name === 'Angreifer', `Wache sieht ${r.rows.length} offene Meldungen, zusammengefasst`);
+await as(C, `select public.mod_decide('chat', ${cid}, '${A}', 'ok')`);
+r = await as(B, `select count(*)::int n from public.commentary where id = ${cid}`);
+ok(r.rows[0].n === 1, 'Fehlalarm: Beitrag wieder sichtbar');
+await as(C, `select public.mod_decide('steckbrief', 0, '${A}', 'ban')`);
+r = await db.query(`select banned, bio_hidden from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].banned && r.rows[0].bio_hidden, 'Sperren blendet aus und sperrt');
+let bannedTalk = false; await db.exec(`update public.commentary set created_at = now() - interval '1 minute'`);
+try { await as(A, `insert into public.commentary (section, body) values ('dorfplatz', 'Hallo?')`); } catch (e) { bannedTalk = /gesperrt/.test(e.message); }
+ok(bannedTalk, 'Gesperrte können nicht mehr reden');
+r = await as(B, `select name from public.warriors()`);
+ok(!r.rows.some((x) => x.name === 'Angreifer'), 'Gesperrte fehlen in der Kriegerliste');
+r = await asAnon(`select count(*)::int n from public.profiles where user_id = '${A}'`);
+ok(r.rows[0].n === 0, 'und in der Ruhmeshalle');
+r = await as(C, `select * from public.mod_banned()`);
+ok(r.rows.length === 1, 'Liste der Gesperrten');
+r = await as(C, `select * from public.mod_cheats()`);
+ok(r.rows.length >= 6 && r.rows[0].name, 'Wache sieht Auffälliges aus dem Schummelschutz');
+await as(C, `select public.mod_unban('${A}')`);
+r = await db.query(`select banned from public.fighters where user_id = '${A}'`);
+ok(!r.rows[0].banned, 'Sperre aufheben');
+await as(B, `select public.report('name', 0, '${A}')`); await as(C, `select public.report('name', 0, '${A}')`); await as(N, `select public.report('name', 0, '${A}')`);
+await as(A, `update public.fighters set name = 'Angreifer' where user_id = '${A}'`);
+r = await db.query(`select name from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].name === 'Namenloser Held', 'gemeldeter Name wird ersetzt und bleibt es');
+await as(C, `select public.mod_decide('name', 0, '${A}', 'ok')`);
+await as(A, `update public.fighters set name = 'Angreifer' where user_id = '${A}'`);
+r = await db.query(`select name from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].name === 'Angreifer', 'nach Fehlalarm gilt der eigene Name wieder');
+
+// ---------- Teil 4: Konto löschen ----------
+await db.exec(`update public.mail set created_at = now() - interval '1 minute'`);
+await as(N, `insert into public.mail (to_user, subject, body) values ('${B}', 'Tschüss', 'Ich höre auf.')`);
+await as(N, `insert into public.news (body) values ('Neuling hat ein Pony gekauft.')`);
+r = await as(N, `select public.delete_account() m`);
+const gone = (await db.query(`select (select count(*) from auth.users where id = '${N}')::int u, (select count(*) from public.fighters where user_id = '${N}')::int f,
+  (select count(*) from public.profiles where user_id = '${N}')::int p, (select count(*) from public.news where body like 'Neuling%')::int n`)).rows[0];
+ok(gone.u + gone.f + gone.p + gone.n === 0, 'Konto löschen: Konto, Kampfwerte, Ruhmeshalle und eigene Neuigkeiten weg');
+r = await db.query(`select from_user, from_name from public.mail where subject = 'Tschüss'`);
+ok(r.rows[0].from_user === null && r.rows[0].from_name === 'Ein verschwundener Held', 'geschickte Briefe bleiben beim Empfänger, ohne Namen');
+let anonDel = false; try { await db.exec(`reset role; set role anon;`); await db.query(`select public.delete_account()`); } catch { anonDel = true; } finally { await db.exec('reset role'); }
+ok(anonDel, 'ohne Anmeldung kann niemand löschen');
 
 // Aktualisierung einer Datenbank mit dem alten Teil 2 (ohne Rassen)
 {

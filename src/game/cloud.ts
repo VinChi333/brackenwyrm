@@ -25,7 +25,12 @@ export interface PvpEvent { id: number; kind: 'slain' | 'defended' | 'haunted'; 
 export interface NewsRow { created_at: string; body: string }
 export interface WarriorRow { userId: string; name: string; gender: Gender; level: number; race: RaceId; specialty: SpecialtyId; dragonKills: number; alive: boolean; online: boolean; inInn: boolean; lastSeen: string; bio: string; mount: string; marriedTo: string; daysPlayed: number }
 export interface MailRow { id: number; created_at: string; from_user: string | null; from_name: string; subject: string; body: string; seen: boolean }
-export interface CommentRow { id: number; created_at: string; name: string; body: string }
+export interface CommentRow { id: number; created_at: string; name: string; body: string; user_id?: string }
+export type ReportKind = 'chat' | 'brief' | 'steckbrief' | 'name';
+export interface BlockRow { blocked: string; name: string }
+export interface ModReport { kind: ReportKind; ref_id: number; target: string | null; target_name: string; banned: boolean; content: string; reports: number; first_at: string; hidden: boolean }
+export interface ModCheat { created_at: string; user_id: string; name: string; field: string; sent: string; kept: string; banned: boolean }
+export interface ModBanned { user_id: string; name: string; level: number; dragon_kills: number }
 
 export class CloudError extends Error {
   constructor(public code: 'offline' | 'auth' | 'server' | 'bad_code' | 'bad_login' | 'exists' | 'weak' | 'confirm' | 'rule', message: string) { super(message); }
@@ -212,7 +217,7 @@ export class Cloud {
   }
 
   async comments(section = 'dorfplatz', limit = 25): Promise<CommentRow[]> {
-    const rows = await this.call(`/rest/v1/commentary?select=id,created_at,name,body&section=eq.${encodeURIComponent(section)}&order=created_at.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+    const rows = await this.call(`/rest/v1/commentary?select=id,created_at,name,body,user_id&section=eq.${encodeURIComponent(section)}&order=created_at.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
     return Array.isArray(rows) ? rows : [];
   }
 
@@ -302,6 +307,105 @@ export class Cloud {
     return (Array.isArray(rows) ? rows : []).map((r: { name: string; level: number; dragon_kills: number; gender?: string }) => ({
       name: r.name, level: r.level, dragonKills: r.dragon_kills, gender: r.gender === 'f' ? 'f' : 'm',
     }));
+  }
+
+  // ---------- Schutz: Denkmal, Melden, Blockieren, Wache, Konto löschen (Teil 4) ----------
+
+  private missingPart4(e: unknown): boolean {
+    return e instanceof CloudError && e.code === 'server' && /404|PGRST202|42883|42P01|PGRST205/.test(e.message);
+  }
+
+  /** Wer zuletzt den Drachen erschlagen hat (geprüft vom Server). null = niemand; undefined = Server kennt das noch nicht. */
+  async lastDragonSlayer(): Promise<{ name: string; gender: Gender; dragonKills: number } | null | undefined> {
+    try {
+      const rows = await this.call('/rest/v1/rpc/last_dragon_slayer', { method: 'POST', body: {} }, !!this.session);
+      const r = Array.isArray(rows) ? rows[0] : null;
+      return r ? { name: String(r.name), gender: r.gender === 'f' ? 'f' : 'm', dragonKills: Number(r.dragon_kills) } : null;
+    } catch (e) {
+      if (this.missingPart4(e)) return undefined;
+      throw e;
+    }
+  }
+
+  async report(kind: ReportKind, ref: number, target: string | null): Promise<string> {
+    await this.ensureSession();
+    try {
+      return String(await this.call('/rest/v1/rpc/report', { method: 'POST', body: { kind, ref, target } }) ?? 'Danke.');
+    } catch (e) {
+      if (this.missingPart4(e)) throw new CloudError('server', 'Melden ist auf dem Server noch nicht eingerichtet (Teil 4).');
+      throw e;
+    }
+  }
+
+  async blocks(): Promise<BlockRow[]> {
+    await this.ensureSession();
+    try {
+      const rows = await this.call('/rest/v1/rpc/my_blocks', { method: 'POST', body: {} });
+      return Array.isArray(rows) ? rows.map((r: BlockRow) => ({ blocked: String(r.blocked), name: String(r.name) })) : [];
+    } catch (e) {
+      if (this.missingPart4(e)) return [];
+      throw e;
+    }
+  }
+
+  async block(uid: string): Promise<void> {
+    await this.ensureSession();
+    try {
+      await this.call('/rest/v1/blocks', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: { blocked: uid } });
+    } catch (e) {
+      if (this.missingPart4(e)) throw new CloudError('server', 'Blockieren ist auf dem Server noch nicht eingerichtet (Teil 4).');
+      throw e;
+    }
+  }
+
+  async unblock(uid: string): Promise<void> {
+    await this.ensureSession();
+    await this.call(`/rest/v1/blocks?blocked=eq.${encodeURIComponent(uid)}`, { method: 'DELETE', prefer: 'return=minimal' });
+  }
+
+  async isAdmin(): Promise<boolean> {
+    if (!this.session) return false;
+    try { return !!(await this.call('/rest/v1/rpc/is_admin', { method: 'POST', body: {} })); } catch { return false; }
+  }
+
+  async modReports(): Promise<ModReport[]> {
+    await this.ensureSession();
+    const rows = await this.call('/rest/v1/rpc/mod_reports', { method: 'POST', body: {} });
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async modDecide(kind: ReportKind, ref: number, target: string | null, action: 'ok' | 'hide' | 'ban'): Promise<void> {
+    await this.ensureSession();
+    await this.call('/rest/v1/rpc/mod_decide', { method: 'POST', body: { kind, ref, target, action } });
+  }
+
+  async modBanned(): Promise<ModBanned[]> {
+    await this.ensureSession();
+    const rows = await this.call('/rest/v1/rpc/mod_banned', { method: 'POST', body: {} });
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async modCheats(): Promise<ModCheat[]> {
+    await this.ensureSession();
+    const rows = await this.call('/rest/v1/rpc/mod_cheats', { method: 'POST', body: {} });
+    return Array.isArray(rows) ? rows : [];
+  }
+
+  async modBan(target: string, ban: boolean): Promise<void> {
+    await this.ensureSession();
+    await this.call(`/rest/v1/rpc/${ban ? 'mod_ban' : 'mod_unban'}`, { method: 'POST', body: { target } });
+  }
+
+  /** Konto und alle Daten auf dem Server löschen. Danach abgemeldet. */
+  async deleteAccount(): Promise<void> {
+    await this.ensureSession();
+    try {
+      await this.call('/rest/v1/rpc/delete_account', { method: 'POST', body: {} });
+    } catch (e) {
+      if (this.missingPart4(e)) throw new CloudError('server', 'Konto löschen ist auf dem Server noch nicht eingerichtet (Teil 4). Schreib uns, dann löschen wir es von Hand.');
+      throw e;
+    }
+    this.signOut();
   }
 
   // ---------- intern ----------

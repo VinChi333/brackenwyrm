@@ -600,3 +600,26 @@ textarea#mail-body { width: 100%; font: inherit; color: var(--text); background:
 .bio-text { white-space: normal; background: var(--panel-2); border-radius: 8px; padding: 12px 14px; }
 .bio-edit { width: 100%; box-sizing: border-box; font: inherit; color: var(--text); background: #0d1020; border: 1px solid var(--line); border-radius: 6px; padding: 10px; resize: vertical; }
 @media (max-width: 560px) { .bio-head .card.mini { width: 92px; } }
+
+/* Melden, Wache, Rechtliches (0.33) */
+.flag { background: none; border: 0; padding: 0 4px; margin-left: 4px; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; opacity: .55; }
+.flag:hover, .flag:focus-visible { opacity: 1; color: var(--gold-hi); }
+.flag.sure { opacity: 1; color: #ff9c7a; text-decoration: underline; }
+.linkish { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.legal-links { margin-top: 6px; }
+.legal h2 { margin-top: 1.6em; }
+.legal ul.plain { padding-left: 1.2em; list-style: disc; }
+.legal li { margin: .35em 0; }
+.legal-panel { max-width: 760px; text-align: left; }
+.mod-list { list-style: none; padding: 0; display: grid; gap: 12px; }
+.mod-item { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--panel-2); }
+.mod-head { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+.mod-item blockquote { margin: 10px 0; padding: 8px 12px; border-left: 3px solid var(--line); white-space: normal; overflow-wrap: anywhere; }
+.mod-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.mod-table th, .mod-table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.mod-table th { color: var(--muted); font-weight: normal; }
+@media (max-width: 560px) { .mod-table { display: block; overflow-x: auto; } }
+.btn.danger, .tbtn.danger { border-color: #a5432f; color: #ffb39d; }
+.btn.danger { background: #5a1f14; }
+.tbtn.ghost { color: var(--muted); border-color: var(--line); }
+.legal-title { font-size: clamp(20px, 6.2vw, 40px); overflow-wrap: anywhere; }
