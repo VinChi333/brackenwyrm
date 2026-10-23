@@ -12,7 +12,7 @@ import { RACES, raceName } from '../content/races';
 import {
   DEATH_EXP_LOSS, DWARF_GOLD, EVENT_CHANCE, GEM_DROP_CHANCE, GRAVE_FIGHTS_PER_DAY, HARZBIER_BUFF, MAX_LEVEL,
   RESURRECT_FAVOR, RESURRECT_TURN_SHARE, CHARM_PER_DRAGON, FLAWLESS_GEMS, FLAWLESS_GOLD, forestFightsPerDay, restartGems, restartGold, favorRange, graveAttack, maxSoul, shadeStats, soulRestoreCost,
-  attack, bankInterest, defense, dragonStats, expNeeded, expPerKill, goldPerKill, harzbierCost,
+  attack, bankInterest, defense, dragonStats, dragonToughness, forestToughness, masterToughness, toughen, expNeeded, expPerKill, goldPerKill, harzbierCost,
   healCost, masterStats, maxHp, monsterStats, specialUsesPerDay,
 } from './balance';
 import { between, chance, pick, rand, roll } from './rng';
@@ -157,9 +157,13 @@ export function forestSearch(s: GameState, mode: ForestMode): ForestResult {
   const m = pick(pool.length ? pool : MONSTERS);
   const stats = monsterStats(m.level, 0.92 + (m.scale ?? 1) * 0.08);
   stats.hp = scaleVar(stats.hp);
+  // Mit jedem Drachenpunkt werden die Gegner etwas zäher, dafür bringen sie etwas mehr (wie im Original).
+  const tough = toughen(forestToughness(p), roll);
+  stats.atk += tough.atk; stats.def += tough.def; stats.hp += tough.hp;
   stats.maxHp = stats.hp;
-  const expR = Math.round(scaleVar(expPerKill(m.level)) * expMult);
-  const goldR = Math.round(goldPerKill(m.level) * between(0.6, 1.4) * goldMult * (p.race === 'zwerg' ? DWARF_GOLD : 1));
+  const bonus = 1 + 0.03 * (tough.atk + tough.def) + 0.001 * tough.hp;
+  const expR = Math.round(scaleVar(expPerKill(m.level)) * expMult * bonus);
+  const goldR = Math.round(goldPerKill(m.level) * between(0.6, 1.4) * goldMult * bonus * (p.race === 'zwerg' ? DWARF_GOLD : 1));
   s.fight = makeFight('forest', m.id, m.name, stats, expR, goldR, m.intro);
   return { type: 'fight' };
 }
@@ -283,7 +287,7 @@ export function canChallengeMaster(p: Player): 'ok' | 'notReady' | 'seen' | 'max
   if (!p.alive) return 'dead';
   if (p.level >= MAX_LEVEL) return 'max';
   if (p.seenMaster) return 'seen';
-  if (p.exp < expNeeded(p.level)) return 'notReady';
+  if (p.exp < expNeeded(p.level, p.dragonKills)) return 'notReady';
   return 'ok';
 }
 
@@ -293,7 +297,11 @@ export function startMasterFight(s: GameState): boolean {
   const m = masterForLevel(p.level);
   if (!m) return false;
   p.seenMaster = true;
-  s.fight = makeFight('master', `master-${p.level}`, m.name, masterStats(p.level), 0, 0, m.greeting);
+  const ms = masterStats(p.level);
+  const mp = masterToughness(p);
+  const mt = toughen(mp, roll, Math.round(mp * 0.25));
+  ms.atk += mt.atk; ms.def += mt.def; ms.hp += mt.hp; ms.maxHp = ms.hp;
+  s.fight = makeFight('master', `master-${p.level}`, m.name, ms, 0, 0, m.greeting);
   return true;
 }
 
@@ -305,7 +313,11 @@ export function startDragonFight(s: GameState): boolean {
   const p = s.player;
   if (!canSeekDragon(p)) return false;
   p.forestFights -= 1;
-  s.fight = makeFight('dragon', 'dragon', DRAGON.name, dragonStats(), 0, 0, DRAGON.intro);
+  // Jeder weitere Drache ist zäher als der letzte (wie im Original).
+  const ds = dragonStats();
+  const dt = toughen(dragonToughness(p), roll);
+  ds.atk += dt.atk; ds.def += dt.def; ds.hp += dt.hp; ds.maxHp = ds.hp;
+  s.fight = makeFight('dragon', 'dragon', DRAGON.name, ds, 0, 0, DRAGON.intro);
   return true;
 }
 
@@ -590,7 +602,7 @@ function loseFight(s: GameState): void {
     f.log.push({ t: 'Deine Seele zerfasert im Nebel. Für heute hast du keine Kraft mehr für Schattenkämpfe.', k: 'bad' });
   } else {
     const lostGold = p.gold;
-    const levelStart = p.level > 1 ? expNeeded(p.level - 1) : 0;
+    const levelStart = p.level > 1 ? expNeeded(p.level - 1, p.dragonKills) : 0;
     const lostExp = Math.floor(Math.max(0, p.exp - levelStart) * DEATH_EXP_LOSS);
     p.gold = 0;
     p.exp -= lostExp;

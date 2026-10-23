@@ -133,8 +133,8 @@ function bar(v: number, max: number, cls = ''): string {
 function vital(s: GameState): string {
   const p = s.player;
   const sp = SPECIALTIES[p.specialty];
-  const prev = p.level > 1 ? expNeeded(p.level - 1) : 0;
-  const need = expNeeded(p.level);
+  const prev = p.level > 1 ? expNeeded(p.level - 1, p.dragonKills) : 0;
+  const need = expNeeded(p.level, p.dragonKills);
   return `<aside class="vital" aria-label="Charakter">
     <div class="vital-head">
       <div class="portrait">${heroPortrait(p.race, p.specialty, p.gender)}</div>
@@ -456,7 +456,7 @@ function trainingScreen(s: GameState): string {
   const p = s.player;
   const m = masterForLevel(p.level);
   const st = canChallengeMaster(p);
-  const need = expNeeded(p.level);
+  const need = expNeeded(p.level, p.dragonKills);
   let text = '';
   if (st === 'max' || !m) {
     text = '<p class="lead">Kein Meister in Moosgrund kann dir noch etwas beibringen. Nur einer wartet noch: der <span class="place">Brackenwyrm</span> in der Farnschlucht.</p>';

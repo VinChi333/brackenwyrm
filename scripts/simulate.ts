@@ -14,6 +14,9 @@ import { seedRng } from '../src/game/rng';
 import type { GameState } from '../src/game/types';
 
 const RUNS = Number(process.argv[2] ?? 100);
+/** Wie viele Drachen pro Lauf (2. Argument). Ab dem zweiten zeigt sich, ob die Gegner mitwachsen. */
+const DKS = Number(process.argv[3] ?? 1);
+const dkDays: number[][] = Array.from({ length: DKS }, () => []);
 seedRng(42);
 
 interface LevelStats { fights: number; wins: number; deaths: number; rounds: number; hpLossPct: number; days: number }
@@ -60,7 +63,8 @@ for (let run = 0; run < RUNS; run++) {
   const s = newGame('Bot', (['dunkel', 'mystik', 'dieb'] as const)[run % 3], 'm', (['mensch', 'elf', 'troll', 'zwerg'] as const)[Math.floor(run / 3) % 4]);
   let levelStartDay = 1;
   let safety = 0;
-  while (safety++ < 400) {
+  let lastDk = 1;
+  while (safety++ < 400 * DKS) {
     const p = s.player;
     // Ausrüstung kaufen (Bankgeld mitnehmen)
     if (p.bank > 0) bankWithdraw(s, p.bank);
@@ -96,7 +100,7 @@ for (let run = 0; run < RUNS; run++) {
       dragonTries++;
       const won = s.fight!.over === 'win';
       closeFight(s);
-      if (won) { dragonWins++; daysToDragon.push(s.day); (byCombo[`${s.player.race}/${s.player.specialty}`] ??= []).push(s.day); mountsAtDragon[s.player.mount || 'keins'] = (mountsAtDragon[s.player.mount || 'keins'] ?? 0) + 1; chooseDragonBonus(s, 'atk'); break; }
+      if (won) { dragonWins++; daysToDragon.push(s.day); (byCombo[`${s.player.race}/${s.player.specialty}`] ??= []).push(s.day); mountsAtDragon[s.player.mount || 'keins'] = (mountsAtDragon[s.player.mount || 'keins'] ?? 0) + 1; dkDays[s.player.dragonKills - 1]?.push(s.day - lastDk + 1); lastDk = s.day; chooseDragonBonus(s, (['atk', 'hp', 'def', 'ff'] as const)[(s.player.dragonKills - 1) % 4]); if (s.player.dragonKills >= DKS) break; levelStartDay = s.day; }
     }
 
     // Waldkämpfe
@@ -149,4 +153,8 @@ console.log(`Reittiere beim ersten Drachen: ${JSON.stringify(mountsAtDragon)}`);
 for (const k of Object.keys(byCombo).sort()) {
   const d = byCombo[k];
   console.log(`  ${k.padEnd(16)} Ø ${(d.reduce((a, b) => a + b, 0) / d.length).toFixed(1)} Tage (${d.length} Läufe)`);
+}
+if (DKS > 1) for (let i = 0; i < DKS; i++) {
+  const d = dkDays[i];
+  console.log(`Drache ${i + 1}: Ø ${(d.reduce((a, b) => a + b, 0) / Math.max(1, d.length)).toFixed(1)} Tage (${d.length}/${RUNS} geschafft)`);
 }

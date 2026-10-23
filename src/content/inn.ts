@@ -31,7 +31,7 @@ export function friedaSays(s: GameState, n: number): string {
   if (s.stats.lastDeathDay && s.day - s.stats.lastDeathDay <= 1) {
     tips.push('„Morwen hat dich heute früh am Dorfrand abgesetzt, hab ich gehört. Iss erstmal was.“');
   }
-  if (p.level < MAX_LEVEL && p.exp >= expNeeded(p.level) && !p.seenMaster && master) {
+  if (p.level < MAX_LEVEL && p.exp >= expNeeded(p.level, p.dragonKills) && !p.seenMaster && master) {
     tips.push(`„${master.name} hat nach dir gefragt. Ich glaube, du bist so weit. Der Trainingsplatz ist gleich um die Ecke.“`);
   }
   if (p.level >= MAX_LEVEL) {

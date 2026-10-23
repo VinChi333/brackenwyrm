@@ -96,8 +96,46 @@ const EXP_TABLE: number[] = (() => {
   return t;
 })();
 
-export function expNeeded(level: number): number {
-  return EXP_TABLE[level] ?? Infinity;
+/** Erfahrungstabelle des Originals, nur als Maßstab für den Zuschlag nach Drachenkills. */
+const ORIG_EXP = [0, 100, 400, 1002, 1912, 3140, 4707, 6641, 8985, 11795, 15143, 19121, 23840, 29437, 36071, 43930];
+
+/**
+ * Erfahrung für den Meister der Stufe. Wie im Original wächst sie mit den Drachenkills:
+ * + (Drachenkills / 4) × Stufe × 100 Original-Erfahrung, auf unsere Werte umgerechnet.
+ */
+export function expNeeded(level: number, dragonKills = 0): number {
+  const base = EXP_TABLE[level];
+  if (base === undefined) return Infinity;
+  if (!dragonKills) return base;
+  return Math.round(base + (dragonKills / 4) * level * 100 * (base / ORIG_EXP[level]));
+}
+
+// ---------- Gegner wachsen mit den Drachenpunkten (wie im Original, buffbadguy) ----------
+/** Drachenpunkte in Angriff und Verteidigung plus zusätzliche Lebenspunkte / 5. */
+export function dkPower(p: Pick<Player, 'bonusAtk' | 'bonusDef' | 'baseMaxHp'>): number {
+  return p.bonusAtk + p.bonusDef + Math.floor(p.baseMaxHp / 5);
+}
+
+export interface Toughening { atk: number; def: number; hp: number; points: number }
+
+/** Verteilt Punkte zufällig auf Angriff, Verteidigung und Lebenspunkte (Rest × 5), wie im Original. */
+export function toughen(points: number, rnd: (a: number, b: number) => number, cap = Infinity): Toughening {
+  const atk = Math.min(rnd(0, points), cap);
+  const def = Math.min(rnd(0, points - atk), cap);
+  return { atk, def, hp: (points - atk - def) * 5, points };
+}
+
+/** Waldgegner: ein Viertel der Drachenpunkte (+5 % je 100 Drachenkills). */
+export function forestToughness(p: Player): number {
+  return Math.round(dkPower(p) * (0.25 + (p.dragonKills / 100) * 0.05));
+}
+/** Meister: ein Drittel, Angriff und Verteidigung höchstens je ein Viertel davon. */
+export function masterToughness(p: Player): number {
+  return Math.round(dkPower(p) * 0.33);
+}
+/** Drache: drei Viertel. */
+export function dragonToughness(p: Player): number {
+  return Math.round(dkPower(p) * 0.75);
 }
 
 /** Gold pro fehlendem Lebenspunkt bei der Heilerin. */
