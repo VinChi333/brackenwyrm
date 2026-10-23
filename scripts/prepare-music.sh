@@ -5,7 +5,7 @@
 set -e
 IN="$1"; NAME="$2"
 MAX=180; FADE=4
-[ "$NAME" = "musik-fanfare" ] && MAX=12 && FADE=2
+[ "$NAME" = "musik-fanfare" ] && MAX=13 && FADE=1
 DUR=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$IN" | cut -d. -f1)
 [ "$DUR" -lt "$MAX" ] && MAX=$DUR
 START=$((MAX - FADE))
