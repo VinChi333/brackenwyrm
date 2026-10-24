@@ -44,7 +44,10 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros'
   | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount';
 
-const VERSION = 'Testversion 0.33';
+// Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
+const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
+const TITLE_SPRUCH = 'Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.';
+const VERSION = 'Testversion 0.34';
 
 interface Ui {
   screen: Screen;
@@ -245,12 +248,15 @@ function fightLogHtml(log: LogLine[]): string {
 
 function titleScreen(): string {
   const p = state?.player;
-  const showcase = ['borkenwolf', 'steintroll', 'irrlicht'].map((id, i) => cardHtml(cardFor(id)!, { cls: `fan fan-${i}`, fx: true })).join('');
+  const art = TITLE_ART
+    ? `<figure class="title-art"><img src="${TITLE_ART}" alt="Ein Drache schläft in einer Farnschlucht, über ihm das Dorf im Mondlicht" width="1360" height="768"></figure>`
+    : `<div class="fanned">${['borkenwolf', 'steintroll', 'irrlicht'].map((id, i) => cardHtml(cardFor(id)!, { cls: `fan fan-${i}`, fx: true })).join('')}</div>`;
   return `<div class="solo">
     <div class="solo-panel">
       <h1 class="title-logo">Brackenwyrm</h1>
-      <p class="tagline">Jeden Tag ein paar Kämpfe. Irgendwann der Drache.</p>
-      <div class="fanned">${showcase}</div>
+      <p class="title-def"><span><b>Bracken</b> – Farn, so weit das Auge reicht.</span> <span><b>Wyrm</b> – ein Drache, der darin schläft.</span></p>
+      ${art}
+      <p class="tagline">${TITLE_SPRUCH}</p>
       ${flashHtml()}
       <div class="solo-nav">${navHtml([{ title: 'Willkommen', items: [
         ...(p ? [{ act: 'continue', label: `Weiterspielen: ${titleFor(p.dragonKills, p.gender)} ${p.name}`, key: 'w', hint: `Stufe ${p.level} · Spieltag ${state!.day}` }] : []),

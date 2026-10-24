@@ -623,3 +623,16 @@ textarea#mail-body { width: 100%; font: inherit; color: var(--text); background:
 .btn.danger { background: #5a1f14; }
 .tbtn.ghost { color: var(--muted); border-color: var(--line); }
 .legal-title { font-size: clamp(20px, 6.2vw, 40px); overflow-wrap: anywhere; }
+
+/* Titelbild mit dem schlafenden Wyrm (0.34) */
+.title-logo { margin-bottom: -6px; }
+.title-def { text-align: center; color: var(--muted); font-style: italic; font-size: 15px; margin: 0; }
+.title-def span { display: inline-block; }
+.title-def b { color: var(--gold-hi); font-style: normal; font-weight: 700; }
+.title-art { margin: 0 -8px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55), 0 0 60px rgba(120, 200, 90, 0.08); aspect-ratio: 1360 / 768; }
+.title-art img { display: block; width: 100%; height: 100%; object-fit: cover; transform-origin: 30% 70%; animation: wyrm-breath 14s ease-in-out infinite alternate; }
+@keyframes wyrm-breath { from { transform: scale(1); } to { transform: scale(1.045); } }
+.reduced .title-art img { animation: none; }
+@media (prefers-reduced-motion: reduce) { .title-art img { animation: none; } }
+.title-art + .tagline { font-size: 17px; color: var(--text); margin-top: -2px; }
+@media (max-width: 520px) { .title-art { margin: 0 -10px; border-radius: 8px; } .title-def { font-size: 14px; } }
