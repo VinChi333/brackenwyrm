@@ -1,0 +1,5 @@
+# Netlify: Bilder, Schriften und Code haben einen Prüfwert im Dateinamen und ändern sich nie -> ein Jahr zwischenspeichern.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/audio/*
+  Cache-Control: public, max-age=604800
