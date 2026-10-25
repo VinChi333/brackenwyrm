@@ -20,7 +20,7 @@ import { SPECIALTIES, SPECIALTY_ORDER } from '../content/specialties';
 import { RACES, RACE_ORDER, raceName } from '../content/races';
 import { MAX_LEVEL, healCostPerHp } from '../game/balance';
 import {
-  announce, applyHaunt, HAUNT_FAVOR, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
+  announce, todayKey, applyHaunt, HAUNT_FAVOR, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
   CHRONICLE_SIZE, closeFight, defense, drinkHarzbier, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
   graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost,
   newGame, rentRoom, roomCost, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
@@ -31,6 +31,8 @@ import { Cloud, CloudError } from '../game/cloud';
 import type { BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
 import { censor, isClean } from '../content/badwords';
 import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
+import { DIR_NAME, FESTE_COST, FESTE_MIN_LEVEL, SIZE as FESTE_SIZE, afterFesteFight, canEnterFeste, enterFeste, festeLight, exits, heirloomNames, leaveFeste, mazeFor, moveFeste, treasureNews, type Dir } from '../game/feste';
+import { FESTE_FOES, FESTE_NAME, FESTE_TEXT, HEIRLOOMS, SCROLLS, heirloom } from '../content/feste';
 import { POTIONS, chooseNewRace, chooseNewSpecialty, drinkPotion, paySeer, seerCost, type PotionId } from '../game/shops';
 import { AMBROS_GAMES_PER_DAY, AMBROS_TRIES, ambrosBets, guessAmbros, startAmbros, type AmbrosGame } from '../game/ambros';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
@@ -44,12 +46,12 @@ import { sound, type TrackId } from './audio';
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros'
   | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount'
-  | 'quirin' | 'seer' | 'felsen' | 'garten';
+  | 'quirin' | 'seer' | 'felsen' | 'garten' | 'feste' | 'heirlooms';
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = 'Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.';
-const VERSION = 'Testversion 0.35';
+const VERSION = 'Testversion 0.36';
 
 interface Ui {
   screen: Screen;
@@ -413,6 +415,7 @@ function forestScreen(s: GameState): string {
       { act: 'forest:easy', label: 'Leichte Beute suchen', key: 'l', hint: 'schwächer, weniger Lohn', disabled: none },
       { act: 'forest:hard', label: 'Nervenkitzel suchen', key: 'n', hint: 'stärker, mehr Lohn', disabled: none },
       ...(p.level >= MAX_LEVEL ? [{ act: 'dragon', label: 'Den Brackenwyrm suchen', key: 'b', hint: 'Endkampf', disabled: !canSeekDragon(p) }] : []),
+      ...(p.festeFound ? [{ act: 'go:feste', label: 'Zur versunkenen Feste', key: 'f', hint: p.level < FESTE_MIN_LEVEL ? `ab Stufe ${FESTE_MIN_LEVEL}` : p.festeDay === todayKey() ? (s.feste && !s.feste.over ? 'du bist drin' : 'heute schon') : `${FESTE_COST} Waldkämpfe` }] : []),
     ] },
     { title: 'Zurück', items: [back] },
   ]);
@@ -439,7 +442,7 @@ function fightScreen(s: GameState): string {
   const fx = `${heroAttacked ? `<div class="dmg dmg-foe ${f.lastCrit ? 'crit' : ''}">${f.lastHeroMiss ? 'Daneben' : '−' + f.lastHeroDmg}</div>` : ''}
     ${foeAttacked ? `<div class="dmg dmg-hero">${f.lastFoeMiss ? 'Ausgewichen' : '−' + f.lastFoeDmg + ' LP'}</div>` : ''}
     ${f.over === 'win' ? '<div class="stamp">Besiegt</div>' : ''}`;
-  const isNew = f.over === 'win' && (f.kind === 'forest' || f.kind === 'grave') && s.bestiary[f.monsterId] === 1;
+  const isNew = f.over === 'win' && (f.kind === 'forest' || f.kind === 'grave' || f.kind === 'feste') && s.bestiary[f.monsterId] === 1;
 
   let groups: Group[] = [];
   if (!f.over) {
@@ -478,6 +481,8 @@ function fightScreen(s: GameState): string {
       items.push({ act: 'after:village', label: 'Zurück ins Dorf', key: 'd' });
     } else if (f.kind === 'dragon' && f.over === 'win') {
       items.push({ act: 'after:bonus', label: 'Weiter', key: 'w' });
+    } else if (f.kind === 'feste' && f.over !== 'lose') {
+      items.push({ act: 'after:feste', label: f.monsterId === 'hueter' && f.over === 'win' ? 'In die Schatzkammer' : 'Weiter durch die Feste', key: 'w' });
     } else if (f.over === 'fled') {
       items.push({ act: 'after:forest', label: 'Zurück in den Wald', key: 'w' });
       items.push({ act: 'after:village', label: 'Zurück ins Dorf', key: 'd' });
@@ -673,7 +678,7 @@ function flirtScreen(s: GameState): string {
 
 function bestiaryScreen(s: GameState): string {
   const levels = Array.from({ length: MAX_LEVEL }, (_, i) => i + 1);
-  const found = Object.keys(s.bestiary).filter((k) => k !== 'dragon').length;
+  const found = MONSTERS.filter((m) => s.bestiary[m.id]).length;
   const sections = levels.map((lvl) => {
     const cards = MONSTERS.filter((m) => m.level === lvl).map((m) => {
       const n = s.bestiary[m.id] ?? 0;
@@ -687,6 +692,10 @@ function bestiaryScreen(s: GameState): string {
     <div class="progress">${bar(found, MONSTERS.length, 'xp')}</div>
     ${sections}
     <section class="b-level"><h2>Legende</h2><div class="card-grid">${dragon}</div></section>
+    <section class="b-level"><h2>${FESTE_NAME}</h2><div class="card-grid">${FESTE_FOES.map((m) => {
+      const n = s.bestiary[m.id] ?? 0;
+      return n ? cardHtml(monsterCard(m), { count: n, cls: 'grid-card', isNew: ui.newCard === m.id }) : cardBack(m.level);
+    }).join('')}</div></section>
     <section class="b-level"><h2>Schattenreich</h2><div class="card-grid">${SHADES.map((m) => {
       const n = s.bestiary[m.id] ?? 0;
       return n ? cardHtml(shadeCard(m.id)!, { count: n, cls: 'grid-card', isNew: ui.newCard === m.id }) : shadeBack();
@@ -739,7 +748,7 @@ function chronicleScreen(s: GameState): string {
 const SCREEN_NAMES: Partial<Record<Screen, string>> = {
   village: 'Dorfplatz', forest: 'Wald', fight: 'Kampf', training: 'Trainingsplatz', healer: 'Kräuterhütte', smith: 'Schmiede',
   bank: 'Kontor', inn: 'Gasthaus', bestiary: 'Bestiarium', fame: 'Ruhmeshalle', chronicle: 'Kampfchronik', settings: 'Einstellungen',
-  shadows: 'Schattenreich', dragonBonus: 'Drachenkill', quirin: 'Quirins Tränke', seer: 'Seherin', felsen: 'Wyrmstein', garten: 'Rosengarten',
+  shadows: 'Schattenreich', dragonBonus: 'Drachenkill', quirin: 'Quirins Tränke', feste: 'Versunkene Feste', heirlooms: 'Erbstücke', seer: 'Seherin', felsen: 'Wyrmstein', garten: 'Rosengarten',
   stable: 'Pferdestall', ambros: 'Ambros', warriors: 'Kriegerliste', mail: 'Briefe', bio: 'Steckbrief',
 };
 
@@ -962,6 +971,7 @@ function bioScreen(s: GameState): string {
   const spouse = w.marriedTo && partners[w.marriedTo] ? partners[w.marriedTo].name : '';
   const row = (k: string, v: string) => `<div class="rec"><span>${k}</span><strong>${v}</strong></div>`;
   const text = me ? s.player.bio ?? '' : w.bio ?? '';
+  const heirs = heirloomNames(me ? s.player.heirlooms : w.heirlooms);
   const news = ui.bioNews;
   const main = `<div class="bio-head">${cardHtml(pvpCard(w.name, w.level, w.race, w.specialty, w.gender), { cls: 'mini' })}
       <div><h1><span class="t-title">${esc(titleFor(w.dragonKills, w.gender))}</span> ${esc(w.name)}</h1>
@@ -976,6 +986,7 @@ function bioScreen(s: GameState): string {
       ${row('Reittier', esc(mount || 'zu Fuß'))}
       ${row('Verheiratet', spouse ? `mit ${esc(spouse)}` : 'nein')}
     </div>
+    ${heirs.length ? `<h2>Erbstücke der Wyrmjäger (${heirs.length} von ${HEIRLOOMS.length})</h2><p>${heirs.map((h) => `<span class="tag">${esc(h)}</span>`).join(' ')}</p>${heirs.length === HEIRLOOMS.length ? '<p class="gold">Erbe der Wyrmjäger</p>' : ''}` : ''}
     <h2>Steckbrief</h2>
     ${me ? `<textarea id="bio-text" class="bio-edit" maxlength="400" rows="5" placeholder="Erzähl etwas über deinen Helden …">${esc(text)}</textarea>
       <div class="row"><button type="button" class="tbtn" data-act="biosave">Steckbrief speichern</button><span class="muted">höchstens 400 Zeichen</span></div>`
@@ -996,6 +1007,111 @@ function bioScreen(s: GameState): string {
     ] }]),
     { title: 'Zurück', items: [back] },
   ]);
+}
+
+const FESTE_ART = import.meta.glob('../assets/feste/*.webp', { eager: true, import: 'default' }) as Record<string, string>;
+function festeArt(name: string): string {
+  return FESTE_ART[`../assets/feste/${name}.webp`] ?? '';
+}
+
+/** Die Karte: nur Gesehenes ist sichtbar, Wände als Ränder. */
+function festeMap(s: GameState): string {
+  const run = s.feste!;
+  const m = mazeFor(run.day);
+  const cells: string[] = [];
+  for (let c = 0; c < FESTE_SIZE * FESTE_SIZE; c++) {
+    const seen = run.seen.includes(c);
+    if (!seen) { cells.push('<div class="fc dark"></div>'); continue; }
+    const o = m.open[c];
+    const walls = `${o & 1 ? '' : ' wn'}${o & 2 ? '' : ' wo'}${o & 4 ? '' : ' ws'}${o & 8 ? '' : ' ww'}`;
+    const here = c === run.pos;
+    const done = run.done.includes(c);
+    const visited = done || here || c === m.start;
+    let mark = '';
+    if (here) mark = '<span class="me" aria-label="Du">●</span>';
+    else if (c === m.start) mark = '<span title="Ausgang">⌂</span>';
+    else if (c === m.boss && (visited || run.bossDown)) mark = '<span class="boss" title="Halle des Hüters">♜</span>';
+    else if (done) mark = '<span class="done">·</span>';
+    cells.push(`<div class="fc${walls}${here ? ' here' : ''}">${mark}</div>`);
+  }
+  return `<div class="feste-map" role="img" aria-label="Karte der Feste">${cells.join('')}</div>`;
+}
+
+function festePad(s: GameState): string {
+  const ex = exits(s);
+  const btn = (d: Dir, arrow: string) => `<button type="button" class="pad-btn pad-${d}" data-act="feste:${d}" data-hotkey="${d}" ${ex.includes(d) ? '' : 'disabled'} aria-label="${DIR_NAME[d]}" title="${DIR_NAME[d]} (${d.toUpperCase()})">${arrow}<small>${d.toUpperCase()}</small></button>`;
+  return `<div class="feste-pad">${btn('n', '▲')}${btn('w', '◀')}${btn('o', '▶')}${btn('s', '▼')}</div>
+    <p class="muted pad-hint">Am Computer: Pfeiltasten oder N, O, S, W</p>`;
+}
+
+function festeTreasureNews(s: GameState): void {
+  const p = s.player;
+  const post = (first: boolean) => { announce(s, treasureNews(p, first)); saveGame(s); scheduleSync(500); };
+  if (!cloud.enabled) { post(false); return; }
+  cloud.newsAbout('versunkenen Feste besiegt', 20).then((rows) => {
+    const today = todayKey();
+    post(!rows.some((r) => todayKey(new Date(r.created_at)) === today));
+  }, () => post(false));
+}
+
+function festeScreen(s: GameState): string {
+  const p = s.player;
+  const run = s.feste && s.feste.day === todayKey() ? s.feste : null;
+  const entranceArt = festeArt('eingang');
+  const treasureArt = festeArt('schatzkammer');
+  if (!run || run.over) {
+    const why = canEnterFeste(s, todayKey());
+    const summary = run && run.over
+      ? `<section class="event-box log">${run.log.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}
+          ${run.gold || run.gems ? `<p class="gold">Ausbeute heute: ${run.gold} Gold${run.gems ? `, ${run.gems} Edelstein${run.gems === 1 ? '' : 'e'}` : ''}${run.heirloom ? `, ${esc(heirloom(run.heirloom)?.name ?? '')}` : ''}.</p>` : ''}</section>`
+      : '';
+    const art = run?.over === 'treasure' && treasureArt ? treasureArt : entranceArt;
+    const main = `<h1>${FESTE_NAME}</h1>
+      ${art ? `<figure class="title-art feste-art"><img src="${art}" alt="${run?.over === 'treasure' ? 'Die Schatzkammer der Wyrmjäger' : 'Die versunkene Feste im Moor'}"></figure>` : ''}
+      ${summary || `<p class="lead">${FESTE_TEXT.entrance}</p>`}
+      ${flashHtml()}
+      ${why === 'today' && !summary ? `<p class="muted">${FESTE_TEXT.closedToday}</p>` : ''}
+      ${why === 'level' ? `<p class="warn-box">Ab Stufe ${FESTE_MIN_LEVEL} traust du dich da hinein.</p>` : ''}
+      ${why === 'tired' ? `<p class="warn-box">Der Weg hinein kostet ${FESTE_COST} Waldkämpfe. So viel Kraft hast du heute nicht mehr.</p>` : ''}
+      <p class="muted">Einmal am Tag. Licht für ${festeLight(p)} Schritte. Schriftrollen gelesen: ${p.festeScrolls ?? 0} von ${SCROLLS.length}. Erbstücke: ${p.heirlooms?.length ?? 0} von ${HEIRLOOMS.length}.</p>`;
+    return layout(s, main, [
+      { title: 'Die Feste', items: [
+        { act: 'festeEnter', label: 'Die Feste betreten', key: 'b', hint: why === 'today' ? 'morgen wieder' : `${FESTE_COST} Waldkämpfe`, disabled: why !== 'ok', primary: why === 'ok' },
+        { act: 'go:heirlooms', label: 'Erbstücke und Schriftrollen', key: 'e' },
+      ] },
+      { title: 'Zurück', items: [{ act: 'go:forest', label: 'Zurück in den Wald', key: 'w' }, back] },
+    ]);
+  }
+  const lightCls = run.light <= 10 ? 'bad' : run.light <= 20 ? 'warn' : '';
+  const main = `<h1>${FESTE_NAME}</h1>
+    <div class="feste-wrap">
+      <div>${festeMap(s)}</div>
+      <div class="feste-side">
+        <p class="feste-stats"><span class="${lightCls}">🔥 Licht: ${run.light} Schritte</span><br>Lebenspunkte: ${p.hp} / ${maxHp(p)}${run.gold ? `<br>Gefunden: ${run.gold} Gold${run.gems ? `, ${run.gems} Edelsteine` : ''}` : ''}</p>
+        ${festePad(s)}
+      </div>
+    </div>
+    ${run.log.length ? `<section class="event-box log">${run.log.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}</section>` : ''}
+    ${flashHtml()}`;
+  return layout(s, main, [
+    { title: 'Raus hier', items: [{ act: 'festeLeave', label: 'Die Feste verlassen', key: 'v', hint: 'für heute', primary: false }] },
+  ], 'feste-shell');
+}
+
+function heirloomsScreen(s: GameState): string {
+  const p = s.player;
+  const read = p.festeScrolls ?? 0;
+  const main = `<h1>Erbstücke der Wyrmjäger</h1>
+    <p class="lead">Was die Wyrmjäger in der Feste zurückgelassen haben. Jedes Erbstück bleibt dir für immer, auch nach dem Drachen.${(p.heirlooms?.length ?? 0) === HEIRLOOMS.length ? ' Du hast sie alle: Du bist der Erbe der Wyrmjäger.' : ''}</p>
+    <ul class="potions heirlooms">${HEIRLOOMS.map((h) => {
+      const own = p.heirlooms?.includes(h.id);
+      const img = festeArt(`erbstueck-${h.id}`);
+      return `<li class="${own ? 'own' : 'missing'}">${img && own ? `<img src="${img}" alt="" class="heir-img">` : `<span class="heir-img empty">${own ? '✦' : '?'}</span>`}
+        <strong>${own ? h.name : 'Noch nicht gefunden'}</strong><br><span class="gold">${own ? h.bonus : ''}</span>${own ? `<br><small class="muted">${h.blurb}</small>` : ''}</li>`;
+    }).join('')}</ul>
+    <h2>Die Schriftrollen (${read} von ${SCROLLS.length})</h2>
+    ${read ? SCROLLS.slice(0, read).map((t) => `<p class="scroll">„${esc(t)}“</p>`).join('') : '<p class="muted">Du hast noch keine Schriftrolle gefunden. Sie liegen in den Gängen der Feste.</p>'}`;
+  return layout(s, main, [{ title: 'Zurück', items: [{ act: 'go:feste', label: 'Zur Feste', key: 'f' }, back] }]);
 }
 
 function quirinScreen(s: GameState): string {
@@ -1401,7 +1517,7 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!),
     impressum: () => legalScreen('impressum'), datenschutz: () => legalScreen('datenschutz'), wache: () => wacheScreen(s!), blocks: () => blocksScreen(s!), deleteAccount: () => deleteAccountScreen(s!),
   };
   root.innerHTML = views[scr]();
@@ -1420,11 +1536,16 @@ export function render(): void {
 }
 
 /** Welche Musik zu welchem Ort gehört. */
+/** Sobald es ein eigenes Musikstück für die Feste gibt (public/audio/music/musik-feste.mp3), auf true setzen. */
+const FESTE_MUSIC = false;
+
 function trackFor(scr: Screen): TrackId {
   const s = state;
   if (scr === 'title' || scr === 'create' || scr === 'login' || !s) return 'titel';
-  if (scr === 'fight' && s.fight) return s.fight.kind === 'dragon' ? 'drache' : s.fight.kind === 'grave' ? 'schattenreich' : 'kampf';
+  if (scr === 'fight' && s.fight && s.fight.kind !== 'feste') return s.fight.kind === 'dragon' ? 'drache' : s.fight.kind === 'grave' ? 'schattenreich' : 'kampf';
+  if (scr === 'fight' && s.fight?.monsterId === 'hueter') return 'kampf';
   if (!s.player.alive || scr === 'shadows' || scr === 'haunt' || (scr === 'seer' && s.player.seerPaid)) return 'schattenreich';
+  if (scr === 'feste' || scr === 'heirlooms' || (scr === 'fight' && s.fight?.kind === 'feste')) return FESTE_MUSIC ? 'feste' : 'schattenreich';
   if (scr === 'forest') return 'wald';
   if (scr === 'inn' || scr === 'flirt' || scr === 'innGuests') return 'gasthaus';
   return 'dorf';
@@ -1562,6 +1683,21 @@ function handle(act: string, el: HTMLElement): void {
     case 'menu': ui.menuOpen = !ui.menuOpen; render(); return;
     case 'skills': ui.skillMenu = !ui.skillMenu; render(); return;
     case 'reloadlist': loadWarriors(); return;
+    case 'festeEnter': {
+      if (!s) return;
+      if (!enterFeste(s, todayKey())) { say('Heute kommst du nicht hinein.', 'warn'); render(); return; }
+      ui.flash = []; saveGame(s); scheduleSync(); render(); window.scrollTo(0, 0);
+      return;
+    }
+    case 'feste': {
+      if (!s || !s.feste) return;
+      moveFeste(s, a as Dir);
+      ui.flash = [];
+      commit();
+      if (s.fight) window.scrollTo(0, 0);
+      return;
+    }
+    case 'festeLeave': if (!s) return; leaveFeste(s); commit(); return;
     case 'potion': {
       if (!s) return;
       const r = drinkPotion(s, a as PotionId);
@@ -1965,7 +2101,14 @@ function handle(act: string, el: HTMLElement): void {
         return;
       }
       if (!prefs.fightHint) { prefs.fightHint = true; savePrefs(prefs); }
-      closeFight(s);
+      if (s.fight?.kind === 'feste') {
+        const f = s.fight;
+        afterFesteFight(s, f.over, f.monsterId);
+        closeFight(s);
+        if (s.feste?.over === 'treasure') festeTreasureNews(s);
+        saveGame(s); scheduleSync();
+        if (a === 'feste') { go('feste'); return; }
+      } else closeFight(s);
       const target: Screen = a === 'forest' ? 'forest' : a === 'training' ? 'training' : a === 'shadows' ? 'shadows' : a === 'bonus' ? 'dragonBonus'
         : a === 'fields' ? 'fields' : a === 'inn' ? 'inn' : 'village';
       saveGame(s);
@@ -2085,6 +2228,12 @@ function onKey(e: KeyboardEvent): void {
     return;
   }
   if (e.key === 'Escape' && ui.menuOpen) { ui.menuOpen = false; render(); return; }
+  const arrow: Record<string, string> = { ArrowUp: 'n', ArrowRight: 'o', ArrowDown: 's', ArrowLeft: 'w' };
+  if (arrow[e.key] && currentScreen() === 'feste') {
+    const b = root.querySelector<HTMLButtonElement>(`[data-act="feste:${arrow[e.key]}"]:not(:disabled)`);
+    if (b) { e.preventDefault(); b.click(); }
+    return;
+  }
   const key = e.key.toLowerCase();
   const btn = root.querySelector<HTMLButtonElement>(`[data-hotkey="${CSS.escape(key)}"]:not(:disabled)`);
   if (btn) { e.preventDefault(); btn.click(); }

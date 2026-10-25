@@ -1,6 +1,7 @@
 import { MAX_LEVEL, expPerKill, maxHp, specialUsesPerDay } from '../game/balance';
 import { chance, roll } from '../game/rng';
 import { SPECIALTIES } from './specialties';
+import { FESTE_TEXT } from './feste';
 import type { GameState, LogLine, Player } from '../game/types';
 
 // Kleine Begegnungen im Wald statt eines Kampfes. Jede kostet einen Waldkampf.
@@ -29,6 +30,8 @@ export interface ForestEvent {
   id: string;
   weight: number;
   minLevel?: number;
+  /** Nur wenn das zutrifft (z. B. Feste noch nicht gefunden) */
+  when?: (p: Player) => boolean;
   run?: (p: Player, ctx: EventCtx) => LogLine[];
   prompt?: (p: Player, ctx: EventCtx) => LogLine[];
   choices?: EventChoice[];
@@ -422,6 +425,13 @@ export const FOREST_EVENTS: ForestEvent[] = [
     ] },
 
   // Damsel in distress: Jemand ruft aus einem alten Turm um Hilfe.
+  // Der Weg zur versunkenen Feste (wie das verlassene Schloss im Original): einmal gefunden, immer im Waldmenü.
+  { id: 'feste', weight: 15, minLevel: 5, when: (p) => !p.festeFound,
+    run: (p) => {
+      p.festeFound = true;
+      return [{ t: FESTE_TEXT.found, k: 'gold' }, { t: 'Ab jetzt findest du den Weg zur versunkenen Feste im Wald wieder.', k: 'good' }];
+    } },
+
   { id: 'turm', weight: 4,
     prompt: (p) => [{ t: `Aus einem efeubewachsenen Turm ruft jemand um Hilfe. Am Fenster siehst du ${p.gender === 'f' ? 'einen jungen Mann' : 'eine junge Frau'} winken. Die Tür ist mit einem dicken Riegel verschlossen.`, k: 'warn' }],
     choices: [
@@ -517,7 +527,7 @@ export const FOREST_EVENTS: ForestEvent[] = [
 ];
 
 function eligible(p: Player): ForestEvent[] {
-  return FOREST_EVENTS.filter((e) => !e.minLevel || p.level >= e.minLevel);
+  return FOREST_EVENTS.filter((e) => (!e.minLevel || p.level >= e.minLevel) && (!e.when || e.when(p)));
 }
 
 export function pickEvent(p: Player): ForestEvent {

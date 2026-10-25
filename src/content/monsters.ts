@@ -1,4 +1,5 @@
 import type { MonsterDef } from '../game/types';
+import { FESTE_FOES } from './feste';
 
 // Drei Gegner pro Stufe. Eigene Welt: der Brackenwald rund um das Dorf Moosgrund.
 
@@ -174,7 +175,7 @@ export function monstersOfLevel(level: number): MonsterDef[] {
 }
 
 export function monsterById(id: string): MonsterDef | undefined {
-  return MONSTERS.find((m) => m.id === id);
+  return MONSTERS.find((m) => m.id === id) ?? FESTE_FOES.find((m) => m.id === id);
 }
 
 export const DRAGON: MonsterDef = {
@@ -191,6 +192,7 @@ export const DRAGON: MonsterDef = {
 
 // Grammatisches Geschlecht für Artikel im Kampftext.
 const GENDER: Record<string, 'm' | 'f' | 'n'> = {
+  kellerratte: 'f', fledermausschwarm: 'm', farnspinne: 'f', moderskelett: 'n', gewoelbegeist: 'm', wyrmjaeger: 'm',
   moosratte: 'f', stechmuecken: 'm', wurzelgnom: 'm', borkenwolf: 'm', dornenkaefer: 'm', pilzling: 'm',
   sumpfkroete: 'f', kraehe: 'f', wilderer: 'm', keiler: 'm', nebelweberin: 'f', irrlicht: 'n',
   huegelkobold: 'm', moorschlange: 'f', eulenbaer: 'm', rudelfuehrer: 'm', rindenspinne: 'f',

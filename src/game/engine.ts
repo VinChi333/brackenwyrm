@@ -81,6 +81,7 @@ export function startNewDay(s: GameState): void {
   s.pendingEvent = null;
   p.innTalks = 0;
   p.ambrosGames = 0;
+  s.feste = null;
   p.seerPaid = false;
   p.innRoom = false;
   p.hp = maxHp(p);
@@ -164,8 +165,8 @@ export function forestSearch(s: GameState, mode: ForestMode): ForestResult {
   stats.atk += tough.atk; stats.def += tough.def; stats.hp += tough.hp;
   stats.maxHp = stats.hp;
   const bonus = 1 + 0.03 * (tough.atk + tough.def) + 0.001 * tough.hp;
-  const expR = Math.round(scaleVar(expPerKill(m.level)) * expMult * bonus);
-  const goldR = Math.round(goldPerKill(m.level) * between(0.6, 1.4) * goldMult * bonus * (p.race === 'zwerg' ? DWARF_GOLD : 1));
+  const expR = Math.round(scaleVar(expPerKill(m.level)) * expMult * bonus * (p.heirlooms?.includes('tagebuch') ? 1.05 : 1));
+  const goldR = Math.round(goldPerKill(m.level) * between(0.6, 1.4) * goldMult * bonus * (p.race === 'zwerg' ? DWARF_GOLD : 1) * (p.heirlooms?.includes('gluecksstein') ? 1.1 : 1));
   s.fight = makeFight('forest', m.id, m.name, stats, expR, goldR, m.intro);
   return { type: 'fight' };
 }
@@ -416,7 +417,12 @@ export function fightAction(s: GameState, action: FightAction): void {
   f.lastHeroDmg = 0; f.lastFoeDmg = 0; f.lastHeroMiss = false; f.lastFoeMiss = false; f.lastCrit = false; f.lastSpecial = false;
 
   if (action === 'flee') {
-    const odds = f.kind === 'forest' ? 0.5 : f.kind === 'dragon' || f.kind === 'grave' ? 0.33 : 1;
+    if (f.kind === 'feste' && f.monsterId === 'hueter') {
+      log.push({ t: 'Du drehst dich um, aber hinter dir ist das Tor zugefallen. Vor dem Hüter gibt es kein Entkommen.', k: 'warn' });
+      pushLog(f, log);
+      return;
+    }
+    const odds = f.kind === 'forest' || f.kind === 'feste' ? 0.5 : f.kind === 'dragon' || f.kind === 'grave' ? 0.33 : 1;
     if (f.kind === 'master') {
       log.push({ t: `Du gibst auf. ${f.foe.name} nickt verständnisvoll.`, k: 'info' });
       f.over = 'fled';
@@ -531,19 +537,19 @@ function winFight(s: GameState): void {
   const f = s.fight!;
   const p = s.player;
   f.over = 'win';
-  if (f.kind === 'forest') {
+  if (f.kind === 'forest' || f.kind === 'feste') {
     const m = monsterById(f.monsterId);
     p.exp += f.expReward;
     p.gold += f.goldReward;
     f.log.push({ t: m?.falls ?? 'Der Gegner fällt.', k: 'info' });
-    f.log.push({ t: `Du erhältst ${f.goldReward} Gold und ${f.expReward} Erfahrung.`, k: 'gold' });
+    f.log.push({ t: f.goldReward ? `Du erhältst ${f.goldReward} Gold und ${f.expReward} Erfahrung.` : `Du erhältst ${f.expReward} Erfahrung.`, k: 'gold' });
     s.stats.kills += 1;
     const before = s.bestiary[f.monsterId] ?? 0;
     s.bestiary[f.monsterId] = before + 1;
     if (!before) f.log.push({ t: `Neue Karte im Bestiarium: ${f.foe.name}!`, k: 'gold' });
     if (chance(GEM_DROP_CHANCE)) {
       p.gems += 1;
-      f.log.push({ t: 'Im Farn glitzert etwas: ein Edelstein!', k: 'gold' });
+      f.log.push({ t: f.kind === 'feste' ? 'Zwischen den Steinen glitzert etwas: ein Edelstein!' : 'Im Farn glitzert etwas: ein Edelstein!', k: 'gold' });
     }
   } else if (f.kind === 'grave') {
     const sh = shadeById(f.monsterId);
@@ -615,8 +621,10 @@ function loseFight(s: GameState): void {
     s.stats.lastDeathDay = s.day;
     f.log.push({ t: 'Dir wird schwarz vor Augen. Du sinkst ins Moos …', k: 'bad' });
     f.log.push({ t: `Du verlierst ${lostGold} Gold und ${lostExp} Erfahrung.`, k: 'bad' });
-    s.news.push(f.kind === 'dragon' ? 'Der Brackenwyrm hat dich besiegt.' : `Du bist im Wald gefallen.`);
-    announce(s, f.kind === 'dragon' ? `${p.name} ist in der Farnschlucht vom Brackenwyrm verschlungen worden.` : `${p.name} wurde im Brackenwald von ${datIndef(f.monsterId, f.foe.name)} besiegt.`);
+    s.news.push(f.kind === 'dragon' ? 'Der Brackenwyrm hat dich besiegt.' : f.kind === 'feste' ? 'Du bist in der versunkenen Feste gefallen.' : `Du bist im Wald gefallen.`);
+    announce(s, f.kind === 'dragon' ? `${p.name} ist in der Farnschlucht vom Brackenwyrm verschlungen worden.`
+      : f.kind === 'feste' ? (f.monsterId === 'hueter' ? `${p.name} ist in der versunkenen Feste am Hüter gescheitert.` : `${p.name} wurde in der versunkenen Feste von ${datIndef(f.monsterId, f.foe.name)} besiegt.`)
+      : `${p.name} wurde im Brackenwald von ${datIndef(f.monsterId, f.foe.name)} besiegt.`);
   }
   pushLog(f, []);
 }

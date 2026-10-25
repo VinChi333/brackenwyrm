@@ -58,7 +58,7 @@ export interface Combatant {
   def: number;
 }
 
-export type FightKind = 'forest' | 'master' | 'dragon' | 'grave' | 'pvp';
+export type FightKind = 'forest' | 'master' | 'dragon' | 'grave' | 'pvp' | 'feste';
 
 export interface Buff {
   id?: string;            // gleiche id ersetzt den alten Effekt
@@ -174,6 +174,11 @@ export interface Player {
   potionHp?: number;           // dauerhafte Lebenspunkte aus Quirins Lebenstränken (bleiben über Drachenkills)
   seerPaid?: boolean;          // heute bei der Seherin bezahlt (Gespräch mit den Toten)
   pendingChoice?: 'spec' | 'race' | '';  // nach Vergessens- oder Verwandlungstrank: neue Wahl steht aus
+  festeFound?: boolean;        // den Weg zur versunkenen Feste gefunden
+  festeDay?: string;           // an diesem Tag schon in der Feste gewesen
+  festeScrolls?: number;       // gelesene Schriftrollen der Wyrmjäger
+  festeTreasures?: number;     // wie oft den Schatz gehoben
+  heirlooms?: string[];        // Erbstücke der Wyrmjäger (bleiben für immer)
 }
 
 export type DragonPoint = 'atk' | 'def' | 'hp' | 'ff';
@@ -201,6 +206,22 @@ export interface PendingEvent {
   data?: number;          // z. B. welches Rätsel gestellt wurde
 }
 
+/** Ein Ausflug in die versunkene Feste (Regeln in game/feste.ts). */
+export interface FesteRun {
+  day: string;
+  pos: number;
+  from: number;            // vorheriges Feld (für die Flucht)
+  light: number;
+  seen: number[];
+  done: number[];          // erledigte Felder (Truhe geöffnet, Gegner besiegt …)
+  bossDown: boolean;
+  over: '' | 'left' | 'dark' | 'dead' | 'treasure';
+  log: LogLine[];
+  gold: number;            // Ausbeute dieses Ausflugs
+  gems: number;
+  heirloom?: string;
+}
+
 export interface GameState {
   v: 1;
   savedAt?: number;        // Zeitpunkt des letzten Speicherns (ms), für den Abgleich mit dem Server
@@ -216,5 +237,6 @@ export interface GameState {
   chronicle: ChronicleEntry[];  // die letzten Kämpfe, neuester zuerst
   outbox: string[];             // Tagesneuigkeiten, die noch an den Server gehen
   pendingEvent: PendingEvent | null;
+  feste?: FesteRun | null;      // laufender Ausflug in die versunkene Feste
   settings: { retro: boolean; reducedMotion: boolean };
 }

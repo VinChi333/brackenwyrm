@@ -34,7 +34,7 @@ const admin = (sql, params = []) => { const p = queue.then(() => db.query(sql, p
 const COLS = {
   saves: ['user_id', 'data', 'saved_at'],
   profiles: ['user_id', 'name', 'level', 'dragon_kills', 'gender'],
-  fighters: ['user_id', 'name', 'specialty', 'race', 'gender', 'level', 'exp', 'gold', 'hp', 'base_max_hp', 'bonus_atk', 'bonus_def', 'weapon_tier', 'armor_tier', 'dragon_kills', 'days_played', 'alive', 'in_inn', 'bio', 'mount', 'married_to'],
+  fighters: ['user_id', 'name', 'specialty', 'race', 'gender', 'level', 'exp', 'gold', 'hp', 'base_max_hp', 'bonus_atk', 'bonus_def', 'weapon_tier', 'armor_tier', 'dragon_kills', 'days_played', 'alive', 'in_inn', 'bio', 'mount', 'married_to', 'heirlooms'],
   news: ['body'],
   commentary: ['section', 'body'],
   mail: ['to_user', 'subject', 'body'],

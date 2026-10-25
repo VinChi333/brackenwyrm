@@ -11,7 +11,7 @@ const SFX_URL: Record<string, string> = Object.fromEntries(
 export type SfxId = 'hit' | 'crit' | 'miss' | 'hurt' | 'win' | 'death' | 'coins' | 'gem' | 'levelup' | 'card'
   | 'dunkel' | 'mystik' | 'dieb' | 'click' | 'event' | 'letter' | 'buy' | 'open';
 
-export type TrackId = 'titel' | 'dorf' | 'wald' | 'kampf' | 'gasthaus' | 'schattenreich' | 'drache';
+export type TrackId = 'titel' | 'dorf' | 'wald' | 'kampf' | 'gasthaus' | 'schattenreich' | 'drache' | 'feste';
 
 export interface SoundPrefs { musicVol: number; sfxVol: number; muted: boolean }
 

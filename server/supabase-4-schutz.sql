@@ -14,6 +14,7 @@
 --        insert into public.admins (user_id) select id from auth.users where email = 'deine@email.at' on conflict do nothing;
 --   5. Konto löschen: Spieler können ihr Konto samt allen Daten selbst löschen.
 --   6. Das Denkmal im Dorf kommt jetzt vom Server (der zuletzt geprüfte Drachentöter).
+--   7. Neue Orte: Wyrmstein und Rosengarten, Erbstücke aus der versunkenen Feste.
 
 -- =============================================================================================
 -- 1. Wortfilter
@@ -244,6 +245,11 @@ alter table public.commentary add column if not exists hidden boolean not null d
 drop policy if exists "Dorfplatz lesen (alle)" on public.commentary;
 create policy "Dorfplatz lesen (alle)" on public.commentary for select to anon, authenticated using (not hidden);
 
+-- Erbstücke der Wyrmjäger (aus der versunkenen Feste), im Steckbrief sichtbar.
+alter table public.fighters add column if not exists heirlooms text not null default '' check (char_length(heirlooms) <= 200);
+grant insert (heirlooms) on public.fighters to authenticated;
+grant update (heirlooms) on public.fighters to authenticated;
+
 -- Neue Gesprächsorte: der Wyrmstein (nur Drachentöter dürfen reden) und der Rosengarten.
 alter table public.commentary drop constraint if exists commentary_section_check;
 alter table public.commentary add constraint commentary_section_check check (section in ('dorfplatz', 'gasthaus', 'schattenreich', 'felsen', 'garten'));
@@ -349,11 +355,11 @@ end $$;
 drop function if exists public.warriors();
 create or replace function public.warriors()
 returns table (user_id uuid, name text, gender text, level int, race text, specialty text, dragon_kills int, alive boolean, online boolean, in_inn boolean, last_seen timestamptz,
-               bio text, mount text, married_to text, days_played int)
+               bio text, mount text, married_to text, days_played int, heirlooms text)
 language sql stable security definer set search_path = public as $$
   select f.user_id, f.name, f.gender, f.level, f.race, f.specialty, f.dragon_kills, f.alive,
          f.last_seen > now() - interval '5 minutes', f.in_inn, f.last_seen,
-         case when f.bio_hidden then '' else f.bio end, f.mount, f.married_to, f.days_played
+         case when f.bio_hidden then '' else f.bio end, f.mount, f.married_to, f.days_played, f.heirlooms
   from public.fighters f
   where not f.banned
   order by f.dragon_kills desc, f.level desc, f.name

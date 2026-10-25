@@ -47,7 +47,7 @@ export function soulRestoreCost(p: Player): number {
 }
 
 export function maxHp(p: Player): number {
-  return 10 + 10 * p.level + p.baseMaxHp + (p.potionHp ?? 0);
+  return 10 + 10 * p.level + p.baseMaxHp + (p.potionHp ?? 0) + (p.heirlooms?.includes('amulett') ? 5 : 0);
 }
 
 /** Rassenvorteil für Troll (Angriff) und Elf (Verteidigung), wie im Original: 1 + Stufe/5. */
@@ -56,11 +56,11 @@ export function raceBonus(p: Pick<Player, 'level'>): number {
 }
 
 export function attack(p: Player): number {
-  return 3 + 2 * p.level + WEAPONS[p.weaponTier].value + p.bonusAtk + (p.race === 'troll' ? raceBonus(p) : 0);
+  return 3 + 2 * p.level + WEAPONS[p.weaponTier].value + p.bonusAtk + (p.race === 'troll' ? raceBonus(p) : 0) + (p.heirlooms?.includes('klinge') ? 1 : 0);
 }
 
 export function defense(p: Player): number {
-  return 3 + 2 * p.level + ARMORS[p.armorTier].value + p.bonusDef + (p.race === 'elf' ? raceBonus(p) : 0);
+  return 3 + 2 * p.level + ARMORS[p.armorTier].value + p.bonusDef + (p.race === 'elf' ? raceBonus(p) : 0) + (p.heirlooms?.includes('schild') ? 1 : 0);
 }
 
 /** Fähigkeitspunkte pro Tag wie im Original: ein Punkt fürs Interesse, plus einer je drei Fähigkeitsstufen. */
@@ -177,8 +177,8 @@ export function dragonStats(): Omit<Combatant, 'name'> {
 
 // ---------- Drachen-Neustart (wie im Original) ----------
 /** Waldkämpfe pro Tag inklusive Drachenpunkten. */
-export function forestFightsPerDay(p: { bonusFights?: number; race?: string; mount?: MountId | '' }): number {
-  return FOREST_FIGHTS_PER_DAY + (p.bonusFights ?? 0) + (p.race === 'mensch' ? 1 : 0) + (p.mount ? MOUNTS[p.mount].fights : 0);
+export function forestFightsPerDay(p: { bonusFights?: number; race?: string; mount?: MountId | ''; heirlooms?: string[] }): number {
+  return FOREST_FIGHTS_PER_DAY + (p.bonusFights ?? 0) + (p.race === 'mensch' ? 1 : 0) + (p.mount ? MOUNTS[p.mount].fights : 0) + (p.heirlooms?.includes('jagdhorn') ? 1 : 0);
 }
 /** Startgold nach einem Drachenkill: 50 plus 50 je Drachenkill, höchstens 300. */
 export function restartGold(dragonKills: number): number {

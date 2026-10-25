@@ -74,6 +74,13 @@ export function validate(x: unknown): GameState | null {
   s.player.potionHp = Math.max(0, Math.floor(Number(s.player.potionHp) || 0));
   s.player.seerPaid = !!s.player.seerPaid;
   s.player.pendingChoice = s.player.pendingChoice === 'spec' || s.player.pendingChoice === 'race' ? s.player.pendingChoice : '';
+  s.player.festeFound = !!s.player.festeFound;
+  s.player.festeDay = typeof s.player.festeDay === 'string' ? s.player.festeDay : '';
+  s.player.festeScrolls = Math.max(0, Math.floor(Number(s.player.festeScrolls) || 0));
+  s.player.festeTreasures = Math.max(0, Math.floor(Number(s.player.festeTreasures) || 0));
+  s.player.heirlooms = Array.isArray(s.player.heirlooms) ? [...new Set(s.player.heirlooms.filter((h) => typeof h === 'string'))].slice(0, 8) : [];
+  const fr = s.feste;
+  s.feste = fr && typeof fr === 'object' && typeof fr.day === 'string' && Number.isInteger(fr.pos) && Array.isArray(fr.seen) && Array.isArray(fr.done) && Array.isArray(fr.log) ? fr : null;
   if (s.player.loverPref !== 'frieda' && s.player.loverPref !== 'florian') delete s.player.loverPref;
   s.outbox = Array.isArray(s.outbox) ? s.outbox.slice(-20) : [];
   s.stats = Object.assign(newStats(1), s.stats ?? {});

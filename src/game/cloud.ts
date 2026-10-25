@@ -23,7 +23,7 @@ export interface PvpResult {
 }
 export interface PvpEvent { id: number; kind: 'slain' | 'defended' | 'haunted'; other_name: string; place: string; gold: number; exp: number; created_at: string }
 export interface NewsRow { created_at: string; body: string }
-export interface WarriorRow { userId: string; name: string; gender: Gender; level: number; race: RaceId; specialty: SpecialtyId; dragonKills: number; alive: boolean; online: boolean; inInn: boolean; lastSeen: string; bio: string; mount: string; marriedTo: string; daysPlayed: number }
+export interface WarriorRow { userId: string; name: string; gender: Gender; level: number; race: RaceId; specialty: SpecialtyId; dragonKills: number; alive: boolean; online: boolean; inInn: boolean; lastSeen: string; bio: string; mount: string; marriedTo: string; daysPlayed: number; heirlooms: string[] }
 export interface MailRow { id: number; created_at: string; from_user: string | null; from_name: string; subject: string; body: string; seen: boolean }
 export interface CommentRow { id: number; created_at: string; name: string; body: string; user_id?: string }
 export type ReportKind = 'chat' | 'brief' | 'steckbrief' | 'name';
@@ -142,19 +142,21 @@ export class Cloud {
       weapon_tier: p.weaponTier, armor_tier: p.armorTier, dragon_kills: p.dragonKills, days_played: state.stats.realDays,
       alive: p.alive, in_inn: p.alive && p.innRoom,
       bio: (p.bio ?? '').slice(0, 400), mount: p.mount, married_to: p.marriedTo,
+      heirlooms: (p.heirlooms ?? []).join(','),
     };
     const send = (b: object) => this.call('/rest/v1/fighters', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: b });
     // Ältere Datenbanken kennen manche Spalten noch nicht: dann Schritt für Schritt einfacher speichern.
-    const { bio: _b, mount: _m, married_to: _w, ...noBio } = body;
+    const { heirlooms: _h, ...noHeir } = body;
+    const { bio: _b, mount: _m, married_to: _w, ...noBio } = noHeir;
     const { race: _r, ...noRace } = noBio;
-    const attempts: Record<string, unknown>[] = [body, noBio, { ...noRace, specialty: LEGACY_REVERSE[p.specialty] }];
+    const attempts: Record<string, unknown>[] = [body, noHeir, noBio, { ...noRace, specialty: LEGACY_REVERSE[p.specialty] }];
     for (let i = 0; i < attempts.length; i++) {
       try {
         await send(attempts[i]);
         return;
       } catch (e) {
         if (e instanceof CloudError && /404|42P01|PGRST205/.test(e.message)) return;  // Tabelle gibt es (noch) nicht
-        const schemaError = e instanceof CloudError && /bio|mount|married|race|PGRST204|42703|42501|23514|check/i.test(e.message) && e.code === 'server';
+        const schemaError = e instanceof CloudError && /heirlooms|bio|mount|married|race|PGRST204|42703|42501|23514|check/i.test(e.message) && e.code === 'server';
         if (!schemaError || i === attempts.length - 1) throw e;
       }
     }
@@ -240,7 +242,7 @@ export class Cloud {
       return (Array.isArray(rows) ? rows : []).map((r: Record<string, unknown>) => ({
         userId: String(r.user_id), name: String(r.name), gender: r.gender === 'f' ? 'f' : 'm', level: Number(r.level), race: normalizeRace(r.race),
         specialty: normalizeSpecialty(r.specialty), dragonKills: Number(r.dragon_kills), alive: !!r.alive, online: !!r.online, inInn: !!r.in_inn, lastSeen: String(r.last_seen),
-        bio: String(r.bio ?? ''), mount: String(r.mount ?? ''), marriedTo: String(r.married_to ?? ''), daysPlayed: Number(r.days_played ?? 0),
+        bio: String(r.bio ?? ''), mount: String(r.mount ?? ''), marriedTo: String(r.married_to ?? ''), daysPlayed: Number(r.days_played ?? 0), heirlooms: String(r.heirlooms ?? '').split(',').filter(Boolean),
       }));
     } catch (e) {
       if (this.missingPart3(e)) throw new CloudError('server', 'Die Kriegerliste ist auf dem Server noch nicht eingerichtet (Teil 3).');
