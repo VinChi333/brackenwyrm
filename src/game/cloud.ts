@@ -138,7 +138,7 @@ export class Cloud {
     const p = state.player;
     const body: Record<string, unknown> = {
       user_id: s.userId, name: p.name, specialty: p.specialty, race: p.race, gender: p.gender, level: p.level, exp: Math.max(0, Math.round(p.exp)),
-      gold: Math.max(0, p.gold), hp: Math.max(0, p.hp), base_max_hp: p.baseMaxHp, bonus_atk: p.bonusAtk, bonus_def: p.bonusDef,
+      gold: Math.max(0, p.gold), hp: Math.max(0, p.hp), base_max_hp: p.baseMaxHp + (p.potionHp ?? 0), bonus_atk: p.bonusAtk, bonus_def: p.bonusDef,
       weapon_tier: p.weaponTier, armor_tier: p.armorTier, dragon_kills: p.dragonKills, days_played: state.stats.realDays,
       alive: p.alive, in_inn: p.alive && p.innRoom,
       bio: (p.bio ?? '').slice(0, 400), mount: p.mount, married_to: p.marriedTo,

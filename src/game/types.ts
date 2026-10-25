@@ -171,6 +171,9 @@ export interface Player {
   hauntedBy?: string;          // von einem Geist heimgesucht: morgen früh weniger Waldkämpfe
   bio?: string;                // eigener Text für den Steckbrief
   ambrosGames?: number;        // Zahlenraten mit Ambros heute
+  potionHp?: number;           // dauerhafte Lebenspunkte aus Quirins Lebenstränken (bleiben über Drachenkills)
+  seerPaid?: boolean;          // heute bei der Seherin bezahlt (Gespräch mit den Toten)
+  pendingChoice?: 'spec' | 'race' | '';  // nach Vergessens- oder Verwandlungstrank: neue Wahl steht aus
 }
 
 export type DragonPoint = 'atk' | 'def' | 'hp' | 'ff';

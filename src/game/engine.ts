@@ -81,6 +81,7 @@ export function startNewDay(s: GameState): void {
   s.pendingEvent = null;
   p.innTalks = 0;
   p.ambrosGames = 0;
+  p.seerPaid = false;
   p.innRoom = false;
   p.hp = maxHp(p);
   p.soul = maxSoul(p);
@@ -653,6 +654,7 @@ export function chooseDragonBonus(s: GameState, bonus: DragonBonus, specialty?: 
   if (specialty && SPECIALTIES[specialty]) p.specialty = specialty;
   if (race && RACES[race]) p.race = race;
   p.skill = 0;
+  p.pendingChoice = '';
   p.charm += CHARM_PER_DRAGON;
   p.level = 1;
   p.exp = 0;

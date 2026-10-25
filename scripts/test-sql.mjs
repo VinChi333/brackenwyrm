@@ -251,7 +251,7 @@ ok(r.rows[0].dragon_kills === 7, 'Speichern über "anlegen oder ändern" lässt 
 await as(A, `update public.fighters set gold = 99999999, exp = 99999999, weapon_tier = 15, bonus_atk = 50, bonus_def = 50, base_max_hp = 9999 where user_id = '${A}'`);
 r = await db.query(`select gold, exp, weapon_tier, bonus_atk, bonus_def, base_max_hp, public.f_exp_needed(5, 7) need from public.fighters where user_id = '${A}'`);
 const g = r.rows[0];
-ok(g.gold === 30000 && g.exp === 3 * g.need + 1000 && g.weapon_tier === 10 && g.bonus_atk === 7 && g.bonus_def === 0 && g.base_max_hp === 85, `Gold, Erfahrung, Waffe, Drachenpunkte gekappt (${g.gold}, ${g.exp}, ${g.weapon_tier}, ${g.bonus_atk}/${g.bonus_def}, ${g.base_max_hp})`);
+ok(g.gold === 30000 && g.exp === 3 * g.need + 1000 && g.weapon_tier === 10 && g.bonus_atk === 7 && g.bonus_def === 0 && g.base_max_hp === 285, `Gold, Erfahrung, Waffe, Drachenpunkte gekappt (${g.gold}, ${g.exp}, ${g.weapon_tier}, ${g.bonus_atk}/${g.bonus_def}, ${g.base_max_hp})`);
 await as(A, `update public.fighters set days_played = 900 where user_id = '${A}'`);
 r = await db.query(`select days_played from public.fighters where user_id = '${A}'`);
 ok(r.rows[0].days_played <= 12, 'Spieltage können nicht springen: ' + r.rows[0].days_played);
@@ -346,6 +346,18 @@ await as(C, `select public.mod_decide('name', 0, '${A}', 'ok')`);
 await as(A, `update public.fighters set name = 'Angreifer' where user_id = '${A}'`);
 r = await db.query(`select name from public.fighters where user_id = '${A}'`);
 ok(r.rows[0].name === 'Angreifer', 'nach Fehlalarm gilt der eigene Name wieder');
+
+// ---------- Neue Gesprächsorte ----------
+await db.exec(`update public.commentary set created_at = now() - interval '1 minute'; update public.fighters set dragon_kills = 0 where user_id = '${B}'`);
+await as(A, `insert into public.commentary (section, body) values ('garten', 'Schöne Rosen hier.')`);
+r = await db.query(`select count(*)::int n from public.commentary where section = 'garten'`);
+ok(r.rows[0].n === 1, 'Gespräch im Rosengarten');
+let rock = false; try { await as(B, `insert into public.commentary (section, body) values ('felsen', 'Darf ich auch?')`); } catch (e) { rock = /Drachentöter/.test(e.message); }
+ok(rock, 'am Wyrmstein reden nur Drachentöter');
+await db.exec(`update public.commentary set created_at = now() - interval '1 minute'`);
+await as(A, `insert into public.commentary (section, body) values ('felsen', 'Sieben Drachen, und keiner war leicht.')`);
+r = await db.query(`select count(*)::int n from public.commentary where section = 'felsen'`);
+ok(r.rows[0].n === 1, 'Drachentöter reden am Wyrmstein');
 
 // ---------- Teil 4: Konto löschen ----------
 await db.exec(`update public.mail set created_at = now() - interval '1 minute'`);

@@ -47,7 +47,7 @@ export function soulRestoreCost(p: Player): number {
 }
 
 export function maxHp(p: Player): number {
-  return 10 + 10 * p.level + p.baseMaxHp;
+  return 10 + 10 * p.level + p.baseMaxHp + (p.potionHp ?? 0);
 }
 
 /** Rassenvorteil für Troll (Angriff) und Elf (Verteidigung), wie im Original: 1 + Stufe/5. */

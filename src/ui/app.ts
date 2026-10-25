@@ -31,6 +31,7 @@ import { Cloud, CloudError } from '../game/cloud';
 import type { BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
 import { censor, isClean } from '../content/badwords';
 import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
+import { POTIONS, chooseNewRace, chooseNewSpecialty, drinkPotion, paySeer, seerCost, type PotionId } from '../game/shops';
 import { AMBROS_GAMES_PER_DAY, AMBROS_TRIES, ambrosBets, guessAmbros, startAmbros, type AmbrosGame } from '../game/ambros';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
@@ -42,12 +43,13 @@ import { sound, type TrackId } from './audio';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros'
-  | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount';
+  | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount'
+  | 'quirin' | 'seer' | 'felsen' | 'garten';
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = 'Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.';
-const VERSION = 'Testversion 0.34';
+const VERSION = 'Testversion 0.35';
 
 interface Ui {
   screen: Screen;
@@ -103,7 +105,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -358,12 +360,20 @@ function villageScreen(s: GameState): string {
       { act: 'go:inn', label: 'Gasthaus', key: 'g' },
       { act: 'go:bank', label: 'Kontor', key: 'k', hint: p.bank ? `${p.bank} Gold` : '' },
       { act: 'go:stable', label: 'Mertens Pferdestall', key: 'p', hint: p.mount ? MOUNTS[p.mount].name : '' },
+      { act: 'go:quirin', label: 'Quirins Tränke', key: 'q', hint: p.pendingChoice ? 'du musst dich entscheiden' : p.gems ? `${p.gems} Edelstein${p.gems === 1 ? '' : 'e'}` : '' },
+    ] },
+    { title: 'Am Dorfrand', items: [
+      ...(cloud.enabled ? [{ act: 'go:seer', label: 'Das Zelt der Seherin', key: 'z', hint: p.seerPaid ? 'bezahlt' : 'mit den Toten reden' }] : []),
+      { act: 'go:ambros', label: 'Der alte Ambros', key: 'a', hint: (p.ambrosGames ?? 0) >= AMBROS_GAMES_PER_DAY ? 'schläft' : 'Zahlenraten' },
+      ...(cloud.enabled ? [
+        { act: 'go:garten', label: 'Der Rosengarten', key: 'o' },
+        { act: 'go:felsen', label: 'Der Wyrmstein', key: 'y', hint: p.dragonKills ? 'Drachentöter' : '' },
+      ] : []),
     ] },
     { title: 'Sonstiges', items: [
       { act: 'go:bestiary', label: 'Bestiarium', key: 'b', hint: `${found} / ${MONSTERS.length}` },
       ...(cloud.enabled ? [{ act: 'go:news', label: 'Tagesneuigkeiten', key: 'n' }] : []),
       { act: 'go:fame', label: 'Ruhmeshalle', key: 'r' },
-      { act: 'go:ambros', label: 'Der alte Ambros', key: 'a', hint: (p.ambrosGames ?? 0) >= AMBROS_GAMES_PER_DAY ? 'schläft' : 'Zahlenraten' },
       ...(cloud.enabled ? [
         { act: 'go:warriors', label: 'Kriegerliste', key: 'l', hint: cloud.signedIn ? '' : 'nur mit Spielerkonto', disabled: !cloud.signedIn },
         { act: 'go:mail', label: 'Briefe', key: 'i', hint: !cloud.signedIn ? 'nur mit Spielerkonto' : ui.unread ? `${ui.unread} neu` : '', disabled: !cloud.signedIn },
@@ -729,7 +739,8 @@ function chronicleScreen(s: GameState): string {
 const SCREEN_NAMES: Partial<Record<Screen, string>> = {
   village: 'Dorfplatz', forest: 'Wald', fight: 'Kampf', training: 'Trainingsplatz', healer: 'Kräuterhütte', smith: 'Schmiede',
   bank: 'Kontor', inn: 'Gasthaus', bestiary: 'Bestiarium', fame: 'Ruhmeshalle', chronicle: 'Kampfchronik', settings: 'Einstellungen',
-  shadows: 'Schattenreich', dragonBonus: 'Drachenkill',
+  shadows: 'Schattenreich', dragonBonus: 'Drachenkill', quirin: 'Quirins Tränke', seer: 'Seherin', felsen: 'Wyrmstein', garten: 'Rosengarten',
+  stable: 'Pferdestall', ambros: 'Ambros', warriors: 'Kriegerliste', mail: 'Briefe', bio: 'Steckbrief',
 };
 
 function buildFeedback(s: GameState): string {
@@ -846,11 +857,13 @@ function newsScreen(s: GameState): string {
   return layout(s, main, [{ title: 'Zurück', items: [back] }]);
 }
 
-type ChatSection = 'dorfplatz' | 'gasthaus' | 'schattenreich';
-const CHAT: Record<ChatSection, { title: string; empty: string; screen: Screen; place: string }> = {
-  dorfplatz: { title: 'Auf dem Dorfplatz', empty: 'Auf dem Dorfplatz ist es still. Sag doch was.', screen: 'village', place: 'Dorfplatz' },
-  gasthaus: { title: 'Am Tresen', empty: 'Am Tresen schweigt man heute. Frieda poliert Gläser.', screen: 'inn', place: 'Tresen' },
-  schattenreich: { title: 'Flüstern am Nebelfluss', empty: 'Nur der Fluss rauscht. Flüstere den anderen Seelen etwas zu.', screen: 'shadows', place: 'Nebelfluss' },
+type ChatSection = 'dorfplatz' | 'gasthaus' | 'schattenreich' | 'felsen' | 'garten';
+const CHAT: Record<ChatSection, { title: string; empty: string; screens: Screen[]; place: string; hint?: string }> = {
+  dorfplatz: { title: 'Auf dem Dorfplatz', empty: 'Auf dem Dorfplatz ist es still. Sag doch was.', screens: ['village'], place: 'Dorfplatz' },
+  gasthaus: { title: 'Am Tresen', empty: 'Am Tresen schweigt man heute. Frieda poliert Gläser.', screens: ['inn'], place: 'Tresen' },
+  schattenreich: { title: 'Flüstern am Nebelfluss', empty: 'Nur der Fluss rauscht. Flüstere den anderen Seelen etwas zu.', screens: ['shadows', 'seer'], place: 'Nebelfluss' },
+  felsen: { title: 'Am Wyrmstein', empty: 'Die Drachentöter schweigen heute. Erzähl doch, wie dein letzter Kampf war.', screens: ['felsen'], place: 'Wyrmstein', hint: 'Erzähl von deinen Taten …' },
+  garten: { title: 'Im Rosengarten', empty: 'Nur die Bienen summen. Setz dich auf eine Bank und sag etwas.', screens: ['garten'], place: 'Rosengarten', hint: 'Flüstere etwas zwischen den Rosen …' },
 };
 
 /** Gespräche wie im Original: Dorfplatz, Gasthaus und Schattenreich haben jeweils ihre eigene Runde. */
@@ -861,7 +874,7 @@ function squareHtml(section: ChatSection = 'dorfplatz'): string {
     : sq.comments.length ? sq.comments.filter((x) => !(x.user_id && ui.blocked.has(x.user_id))).reverse().map((x) => `<p class="say"><span class="npc">${esc(x.name)}</span> <span class="muted">${when(x.created_at)}</span>${reportBtn('chat', x.id, x.user_id)}<br>${esc(x.body)}</p>`).join('')
     : `<p class="muted">${c.empty}</p>`;
   const input = cloud.signedIn
-    ? `<div class="row say-row"><input type="text" id="say" data-section="${section}" maxlength="200" placeholder="${section === 'schattenreich' ? 'Flüstere etwas …' : 'Sag etwas …'}" value="${esc(ui.sayText)}" aria-label="Spruch für ${c.place}"><button type="button" class="tbtn" data-act="say:${section}">${section === 'schattenreich' ? 'Flüstern' : 'Sagen'}</button></div>`
+    ? `<div class="row say-row"><input type="text" id="say" data-section="${section}" maxlength="200" placeholder="${c.hint ?? (section === 'schattenreich' ? 'Flüstere etwas …' : 'Sag etwas …')}" value="${esc(ui.sayText)}" aria-label="Spruch für ${c.place}"><button type="button" class="tbtn" data-act="say:${section}">${section === 'schattenreich' ? 'Flüstern' : 'Sagen'}</button></div>`
     : '<p class="muted">Mit einem Spielerkonto kannst du hier mitreden (Einstellungen).</p>';
   return `<section class="square ${section}"><h2>${c.title}</h2>${list}${sq.error ? `<p class="warn">${esc(sq.error)}</p>` : ''}${input}</section>`;
 }
@@ -891,7 +904,7 @@ function loadSquare(section: ChatSection = 'dorfplatz', force = false): void {
   if (!cloud.enabled || sq.loading || (!force && Date.now() - sq.at < 20_000)) return;
   sq.loading = true;
   cloud.comments(section, 12).then((rows) => { sq.comments = rows; sq.error = ''; }, () => { sq.comments = sq.comments ?? []; })
-    .finally(() => { sq.loading = false; sq.at = Date.now(); if (currentScreen() === CHAT[section].screen) render(); });
+    .finally(() => { sq.loading = false; sq.at = Date.now(); if (CHAT[section].screens.includes(currentScreen())) render(); });
 }
 
 function loadTargets(place: 'felder' | 'gasthaus'): void {
@@ -983,6 +996,74 @@ function bioScreen(s: GameState): string {
     ] }]),
     { title: 'Zurück', items: [back] },
   ]);
+}
+
+function quirinScreen(s: GameState): string {
+  const p = s.player;
+  const choice = p.pendingChoice === 'spec'
+    ? `<section class="good-box"><h2>Was hast du als Kind gelernt?</h2><p>Wähle deine neue Fähigkeit. Deine Fähigkeitspunkte bleiben dir.</p>${specChoices(p.specialty, 'newspec')}</section>`
+    : p.pendingChoice === 'race'
+      ? `<section class="good-box"><h2>Was wirst du?</h2><p>Wähle deine neue Gestalt.</p>${raceChoices(p.race, p.specialty, p.gender, 'newrace')}</section>`
+      : '';
+  const main = `<h1>Quirins Tränke</h1>
+    <p class="lead">Im schiefen Häuschen hinter dem Brunnen blubbert es aus hundert Kolben. Der Alchemist <span class="npc">Quirin</span> schiebt die Brille hoch. „Edelsteine gegen Tränke, so läuft das hier. Zwei pro Fläschchen. Nebenwirkungen auf eigene Gefahr.“</p>
+    ${flashHtml()}
+    ${choice}
+    <ul class="potions">${POTIONS.map((pt) => `<li><strong>${pt.name}</strong> <span class="gem">${pt.gems} Edelsteine</span><br><span class="gold">${pt.effect}</span><br><small class="muted">${pt.blurb}</small></li>`).join('')}</ul>
+    <p class="muted">Du hast ${p.gems} Edelstein${p.gems === 1 ? '' : 'e'}${p.potionHp ? ` · durch Lebenstränke schon +${p.potionHp} Lebenspunkte` : ''}.</p>`;
+  return layout(s, main, [
+    { title: 'Trinken', items: POTIONS.map((pt, i) => ({
+      act: `potion:${pt.id}`, label: pt.name, key: String(i + 1), hint: `${pt.gems} Edelsteine`,
+      disabled: p.gems < pt.gems || (!!p.pendingChoice && (pt.id === 'vergessen' || pt.id === 'verwandlung')),
+    })) },
+    { title: 'Zurück', items: [back] },
+  ]);
+}
+
+function seerScreen(s: GameState): string {
+  const p = s.player;
+  const cost = seerCost(p.level);
+  const main = p.seerPaid
+    ? `<h1 class="shadow-title">In tiefer Trance</h1>
+      <p class="lead">Odas Kristallkugel beschlägt. Der Duft von Räucherwerk wird schwer, und plötzlich hörst du die Stimmen vom Nebelfluss, als stündest du am Ufer.</p>
+      ${flashHtml()}
+      ${squareHtml('schattenreich')}`
+    : `<h1>Das Zelt der Seherin</h1>
+      <p class="lead">Du duckst dich in ein buntes Zelt am Dorfrand. Hinter einer ziemlich fleckigen Kristallkugel sitzt die alte <span class="npc">Oda</span>. Man sagt, sie kann mit den Toten sprechen, und erstaunlich oft stimmt das sogar.</p>
+      <p>„Die Toten reden nur mit denen, die zahlen“, krächzt sie. „Für dich, ${p.gender === 'f' ? 'meine Hübsche' : 'mein Hübscher'}, nur lächerliche <span class="gold">${cost} Gold</span>. Für den ganzen Tag.“</p>
+      ${flashHtml()}`;
+  return layout(s, main, [
+    { title: 'Seherin', items: p.seerPaid ? [] : [{ act: 'seer', label: 'Bezahlen und mit den Toten reden', key: 'b', hint: `${cost} Gold`, disabled: p.gold < cost, primary: true }] },
+    { title: 'Zurück', items: [{ ...back, label: p.seerPaid ? 'Aus der Trance erwachen' : back.label }] },
+  ]);
+}
+
+function felsenScreen(s: GameState): string {
+  const p = s.player;
+  const fame = (ui.fame ?? []).filter((f) => f.dragonKills > 0).slice(0, 12);
+  const names = fame.length ? `<p class="carved">${fame.map((f) => `${esc(f.name)} <span class="muted">${f.dragonKills}×</span>`).join(' · ')}</p>` : '';
+  const main = p.dragonKills > 0
+    ? `<h1>Der Wyrmstein</h1>
+      <p class="lead">Hinter dem Denkmal ragt ein gewaltiger, moosbewachsener Felsen auf. Wer den Brackenwyrm einmal bezwungen hat, ritzt hier seinen Namen ein, und abends treffen sich die Drachentöter auf den flachen Steinen davor.</p>
+      ${names ? `<h2>In den Stein geritzt</h2>${names}` : ''}
+      ${flashHtml()}
+      ${squareHtml('felsen')}`
+    : `<h1>Ein großer Felsen</h1>
+      <p class="lead">Hinter dem Denkmal ragt ein gewaltiger, moosbewachsener Felsen auf. Ein paar Gestalten sitzen davor und reden leise. Als du näherkommst, verstummen sie und schauen durch dich hindurch, als wärst du Nebel.</p>
+      <p>Ein alter Mann am Wegrand murmelt: „Der Wyrmstein ist nur für die, die den Drachen gesehen haben. Und überlebt.“</p>
+      ${names ? `<h2>In den Stein geritzt</h2>${names}` : ''}
+      ${flashHtml()}`;
+  return layout(s, main, [{ title: 'Zurück', items: [back] }]);
+}
+
+function gartenScreen(s: GameState): string {
+  const p = s.player;
+  const main = `<h1>Der Rosengarten</h1>
+    <p class="lead">Hinter Mirlas Kräuterhütte führt ein schmaler Weg in einen verwunschenen Garten. Rosen ranken über alte Bögen, Bienen summen, und auf den Bänken sitzen Paare, die so tun, als würden sie nur die Blumen ansehen.</p>
+    ${p.marriedTo ? `<p class="muted">Du denkst an ${esc(PARTNERS[p.marriedTo].name)} und pflückst heimlich eine Rose.</p>` : ''}
+    ${flashHtml()}
+    ${squareHtml('garten')}`;
+  return layout(s, main, [{ title: 'Zurück', items: [back] }]);
 }
 
 function ambrosScreen(s: GameState): string {
@@ -1320,7 +1401,7 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!),
     impressum: () => legalScreen('impressum'), datenschutz: () => legalScreen('datenschutz'), wache: () => wacheScreen(s!), blocks: () => blocksScreen(s!), deleteAccount: () => deleteAccountScreen(s!),
   };
   root.innerHTML = views[scr]();
@@ -1330,6 +1411,9 @@ export function render(): void {
   if (scr === 'village') { loadSquare('dorfplatz'); checkMail(); loadStatue(); }
   if (scr === 'inn') loadSquare('gasthaus');
   if (scr === 'shadows') loadSquare('schattenreich');
+  if (scr === 'seer' && s?.player.seerPaid) loadSquare('schattenreich');
+  if (scr === 'felsen' && s && s.player.dragonKills > 0) loadSquare('felsen');
+  if (scr === 'garten') loadSquare('garten');
   // Der neueste Kampftext steht unten, also dorthin scrollen.
   const fl = root.querySelector<HTMLElement>('.battle .fight-log');
   if (fl) fl.scrollTop = fl.scrollHeight;
@@ -1340,7 +1424,7 @@ function trackFor(scr: Screen): TrackId {
   const s = state;
   if (scr === 'title' || scr === 'create' || scr === 'login' || !s) return 'titel';
   if (scr === 'fight' && s.fight) return s.fight.kind === 'dragon' ? 'drache' : s.fight.kind === 'grave' ? 'schattenreich' : 'kampf';
-  if (!s.player.alive || scr === 'shadows' || scr === 'haunt') return 'schattenreich';
+  if (!s.player.alive || scr === 'shadows' || scr === 'haunt' || (scr === 'seer' && s.player.seerPaid)) return 'schattenreich';
   if (scr === 'forest') return 'wald';
   if (scr === 'inn' || scr === 'flirt' || scr === 'innGuests') return 'gasthaus';
   return 'dorf';
@@ -1478,6 +1562,33 @@ function handle(act: string, el: HTMLElement): void {
     case 'menu': ui.menuOpen = !ui.menuOpen; render(); return;
     case 'skills': ui.skillMenu = !ui.skillMenu; render(); return;
     case 'reloadlist': loadWarriors(); return;
+    case 'potion': {
+      if (!s) return;
+      const r = drinkPotion(s, a as PotionId);
+      if (!r.ok) { say(r.why, 'warn'); render(); return; }
+      ui.flash = r.lines.map((t, i) => ({ t, k: i ? 'good' as const : 'info' as const }));
+      saveGame(s); scheduleSync(); render();
+      return;
+    }
+    case 'newspec': {
+      if (!s) return;
+      const msg = chooseNewSpecialty(s, a as SpecialtyId);
+      if (msg) { ui.flash = [{ t: msg, k: 'good' }]; saveGame(s); scheduleSync(); }
+      render(); return;
+    }
+    case 'newrace': {
+      if (!s) return;
+      const msg = chooseNewRace(s, a as RaceId);
+      if (msg) { ui.flash = [{ t: msg, k: 'good' }]; saveGame(s); scheduleSync(); }
+      render(); return;
+    }
+    case 'seer': {
+      if (!s) return;
+      const why = paySeer(s);
+      if (why) { say(why, 'warn'); render(); return; }
+      saveGame(s); scheduleSync(); ui.flash = []; render();
+      return;
+    }
     case 'legal':
       if (ui.screen !== 'impressum' && ui.screen !== 'datenschutz') ui.legalFrom = state ? currentScreen() : 'title';
       go(a as Screen); window.scrollTo(0, 0); return;
@@ -1628,6 +1739,7 @@ function handle(act: string, el: HTMLElement): void {
       if (a === 'wache' && ui.isAdmin) { go('wache'); loadWache(); return; }
       if (a === 'blocks' && cloud.signedIn) { go('blocks'); cloud.blocks().then((r) => { ui.blocksList = r; ui.blocked = new Set(r.map((x) => x.blocked)); }, () => {}).finally(render); return; }
       if (a === 'deleteAccount') ui.delMsg = '';
+      if (a === 'felsen' && cloud.enabled) cloud.hallOfFame(40).then((rows) => { ui.fame = rows; if (ui.screen === 'felsen') render(); }, () => {});
       if (a === 'fame' && cloud.enabled) cloud.hallOfFame().then((rows) => { ui.fame = rows; if (ui.screen === 'fame') render(); }, () => {});
       go(a as Screen);
       return;

@@ -1,4 +1,5 @@
--- Brackenwyrm, Teil 4: Schutz vor Schummeln, Wortfilter, Melden und Blockieren, die Wache (Moderation), Konto löschen.
+-- Brackenwyrm, Teil 4: Schutz vor Schummeln, Wortfilter, Melden und Blockieren, die Wache (Moderation), Konto löschen,
+-- dazu die neuen Gesprächsorte Wyrmstein und Rosengarten (ab Testversion 0.35).
 -- Nach Teil 1 bis 3 einmal im SQL Editor ausführen. Kann gefahrlos erneut ausgeführt werden.
 --
 -- Was dieser Teil macht:
@@ -173,9 +174,9 @@ begin
     new.bonus_atk := least(new.bonus_atk, new.dragon_kills);
     new.bonus_def := least(new.bonus_def, new.dragon_kills - new.bonus_atk);
   end if;
-  if new.base_max_hp > 5 * new.dragon_kills + 50 then
-    perform public.bw_flag(new.user_id, 'lebenskraft', new.base_max_hp, 5 * new.dragon_kills + 50);
-    new.base_max_hp := 5 * new.dragon_kills + 50;
+  if new.base_max_hp > 5 * new.dragon_kills + 250 then
+    perform public.bw_flag(new.user_id, 'lebenskraft', new.base_max_hp, 5 * new.dragon_kills + 250);
+    new.base_max_hp := 5 * new.dragon_kills + 250;
   end if;
 
   -- Name und Steckbrief: Wortfilter, ein von der Wache festgelegter Name gilt immer.
@@ -243,6 +244,15 @@ alter table public.commentary add column if not exists hidden boolean not null d
 drop policy if exists "Dorfplatz lesen (alle)" on public.commentary;
 create policy "Dorfplatz lesen (alle)" on public.commentary for select to anon, authenticated using (not hidden);
 
+-- Neue Gesprächsorte: der Wyrmstein (nur Drachentöter dürfen reden) und der Rosengarten.
+alter table public.commentary drop constraint if exists commentary_section_check;
+alter table public.commentary add constraint commentary_section_check check (section in ('dorfplatz', 'gasthaus', 'schattenreich', 'felsen', 'garten'));
+
+-- Lebenspunkte im Spielerkampf: Drachenpunkte, Moosfee und Quirins Lebenstränke (begrenzt, damit niemand schummelt).
+create or replace function public.f_max_hp(f public.fighters) returns int language sql immutable as $$
+  select 10 + 10 * f.level + least(f.base_max_hp, 5 * f.dragon_kills + 250)
+$$;
+
 create table if not exists public.blocks (
   user_id    uuid not null references auth.users(id) on delete cascade default auth.uid(),
   blocked    uuid not null references auth.users(id) on delete cascade,
@@ -279,6 +289,9 @@ begin
   if f.banned then raise exception 'Dein Konto ist gesperrt.' using errcode = 'P0001'; end if;
   if exists (select 1 from public.commentary where user_id = new.user_id and created_at > now() - interval '10 seconds') then
     raise exception 'Nicht so schnell. Warte einen Moment.' using errcode = 'P0001';
+  end if;
+  if new.section = 'felsen' and f.dragon_kills < 1 then
+    raise exception 'Am Wyrmstein reden nur Drachentöter.' using errcode = 'P0001';
   end if;
   new.name := public.f_title(f.dragon_kills, f.gender) || ' ' || f.name;
   new.body := left(public.bw_censor(btrim(new.body)), 200);

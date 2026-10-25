@@ -636,3 +636,8 @@ textarea#mail-body { width: 100%; font: inherit; color: var(--text); background:
 @media (prefers-reduced-motion: reduce) { .title-art img { animation: none; } }
 .title-art + .tagline { font-size: 17px; color: var(--text); margin-top: -2px; }
 @media (max-width: 520px) { .title-art { margin: 0 -10px; border-radius: 8px; } .title-def { font-size: 14px; } }
+
+/* Quirins Tränke, Wyrmstein (0.35) */
+.potions { list-style: none; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.potions li { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; line-height: 1.45; }
+.carved { font-family: var(--display); letter-spacing: 0.04em; color: var(--gold-hi); line-height: 1.9; border-left: 3px solid var(--line); padding-left: 12px; }
