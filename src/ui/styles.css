@@ -682,3 +682,8 @@ textarea#mail-body { width: 100%; font: inherit; color: var(--text); background:
   .feste-shell .feste-side { flex-direction: row; align-items: center; justify-content: space-between; }
   .feste-shell .feste-stats { font-size: 14px; line-height: 1.5; }
 }
+.heirlooms li { grid-template-columns: 72px 1fr; }
+.heir-img { width: 72px; height: 72px; }
+.heir-found { margin: 10px auto; width: 160px; text-align: center; }
+.heir-found img { width: 160px; height: 160px; border-radius: 12px; border: 1px solid var(--gold); box-shadow: 0 0 30px rgba(255, 200, 90, 0.25); display: block; }
+.heir-found figcaption { margin-top: 6px; color: var(--gold-hi); font-family: var(--display); }

@@ -51,7 +51,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = 'Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.';
-const VERSION = 'Testversion 0.36';
+const VERSION = 'Testversion 0.37';
 
 interface Ui {
   screen: Screen;
@@ -1063,6 +1063,7 @@ function festeScreen(s: GameState): string {
     const why = canEnterFeste(s, todayKey());
     const summary = run && run.over
       ? `<section class="event-box log">${run.log.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}
+          ${run.heirloom && festeArt(`erbstueck-${run.heirloom}`) ? `<figure class="heir-found"><img src="${festeArt(`erbstueck-${run.heirloom}`)}" alt="${esc(heirloom(run.heirloom)?.name ?? '')}"><figcaption>${esc(heirloom(run.heirloom)?.name ?? '')}</figcaption></figure>` : ''}
           ${run.gold || run.gems ? `<p class="gold">Ausbeute heute: ${run.gold} Gold${run.gems ? `, ${run.gems} Edelstein${run.gems === 1 ? '' : 'e'}` : ''}${run.heirloom ? `, ${esc(heirloom(run.heirloom)?.name ?? '')}` : ''}.</p>` : ''}</section>`
       : '';
     const art = run?.over === 'treasure' && treasureArt ? treasureArt : entranceArt;
@@ -1537,7 +1538,7 @@ export function render(): void {
 
 /** Welche Musik zu welchem Ort gehört. */
 /** Sobald es ein eigenes Musikstück für die Feste gibt (public/audio/music/musik-feste.mp3), auf true setzen. */
-const FESTE_MUSIC = false;
+const FESTE_MUSIC = true;
 
 function trackFor(scr: Screen): TrackId {
   const s = state;
