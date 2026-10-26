@@ -2,6 +2,7 @@
 // Aufruf: npm run simulate   (optional: npm run simulate -- 200  für 200 Durchgänge)
 
 import { MOUNTS } from '../src/content/mounts';
+import { companionCost, companionHealCost, healCompanion, hireCompanion } from '../src/game/engine';
 import { buyMount, tradeCost } from '../src/game/stable';
 import { ARMORS, WEAPONS, tradeIn } from '../src/content/items';
 import {
@@ -74,6 +75,12 @@ for (let run = 0; run < RUNS; run++) {
     }
     bestAffordable(s, 'weapon');
     bestAffordable(s, 'armor');
+    // Söldner (SIM_COMP=kaempfer|heilerin|schild): anheuern, wenn nach der Ausrüstung Gold übrig ist
+    const comp = process.env.SIM_COMP as 'kaempfer' | 'heilerin' | 'schild' | undefined;
+    if (comp) {
+      if (!p.companion && p.gold >= companionCost(comp, p.level)) hireCompanion(s, comp);
+      if (p.companion && p.companion.hp < p.companion.maxHp / 2 && p.gold >= companionHealCost(s) * 2) healCompanion(s);
+    }
 
     // Meister?
     if (canChallengeMaster(p) === 'ok') {

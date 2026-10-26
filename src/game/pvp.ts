@@ -17,6 +17,11 @@ export function applyPvpEvents(s: GameState, events: PvpEvent[]): string[] {
   const out: string[] = [];
   for (const ev of events) {
     const where = PLACE[ev.place] ?? 'im Schlaf';
+    if (ev.kind === 'transfer') {
+      p.bank += ev.gold;
+      out.push(`${ev.other_name} hat dir ${ev.gold} Gold aufs Konto im Kontor überwiesen.`);
+      continue;
+    }
     if (ev.kind === 'haunted') {
       p.hauntedBy = ev.other_name;
       out.push(`Der Geist von ${ev.other_name} hat dich heimgesucht. Morgen früh wirst du müde aufwachen.`);
@@ -78,6 +83,10 @@ export function applyPvpResult(s: GameState, res: PvpResult, place: 'felder' | '
     p.hp = Math.max(1, res.hero.hp);
     log.push({ t: `${foe.name} sinkt zurück ins ${place === 'gasthaus' ? 'Kissen' : 'Gras'} und rührt sich nicht mehr. Morwen wird sich freuen.`, k: 'info', r });
     log.push({ t: `Du nimmst ${res.gold} Gold an dich und lernst ${res.exp_win} Erfahrung aus dem Kampf.`, k: 'gold', r });
+    if (res.bounty && res.bounty > 0) {
+      p.gold += res.bounty;
+      log.push({ t: `Dag Durnick tritt aus dem Schatten und drückt dir einen Beutel in die Hand: das Kopfgeld auf ${foe.name}, ${res.bounty} Gold!`, k: 'gold', r });
+    }
   } else {
     const lostGold = p.gold;
     p.gold = 0;

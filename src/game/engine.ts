@@ -6,16 +6,18 @@ import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
 import { DRAGON, MONSTERS, acc, datIndef, monsterById, monstersOfLevel, nom } from '../content/monsters';
 import { say, type Names } from '../content/fighttext';
+import { COMPANIONS, COMPANION_TEXT, companionDef, type CompanionId } from '../content/companions';
 import { shadeById, SHADES } from '../content/shades';
 import { SPECIALTIES } from '../content/specialties';
 import { RACES, raceName } from '../content/races';
 import {
-  DEATH_EXP_LOSS, DWARF_GOLD, EVENT_CHANCE, GEM_DROP_CHANCE, GRAVE_FIGHTS_PER_DAY, HARZBIER_BUFF, MAX_LEVEL,
+  BANK_INTEREST, DEATH_EXP_LOSS, DWARF_GOLD, EVENT_CHANCE, GEM_DROP_CHANCE, GRAVE_FIGHTS_PER_DAY, HARZBIER_BUFF, MAX_LEVEL,
   RESURRECT_FAVOR, RESURRECT_TURN_SHARE, CHARM_PER_DRAGON, FLAWLESS_GEMS, FLAWLESS_GOLD, forestFightsPerDay, restartGems, restartGold, favorRange, graveAttack, maxSoul, shadeStats, soulRestoreCost,
   attack, bankInterest, defense, dragonStats, dragonToughness, forestToughness, masterToughness, toughen, expNeeded, expPerKill, goldPerKill, harzbierCost,
   healCost, masterStats, maxHp, monsterStats, specialUsesPerDay,
 } from './balance';
 import { between, chance, pick, rand, roll } from './rng';
+import { soberUp } from './tavern';
 import { newStats } from './storage';
 import { titleFor } from '../content/titles';
 import { loverNewDay } from './lovers';
@@ -89,6 +91,14 @@ export function startNewDay(s: GameState): void {
   p.graveFights = GRAVE_FIGHTS_PER_DAY;
   p.forestFights = forestFightsPerDay(p);
   p.specialUses = specialUsesPerDay(p);
+  const hangover = soberUp(s);
+  if (hangover) s.news.push(hangover);
+  const comp = p.companion;
+  if (comp && comp.hp < comp.maxHp) {
+    const wasDown = comp.hp <= 0;
+    comp.hp = Math.min(comp.maxHp, comp.hp + Math.ceil(comp.maxHp / 2));
+    if (wasDown) s.news.push(`${companionDef(comp.id)?.name ?? 'Dein Begleiter'} ist wieder auf den Beinen (${comp.hp} von ${comp.maxHp} Lebenspunkten).`);
+  }
   p.seenMaster = false;
   p.drankToday = false;
   p.songToday = false;
@@ -105,6 +115,10 @@ export function startNewDay(s: GameState): void {
   if (interest > 0) {
     p.bank += interest;
     s.news.push(`Das Kontor schreibt dir ${interest} Gold Zinsen gut.`);
+  } else if (p.bank < 0) {
+    const debt = Math.ceil(-p.bank * BANK_INTEREST);
+    p.bank -= debt;
+    s.news.push(`Deine Schulden im Kontor wachsen über Nacht um ${debt} Gold Zinsen (jetzt ${-p.bank} Gold).`);
   }
   s.news.push(`Ein neuer Tag bricht an. Tag ${s.day}. Du hast ${p.forestFights} Waldkämpfe.`);
 }
@@ -500,6 +514,22 @@ export function fightAction(s: GameState, action: FightAction): void {
       winFight(s);
       return;
     }
+    // Begleiter aus dem Söldnerlager
+    const cdef = companionActive(s);
+    if (cdef && p.companion) {
+      if (cdef.id === 'kaempfer') {
+        const c = strike(attack(p) * 0.45, f.foe.def * buffMult(p, 'foeDefMult'));
+        if (!c.miss) {
+          f.foe.hp = Math.max(0, f.foe.hp - c.dmg);
+          f.lastHeroDmg += c.dmg;
+          log.push({ t: say.text(cdef.hit, N, c.dmg), k: 'special' });
+        }
+        if (f.foe.hp <= 0) { endRound(); winFight(s); return; }
+      } else if (cdef.id === 'heilerin') {
+        const heal = Math.min(maxHp(p) - p.hp, Math.max(1, Math.round(maxHp(p) * 0.07)));
+        if (heal > 0) { p.hp += heal; log.push({ t: say.text(cdef.hit, N, heal), k: 'good' }); }
+      }
+    }
   }
 
   // Gegenangriff
@@ -512,8 +542,21 @@ export function fightAction(s: GameState, action: FightAction): void {
     if (h.miss) log.push({ t: say.foeMiss(N), k: 'info' });
     else if (h.crit) log.push({ t: say.foeCrit(N, h.dmg), k: 'bad' });
     else log.push({ t: say.foeHit(N, h.dmg, h.dmg / (grave ? maxSoul(p) : maxHp(p))), k: 'bad' });
-    setHeroPool(Math.max(0, heroPool() - h.dmg));
-    if (h.dmg > 0) f.heroHurt = true;
+    // Den Treffer fängt vielleicht der Begleiter ab: Bodo mit dem Schild, sonst ab und zu trifft es den Begleiter.
+    const comp = companionActive(s);
+    let caught = false;
+    if (comp && p.companion && !h.miss && h.dmg > 0 && (comp.id === 'schild' ? chance(0.4) : chance(0.2))) {
+      caught = true;
+      const cd = comp.id === 'schild' ? Math.max(1, Math.round(h.dmg * 0.6)) : h.dmg;
+      p.companion.hp = Math.max(0, p.companion.hp - cd);
+      log.push({ t: comp.id === 'schild' ? say.text(comp.hit, N, cd) : `${say.text('{N}', N)} erwischt ${comp.name} statt dir: ${cd} Schaden.`, k: 'warn' });
+      if (p.companion.hp <= 0) log.push({ t: comp.fall, k: 'bad' });
+      f.lastFoeDmg = 0;
+    }
+    if (!caught) {
+      setHeroPool(Math.max(0, heroPool() - h.dmg));
+      if (h.dmg > 0) f.heroHurt = true;
+    }
     // Blitzaura: der Gegner bekommt seinen Schaden mehrfach zurück
     if (!grave && h.dmg > 0 && heroPool() > 0) {
       for (const b of p.buffs) {
@@ -532,6 +575,66 @@ export function fightAction(s: GameState, action: FightAction): void {
   endRound();
   if (heroPool() <= 0) loseFight(s);
 }
+
+/** Der Begleiter kämpft mit, wenn er steht und der Kampf es erlaubt. */
+function companionActive(s: GameState) {
+  const c = s.player.companion;
+  const f = s.fight;
+  if (!c || c.hp <= 0 || !f) return undefined;
+  if (f.kind !== 'forest' && f.kind !== 'feste') return undefined;   // zum Wyrm traut sich kein Söldner
+  return companionDef(c.id);
+}
+
+export function companionMaxHp(id: CompanionId, level: number): number {
+  const d = companionDef(id)!;
+  return d.hpBase + d.hpPerLevel * level;
+}
+
+export function companionCost(id: CompanionId, level: number): number {
+  return companionDef(id)!.costPerLevel * level;
+}
+
+/** Heilen im Lager: 1 Gold je fehlendem Lebenspunkt. Dabei wächst der Begleiter mit deiner Stufe. */
+export function companionHealCost(s: GameState): number {
+  const c = s.player.companion;
+  if (!c) return 0;
+  const max = companionMaxHp(c.id as CompanionId, s.player.level);
+  return Math.max(0, max - c.hp);
+}
+
+export function hireCompanion(s: GameState, id: CompanionId): { ok: boolean; text: string } {
+  const p = s.player;
+  const d = companionDef(id);
+  if (!d) return { ok: false, text: 'Den kennt Hagen nicht.' };
+  if (p.companion) return { ok: false, text: 'Du hast schon einen Begleiter. Hagen vermietet nur einen auf einmal.' };
+  const cost = companionCost(id, p.level);
+  if (p.gold < cost) return { ok: false, text: `${d.name} kostet ${cost} Gold. So viel hast du nicht dabei.` };
+  p.gold -= cost;
+  const max = companionMaxHp(id, p.level);
+  p.companion = { id, hp: max, maxHp: max };
+  return { ok: true, text: d.hire };
+}
+
+export function healCompanion(s: GameState): { ok: boolean; text: string } {
+  const p = s.player;
+  const c = p.companion;
+  if (!c) return { ok: false, text: 'Du hast keinen Begleiter.' };
+  const cost = companionHealCost(s);
+  const d = companionDef(c.id)!;
+  if (cost <= 0) return { ok: false, text: `${d.name} ist bei bester Gesundheit.` };
+  if (p.gold < cost) return { ok: false, text: `Hagen will ${cost} Gold für den Feldscher.` };
+  p.gold -= cost;
+  c.maxHp = companionMaxHp(c.id as CompanionId, p.level);
+  c.hp = c.maxHp;
+  return { ok: true, text: `Der Feldscher flickt ${d.name} zusammen. Wieder voll bei Kräften (${c.hp} Lebenspunkte).` };
+}
+
+export function dismissCompanion(s: GameState): string {
+  s.player.companion = null;
+  return COMPANION_TEXT.dismiss;
+}
+
+export { COMPANIONS };
 
 function winFight(s: GameState): void {
   const f = s.fight!;
@@ -669,6 +772,10 @@ export function chooseDragonBonus(s: GameState, bonus: DragonBonus, specialty?: 
   p.weaponTier = 0;
   p.armorTier = 0;
   p.bank = 0;
+  if (p.companion) {
+    s.news.push(`${companionDef(p.companion.id)?.name ?? 'Dein Begleiter'} verabschiedet sich: „Der Wyrm ist tot, mein Vertrag ist erfüllt.“`);
+    p.companion = null;
+  }
   const gold = restartGold(dk) + (flawless ? FLAWLESS_GOLD : 0);
   const gems = restartGems(dk) + (flawless ? FLAWLESS_GEMS : 0);
   p.gold = gold;
@@ -729,6 +836,19 @@ export function bankDeposit(s: GameState, amount: number): string {
   p.gold -= a;
   p.bank += a;
   return `Du zahlst ${a} Gold ein. Im Kontor ist es sicher, auch wenn du im Wald fällst.`;
+}
+
+/** Kredit wie im Original: höchstens 20 Gold Schulden je Stufe. Schulden wachsen über Nacht mit dem Zins. */
+export const LOAN_PER_LEVEL = 20;
+export function bankBorrow(s: GameState, amount: number): string {
+  const p = s.player;
+  if (p.bank > 0) return 'Du hast noch Gold im Kontor. Heb erst das ab.';
+  const room = LOAN_PER_LEVEL * p.level + p.bank;
+  const a = Math.min(Math.max(0, Math.floor(amount)), room);
+  if (a <= 0) return `Mehr leiht dir Ansgar nicht. Auf deiner Stufe höchstens ${LOAN_PER_LEVEL * p.level} Gold Schulden.`;
+  p.bank -= a;
+  p.gold += a;
+  return `Ansgar zählt dir ${a} Gold hin und notiert es in sein Buch. Deine Schulden: ${-p.bank} Gold.`;
 }
 
 export function bankWithdraw(s: GameState, amount: number): string {

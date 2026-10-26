@@ -98,7 +98,7 @@ create trigger mail_trim after insert on public.mail for each row execute functi
 -- Erfolg, wenn Zufall(0..eigene Stufe) > Zufall(0..Stufe des Opfers). Das Opfer verliert am nächsten Morgen Waldkämpfe.
 -- Jeder kann pro Tag nur einmal heimgesucht werden; jeder Geist darf höchstens 4-mal am Tag spuken (100 Gunst).
 alter table public.pvp_events drop constraint if exists pvp_events_kind_check;
-alter table public.pvp_events add constraint pvp_events_kind_check check (kind in ('slain', 'defended', 'haunted'));
+alter table public.pvp_events add constraint pvp_events_kind_check check (kind in ('slain', 'defended', 'haunted', 'transfer'));
 alter table public.fighters add column if not exists haunted_at timestamptz;
 
 create table if not exists public.hauntings (

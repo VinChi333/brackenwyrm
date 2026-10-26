@@ -21,18 +21,21 @@ import { RACES, RACE_ORDER, raceName } from '../content/races';
 import { MAX_LEVEL, healCostPerHp } from '../game/balance';
 import {
   announce, todayKey, applyHaunt, HAUNT_FAVOR, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
-  CHRONICLE_SIZE, closeFight, defense, drinkHarzbier, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
+  CHRONICLE_SIZE, closeFight, defense, bankBorrow, LOAN_PER_LEVEL, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
   graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost,
   newGame, rentRoom, roomCost, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
 } from '../game/engine';
 import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
-import type { BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
+import type { AushangRow, BountyRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
 import { censor, isClean } from '../content/badwords';
 import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
 import { DIR_NAME, FESTE_COST, FESTE_MIN_LEVEL, SIZE as FESTE_SIZE, afterFesteFight, canEnterFeste, enterFeste, festeLight, exits, heirloomNames, leaveFeste, mazeFor, moveFeste, treasureNews, type Dir } from '../game/feste';
 import { FESTE_FOES, FESTE_NAME, FESTE_TEXT, HEIRLOOMS, SCROLLS, heirloom } from '../content/feste';
+import { COMPANION_TEXT, companionDef, type CompanionId } from '../content/companions';
+import { COMPANIONS, companionCost, companionHealCost, companionMaxHp, dismissCompanion, healCompanion, hireCompanion } from '../game/engine';
+import { DRINKS, MAX_DRUNK, drinkCost, drunkWord, orderDrink, slur, type DrinkId } from '../game/tavern';
 import { POTIONS, chooseNewRace, chooseNewSpecialty, drinkPotion, paySeer, seerCost, type PotionId } from '../game/shops';
 import { AMBROS_GAMES_PER_DAY, AMBROS_TRIES, ambrosBets, guessAmbros, startAmbros, type AmbrosGame } from '../game/ambros';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
@@ -46,12 +49,13 @@ import { sound, type TrackId } from './audio';
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros'
   | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount'
-  | 'quirin' | 'seer' | 'felsen' | 'garten' | 'feste' | 'heirlooms';
+  | 'quirin' | 'seer' | 'felsen' | 'garten' | 'feste' | 'heirlooms'
+  | 'tresen' | 'dag' | 'fivesix' | 'aushang' | 'lager';
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = 'Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.';
-const VERSION = 'Testversion 0.39';
+const VERSION = 'Testversion 0.40';
 
 interface Ui {
   screen: Screen;
@@ -78,7 +82,13 @@ interface Ui {
   repConfirm: string;                 // "Wirklich melden?" für diesen Beitrag
   legalFrom: Screen;
   delMsg: string;
-  wache: { tab: 'reports' | 'banned' | 'cheats'; reports: ModReport[] | null; banned: ModBanned[] | null; cheats: ModCheat[] | null; err: string };
+  bankMode: '' | 'loan' | 'transfer';
+  bounties: BountyRow[] | null;
+  dice: { info: JackpotInfo | null; last: DiceResult | null; err: string; busy: boolean };
+  aushang: AushangRow[] | null;
+  fameCat: FameCat;
+  fameRows: FameCatRow[] | null | undefined;
+  wache: { tab: 'reports' | 'banned' | 'cheats' | 'aushang'; reports: ModReport[] | null; banned: ModBanned[] | null; cheats: ModCheat[] | null; err: string };
   unreadAt: number;            // Handy: Fähigkeiten statt Kampfbefehlen in der Leiste
   dkPoint: DragonPoint | null;   // Auswahl nach dem Drachenkill
   dkSpec: SpecialtyId | null;
@@ -107,7 +117,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
 };
 let root: HTMLElement;
 
@@ -347,6 +357,7 @@ function villageScreen(s: GameState): string {
       <button type="button" class="btn" data-act="welcome">Los geht’s</button>
     </section>`}
     <p class="statue">${statueText(s)}</p>
+    ${(() => { const a = ui.aushang?.[0]; return a && a.id > (prefs.aushangSeen ?? 0) ? `<section class="notice new"><h2>Neu am Rathaus: ${esc(a.title)}</h2><p>${esc(a.body).replace(/\n/g, '<br>')}</p><div class="row"><button type="button" class="tbtn" data-act="aushangseen:${a.id}">Gelesen</button><button type="button" class="tbtn ghost" data-act="go:aushang">Alle Aushänge</button></div></section>` : ''; })()}
     ${flashHtml()}
     ${s.news.length ? `<section class="news"><h2>Neuigkeiten</h2>${s.news.slice(-4).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}
     ${cloud.enabled ? squareHtml() : ''}`;
@@ -365,6 +376,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:quirin', label: 'Quirins Tränke', key: 'q', hint: p.pendingChoice ? 'du musst dich entscheiden' : p.gems ? `${p.gems} Edelstein${p.gems === 1 ? '' : 'e'}` : '' },
     ] },
     { title: 'Am Dorfrand', items: [
+      { act: 'go:lager', label: 'Söldnerlager', key: 'd', hint: p.companion ? `${companionDef(p.companion.id)?.name ?? ''}${p.companion.hp <= 0 ? ' (k. o.)' : ''}` : 'Begleiter anheuern' },
       ...(cloud.enabled ? [{ act: 'go:seer', label: 'Das Zelt der Seherin', key: 'z', hint: p.seerPaid ? 'bezahlt' : 'mit den Toten reden' }] : []),
       { act: 'go:ambros', label: 'Der alte Ambros', key: 'a', hint: (p.ambrosGames ?? 0) >= AMBROS_GAMES_PER_DAY ? 'schläft' : 'Zahlenraten' },
       ...(cloud.enabled ? [
@@ -374,7 +386,7 @@ function villageScreen(s: GameState): string {
     ] },
     { title: 'Sonstiges', items: [
       { act: 'go:bestiary', label: 'Bestiarium', key: 'b', hint: `${found} / ${MONSTERS.length}` },
-      ...(cloud.enabled ? [{ act: 'go:news', label: 'Tagesneuigkeiten', key: 'n' }] : []),
+      ...(cloud.enabled ? [{ act: 'go:news', label: 'Tagesneuigkeiten', key: 'n' }, { act: 'go:aushang', label: 'Aushang am Rathaus', key: 'x' }] : []),
       { act: 'go:fame', label: 'Ruhmeshalle', key: 'r' },
       ...(cloud.enabled ? [
         { act: 'go:warriors', label: 'Kriegerliste', key: 'l', hint: cloud.signedIn ? '' : 'nur mit Spielerkonto', disabled: !cloud.signedIn },
@@ -497,6 +509,8 @@ function fightScreen(s: GameState): string {
       <div class="arena ${f.kind}">${card.replace('</figure>', `${isNew ? '<div class="card-new">Neu</div>' : ''}</figure>`)}${fx}</div>
       <div class="battle-side">
         <h1 class="foe-title">${esc(f.foe.name)}</h1>
+        ${(() => { const cp = p.companion; const cd = cp && companionDef(cp.id); if (!cp || !cd) return ''; const on = f.kind === 'forest' || f.kind === 'feste';
+          return `<p class="companion-line ${cp.hp <= 0 || !on ? 'off' : ''}">${esc(cd.name)} (${cd.role}): ${!on ? 'wartet draußen' : cp.hp <= 0 ? 'k. o.' : `${cp.hp} / ${cp.maxHp} LP`}</p>`; })()}
         <div class="log fight-log ${ui.fullLog ? 'open' : ''}" aria-live="polite">${fightLogHtml(f.log)}</div>
         ${f.round > 2 ? `<button type="button" class="log-toggle" data-act="fulllog">${ui.fullLog ? 'Bericht einklappen' : `Ganzen Kampf anzeigen (${f.round} Runden)`}</button>` : ''}
         ${prefs.fightHint ? '' : '<p class="hint-desk">Deine Befehle stehen links, wie früher. Taste <b class="hk">A</b> greift an, <b class="hk">K</b> kämpft bis zum Ende.</p>'}
@@ -570,17 +584,35 @@ function bankScreen(s: GameState): string {
   const main = `<h1>Das Kontor</h1>
     <p class="lead">Ansgar zählt Münzen, die nicht ihm gehören. „Was hier liegt, verlierst du nicht im Wald. Und über Nacht gibt’s Zinsen.“</p>
     ${flashHtml()}
-    <p>Im Kontor: <span class="gold">${p.bank} Gold</span> · Dabei: <span class="gold">${p.gold} Gold</span></p>
+    <p>${p.bank >= 0 ? `Im Kontor: <span class="gold">${p.bank} Gold</span>` : `<span class="bad">Schulden: ${-p.bank} Gold</span> (wachsen über Nacht mit dem Zins)`} · Dabei: <span class="gold">${p.gold} Gold</span></p>
     <div class="row"><input type="number" id="amount" min="1" inputmode="numeric" placeholder="Betrag" aria-label="Betrag">
       <button type="button" class="tbtn" data-act="bank:dep:input">Einzahlen</button>
-      <button type="button" class="tbtn" data-act="bank:wd:input">Abheben</button></div>`;
+      <button type="button" class="tbtn" data-act="bank:wd:input">Abheben</button>
+      ${ui.bankMode === 'loan' ? '<button type="button" class="tbtn" data-act="bank:loan:input">Leihen</button>' : ''}</div>
+    ${ui.bankMode === 'loan' ? `<p class="muted">Ansgar leiht dir auf deiner Stufe bis zu ${LOAN_PER_LEVEL * p.level} Gold. Einzahlen tilgt die Schulden. Nach dem Drachen sind sie vergessen.</p>` : ''}
+    ${ui.bankMode === 'transfer' ? transferHtml(s) : ''}`;
   return layout(s, main, [
     { title: 'Kontor', items: [
       { act: 'bank:dep:all', label: 'Alles einzahlen', key: 'e', disabled: p.gold <= 0 },
       { act: 'bank:wd:all', label: 'Alles abheben', key: 'a', disabled: p.bank <= 0 },
+      { act: 'bankmode:loan', label: 'Kredit aufnehmen', key: 'k', hint: `bis ${LOAN_PER_LEVEL * p.level} Gold`, disabled: p.bank > 0 },
+      ...(cloud.enabled ? [{ act: 'bankmode:transfer', label: 'Gold überweisen', key: 'w', hint: !cloud.signedIn ? 'nur mit Spielerkonto' : p.level < 3 && !p.dragonKills ? 'ab Stufe 3' : 'an andere Helden', disabled: !cloud.signedIn || (p.level < 3 && !p.dragonKills) }] : []),
     ] },
     { title: 'Zurück', items: [back] },
   ]);
+}
+
+/** Überweisen: Empfänger aus der Kriegerliste, Betrag aus dem Kontor (Grenzen wie im Original). */
+function transferHtml(s: GameState): string {
+  const p = s.player;
+  const others = (ui.warriors ?? []).filter((w) => w.userId !== cloud.userId);
+  return `<section class="good-box"><h2>Gold überweisen</h2>
+    <p class="muted">Vom Konto im Kontor. Je Überweisung höchstens 25 Gold je Stufe des Empfängers, am Tag höchstens ${25 * p.level} Gold. Jeder bekommt höchstens drei Überweisungen am Tag.</p>
+    ${ui.warriors === null ? '<p class="muted">Ansgar blättert in der Kriegerliste …</p>' : `<div class="row">
+      <select id="tf-to" aria-label="Empfänger">${others.map((w) => `<option value="${w.userId}">${esc(w.name)} (Stufe ${w.level}, bis ${25 * w.level} Gold)</option>`).join('')}</select>
+      <input type="number" id="tf-amount" min="1" inputmode="numeric" placeholder="Betrag" aria-label="Betrag">
+      <button type="button" class="tbtn" data-act="transfer">Überweisen</button></div>`}
+  </section>`;
 }
 
 const RUMORS = [
@@ -607,7 +639,11 @@ function innScreen(s: GameState): string {
   return layout(s, main, [
     { title: 'Gasthaus', items: [
       { act: 'talk', label: 'Mit Frieda reden', key: 'f', hint: talksLeft > 0 ? `${talksLeft}× heute` : 'hat zu tun' },
-      { act: 'inn:beer', label: 'Harzbier bestellen', key: 'h', hint: p.drankToday ? 'heute schon' : `${harzbierCost(p.level)} Gold`, disabled: p.drankToday },
+      { act: 'go:tresen', label: 'Am Tresen bestellen', key: 't', hint: (p.drunk ?? 0) > 0 ? drunkWord(p.drunk ?? 0) : `Harzbier ${harzbierCost(p.level)} Gold` },
+      ...(cloud.enabled ? [
+        { act: 'go:dag', label: 'Dag Durnick', key: 'k', hint: !cloud.signedIn ? 'nur mit Spielerkonto' : 'Kopfgeld', disabled: !cloud.signedIn },
+        { act: 'go:fivesix', label: 'Würfelecke: Fünf Sechser', key: 'w', hint: !cloud.signedIn ? 'nur mit Spielerkonto' : 'Jackpot', disabled: !cloud.signedIn },
+      ] : []),
       { act: 'inn:song', label: 'Lied wünschen', key: 'l', hint: p.songToday ? 'heute schon' : '1 Edelstein', disabled: p.songToday },
       { act: 'go:flirt', label: p.marriedTo ? `Zu ${PARTNERS[p.marriedTo].name} gehen` : `${PARTNERS[partnerOf(p)].name} umwerben`, key: 'u', hint: p.seenLover ? 'heute schon' : p.marriedTo ? 'dein Schatz' : '' },
       { act: 'looks', label: `${PARTNERS[friendOf(p)].name} fragen, wie du aussiehst`, key: 'a' },
@@ -618,6 +654,105 @@ function innScreen(s: GameState): string {
     ] },
     { title: 'Zurück', items: [back] },
   ]);
+}
+
+function tresenScreen(s: GameState): string {
+  const p = s.player;
+  const drunk = p.drunk ?? 0;
+  const main = `<h1>Am Tresen</h1>
+    <p class="lead">Frieda wischt den Tresen ab und schaut dich über den Rand ihres Glases an. „Was darf’s sein?“</p>
+    ${flashHtml()}
+    <div class="drunk-meter"><span>Du bist ${drunkWord(drunk)}</span><div class="progress">${bar(drunk, 100, drunk >= MAX_DRUNK ? 'hp low' : 'favor')}</div></div>
+    <ul class="potions">${DRINKS.map((d) => `<li><strong>${d.name}</strong> <span class="gold">${d.costPerLevel ? `${drinkCost(d, p.level)} Gold` : 'umsonst'}</span>${d.hard ? ' <span class="tag">hart</span>' : ''}<br><small class="muted">${d.blurb}</small></li>`).join('')}</ul>
+    <p class="muted">Ab „sturzbetrunken“ schenkt Frieda nichts mehr aus, und wer so ins Bett geht, hat morgen einen Kater. Betrunken lallst du auch in den Gesprächen.</p>`;
+  return layout(s, main, [
+    { title: 'Bestellen', items: DRINKS.map((d, i) => ({
+      act: `drink:${d.id}`, label: d.name, key: String(i + 1), hint: d.costPerLevel ? `${drinkCost(d, p.level)} Gold` : 'umsonst',
+      disabled: (d.drunk > 0 && drunk >= MAX_DRUNK) || p.gold < drinkCost(d, p.level) || (!!d.hard && (p.hardDrinks ?? 0) >= 2) || (d.id === 'quellwasser' && drunk <= 0),
+    })) },
+    { title: 'Zurück', items: [{ act: 'go:inn', label: 'Zurück in die Gaststube', key: 'g' }, back] },
+  ]);
+}
+
+function dagScreen(s: GameState): string {
+  const p = s.player;
+  const list = ui.bounties;
+  const onMe = list?.find((b) => b.target === cloud.userId);
+  const others = (ui.warriors ?? []).filter((w) => w.userId !== cloud.userId && w.level >= 3);
+  const main = `<h1>Dag Durnick</h1>
+    <p class="lead">In der dunkelsten Ecke des Gasthauses sitzt Dag Durnick, Kopfgeldjäger, und raucht eine Pfeife, die nach nassem Hund riecht. „Du willst, dass jemandem etwas zustößt?“, brummt er. „Gegen Gold lässt sich das einrichten. Wer den Kopf bringt, kassiert. Ich behalte zehn Prozent.“</p>
+    ${flashHtml()}
+    ${onMe ? `<p class="warn-box">Dag mustert dich. „Auf deinen Kopf sind übrigens ${onMe.total} Gold ausgesetzt. Schlaf lieber im Gasthaus.“</p>` : ''}
+    <h2>Offene Kopfgelder</h2>
+    ${list === null ? '<p class="muted">Dag blättert in seinem fleckigen Büchlein …</p>' : list.length
+      ? `<table class="fame"><thead><tr><th>Held</th><th class="num">Stufe</th><th class="num">Kopfgeld</th></tr></thead><tbody>${list.map((b) => `<tr class="${b.target === cloud.userId ? 'me' : ''}"><td><strong>${esc(b.name)}</strong><small>${esc(titleFor(b.dragon_kills, b.gender))}</small></td><td class="num">${b.level}</td><td class="num gold">${b.total}</td></tr>`).join('')}</tbody></table>`
+      : '<p class="muted">Gerade hat niemand einen Preis auf dem Kopf. Langweilige Zeiten.</p>'}
+    <h2>Kopfgeld aussetzen</h2>
+    ${ui.warriors === null ? '<p class="muted">…</p>' : others.length ? `<div class="row">
+      <select id="bounty-to" aria-label="Auf wen">${others.map((w) => `<option value="${w.userId}">${esc(w.name)} (Stufe ${w.level}: ${50 * w.level} bis ${200 * w.level} Gold)</option>`).join('')}</select>
+      <input type="number" id="bounty-amount" min="1" inputmode="numeric" placeholder="Betrag" aria-label="Betrag">
+      <button type="button" class="tbtn" data-act="bounty">Aussetzen</button></div>
+      <p class="muted">Dazu kommen 10 % für Dag. Höchstens fünf Aufträge am Tag. Ziele ab Stufe 3. Du hast ${p.gold} Gold dabei.</p>`
+      : '<p class="muted">Niemand ab Stufe 3 da, auf den Dag ansetzen könnte.</p>'}`;
+  return layout(s, main, [{ title: 'Zurück', items: [{ act: 'go:inn', label: 'Zurück in die Gaststube', key: 'g' }, back] }]);
+}
+
+const DIE = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
+function fivesixScreen(s: GameState): string {
+  const d = ui.dice;
+  const info = d.info;
+  const last = d.last;
+  const main = `<h1>Fünf Sechser</h1>
+    <p class="lead">Am Ecktisch klappert ein alter Würfelbecher. „Fünf Würfel“, erklärt der Wirt vom Dienst, „fünf Sechser, und der ganze Topf gehört dir. Vier Sechser: ein Zehntel. Drei: ein Zwanzigstel. Jeder Wurf kommt in den Topf.“</p>
+    ${flashHtml()}${d.err ? `<p class="warn-box">${esc(d.err)}</p>` : ''}
+    <div class="jackpot"><span>Im Topf</span><strong>${info ? info.pot : '…'} Gold</strong></div>
+    ${last ? `<div class="dice" aria-label="Gewürfelt: ${last.dice.join(', ')}">${last.dice.map((x) => `<span class="die ${x === 6 ? 'six' : ''}">${DIE[x - 1]}</span>`).join('')}</div>
+      <p class="${last.win ? 'gold' : 'muted'}">${last.sixes === 5 ? `FÜNF SECHSER! Der ganze Topf gehört dir: ${last.win} Gold!` : last.win ? `${last.sixes} Sechser! Du bekommst ${last.win} Gold.` : `${last.sixes === 1 ? 'Ein Sechser' : last.sixes ? `${last.sixes} Sechser` : 'Kein einziger Sechser'}. Das reicht nicht.`}</p>` : ''}
+    ${info ? `<p class="muted">Ein Wurf kostet ${info.cost} Gold. Heute noch ${info.plays_left} Würfe.</p>
+      <h2>Zuletzt gewonnen</h2>
+      <ul class="plain">
+        <li>Fünf Sechser: ${info.last5 ? `${esc(info.last5)} (${info.last5_pot} Gold)` : 'noch nie! Du könntest der Erste sein.'}</li>
+        <li>Vier Sechser: ${info.last4 ? `${esc(info.last4)} (${info.last4_pot} Gold)` : 'noch niemand'}</li>
+        <li>Drei Sechser: ${info.last3 ? `${esc(info.last3)} (${info.last3_pot} Gold)` : 'noch niemand'}</li>
+      </ul>` : ''}`;
+  const left = info?.plays_left ?? 0;
+  return layout(s, main, [
+    { title: 'Würfeln', items: [{ act: 'roll', label: last ? 'Nochmal würfeln' : 'Würfeln', key: 'w', hint: info ? `${info.cost} Gold` : '', primary: true, disabled: !info || d.busy || left <= 0 || s.player.gold < (info?.cost ?? 0) }] },
+    { title: 'Zurück', items: [{ act: 'go:inn', label: 'Zurück in die Gaststube', key: 'g' }, back] },
+  ]);
+}
+
+function aushangScreen(s: GameState): string {
+  const list = ui.aushang;
+  const main = `<h1>Aushang am Rathaus</h1>
+    <p class="lead">Neben der Tür des Rathauses hängt ein schwarzes Brett. Hier schlägt die Wache an, was alle wissen sollten.</p>
+    ${list === null ? '<p class="muted">…</p>' : list.length ? list.map((a) => `<article class="notice"><h2>${esc(a.title)}</h2><p class="muted">${when(a.created_at)} · ${esc(a.author)}</p><p>${esc(a.body).replace(/\n/g, '<br>')}</p></article>`).join('')
+      : '<p class="muted">Das Brett ist leer. Nur ein rostiger Nagel.</p>'}`;
+  return layout(s, main, [{ title: 'Zurück', items: [back] }]);
+}
+
+function loadAushang(): void {
+  if (!cloud.enabled) return;
+  cloud.aushang(10).then((r) => { ui.aushang = r; }, () => { ui.aushang = ui.aushang ?? []; }).finally(() => { if (['village', 'aushang', 'wache'].includes(currentScreen())) render(); });
+}
+
+function lagerScreen(s: GameState): string {
+  const p = s.player;
+  const cp = p.companion;
+  const cd = cp ? companionDef(cp.id) : undefined;
+  const main = `<h1>Das Söldnerlager</h1>
+    <p class="lead">${COMPANION_TEXT.intro}</p>
+    ${flashHtml()}
+    ${cp && cd ? `<section class="good-box"><h2>${esc(cd.name)}, ${cd.role}</h2><p>${cp.hp <= 0 ? 'Liegt k. o. im Zelt.' : `${cp.hp} von ${cp.maxHp} Lebenspunkten.`} ${esc(cd.blurb)}</p></section>` : ''}
+    <ul class="potions">${COMPANIONS.map((c) => `<li><strong>${esc(c.name)}</strong> · ${c.role} <span class="gold">${companionCost(c.id, p.level)} Gold</span><br><small class="muted">${esc(c.blurb)} ${companionMaxHp(c.id, p.level)} Lebenspunkte.</small></li>`).join('')}</ul>
+    <p class="muted">${COMPANION_TEXT.rules}</p>`;
+  const heal = companionHealCost(s);
+  const items: Item[] = cp ? [
+    { act: 'merc:heal', label: 'Vom Feldscher heilen lassen', key: 'h', hint: heal ? `${heal} Gold` : 'nicht nötig', disabled: !heal || p.gold < heal },
+    { act: 'merc:dismiss', label: ui.confirmDelete ? 'Wirklich entlassen? Nochmal drücken.' : 'Entlassen', key: 'e' },
+  ] : COMPANIONS.map((c, i) => ({ act: `merc:hire:${c.id}`, label: `${c.name} anheuern`, key: String(i + 1), hint: `${companionCost(c.id, p.level)} Gold`, disabled: p.gold < companionCost(c.id, p.level) }));
+  return layout(s, main, [{ title: 'Lager', items }, { title: 'Zurück', items: [back] }]);
 }
 
 function stableScreen(s: GameState): string {
@@ -715,6 +850,7 @@ function fameScreen(s: GameState): string {
     <table class="fame"><thead><tr><th></th><th>Held</th><th class="num">Drachen</th><th class="num">Stufe</th></tr></thead><tbody>${rows}</tbody></table>
     ${ui.fame && ui.fame.length ? `<h2>Drachentöter aus aller Welt</h2>
     <table class="fame"><thead><tr><th></th><th>Held</th><th class="num">Drachen</th><th class="num">Stufe</th></tr></thead><tbody>${ui.fame.map((e, i) => `<tr><td class="rank">${i + 1}.</td><td><strong>${esc(e.name)}</strong><small>${esc(titleFor(e.dragonKills, e.gender))}</small></td><td class="num">${e.dragonKills}</td><td class="num">${e.level}</td></tr>`).join('')}</tbody></table>` : ''}
+    ${cloud.enabled ? fameCatsHtml() : ''}
     <h2>Deine Geschichte</h2>
     <p class="muted">Titel: <span class="gold">${esc(titleFor(p.dragonKills, p.gender))}</span>${p.dragonKills < 31 ? ` · nach dem nächsten Drachen: ${esc(titleFor(p.dragonKills + 1, p.gender))}` : ''}</p>
     <div class="records">
@@ -729,6 +865,33 @@ function fameScreen(s: GameState): string {
       ${rec('Spieltage', String(s.day))}
     </div>`;
   return layout(s, main, [{ title: 'Zurück', items: [back] }]);
+}
+
+const FAME_CATS: { id: FameCat; label: string; col: string; fmt?: (v: number) => string }[] = [
+  { id: 'drachen', label: 'Drachentöter', col: 'Drachen' },
+  { id: 'schnell', label: 'Schnellste', col: 'Tage', fmt: (v) => `${v} Tage` },
+  { id: 'reich', label: 'Reichste', col: 'Gold' },
+  { id: 'charme', label: 'Charmanteste', col: 'Charme' },
+  { id: 'furcht', label: 'Gefürchtetste', col: 'Überfälle' },
+  { id: 'schatz', label: 'Schatzjäger', col: 'Schätze' },
+  { id: 'erben', label: 'Erben', col: 'Erbstücke' },
+  { id: 'veteran', label: 'Veteranen', col: 'Spieltage' },
+];
+
+function fameCatsHtml(): string {
+  const cat = FAME_CATS.find((c) => c.id === ui.fameCat) ?? FAME_CATS[0];
+  const rows = ui.fameRows;
+  return `<h2>Ranglisten</h2>
+    <div class="seg fame-cats" role="tablist">${FAME_CATS.map((c) => `<button type="button" class="seg-btn ${c.id === cat.id ? 'on' : ''}" role="tab" aria-selected="${c.id === cat.id}" data-act="famecat:${c.id}">${c.label}</button>`).join('')}</div>
+    ${rows === undefined ? '<p class="muted">Die Ranglisten sind auf dem Server noch nicht eingerichtet (Teil 5).</p>'
+      : rows === null ? '<p class="muted">…</p>'
+      : !rows.length ? '<p class="muted">Hier steht noch niemand.</p>'
+      : `<table class="fame"><thead><tr><th></th><th>Held</th><th class="num">${cat.col}</th></tr></thead><tbody>${rows.map((e, i) => `<tr><td class="rank">${i + 1}.</td><td><strong>${esc(e.name)}</strong><small>${esc(titleFor(e.dragonKills, e.gender))} · Stufe ${e.level}</small></td><td class="num">${cat.fmt ? cat.fmt(e.value) : e.value}</td></tr>`).join('')}</tbody></table>`}`;
+}
+
+function loadFameCat(): void {
+  ui.fameRows = null;
+  cloud.fameCategory(ui.fameCat, 20).then((r) => { ui.fameRows = r; }, () => { ui.fameRows = []; }).finally(() => { if (currentScreen() === 'fame') render(); });
 }
 
 const RESULT: Record<ChronicleEntry['result'], string> = { win: 'Sieg', lose: 'Niederlage', fled: 'Geflohen' };
@@ -748,7 +911,7 @@ function chronicleScreen(s: GameState): string {
 const SCREEN_NAMES: Partial<Record<Screen, string>> = {
   village: 'Dorfplatz', forest: 'Wald', fight: 'Kampf', training: 'Trainingsplatz', healer: 'Kräuterhütte', smith: 'Schmiede',
   bank: 'Kontor', inn: 'Gasthaus', bestiary: 'Bestiarium', fame: 'Ruhmeshalle', chronicle: 'Kampfchronik', settings: 'Einstellungen',
-  shadows: 'Schattenreich', dragonBonus: 'Drachenkill', quirin: 'Quirins Tränke', feste: 'Versunkene Feste', heirlooms: 'Erbstücke', seer: 'Seherin', felsen: 'Wyrmstein', garten: 'Rosengarten',
+  shadows: 'Schattenreich', dragonBonus: 'Drachenkill', quirin: 'Quirins Tränke', tresen: 'Tresen', lager: 'Söldnerlager', dag: 'Dag Durnick', fivesix: 'Fünf Sechser', aushang: 'Aushang', feste: 'Versunkene Feste', heirlooms: 'Erbstücke', seer: 'Seherin', felsen: 'Wyrmstein', garten: 'Rosengarten',
   stable: 'Pferdestall', ambros: 'Ambros', warriors: 'Kriegerliste', mail: 'Briefe', bio: 'Steckbrief',
 };
 
@@ -1375,6 +1538,7 @@ function loadWache(): void {
   const w = ui.wache;
   w.err = '';
   const fail = (e: unknown) => { w.err = e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'; };
+  if (w.tab === 'aushang') { loadAushang(); }
   if (w.tab === 'reports') { w.reports = null; cloud.modReports().then((r) => { w.reports = r; }, fail).finally(render); }
   if (w.tab === 'banned') { w.banned = null; cloud.modBanned().then((r) => { w.banned = r; }, fail).finally(render); }
   if (w.tab === 'cheats') { w.cheats = null; cloud.modCheats().then((r) => { w.cheats = r; }, fail).finally(render); }
@@ -1397,6 +1561,13 @@ function wacheScreen(s: GameState): string {
             ${r.kind === 'brief' ? '' : `<button type="button" class="tbtn" data-act="mod:hide:${i}">Ausblenden</button>`}
             ${r.target && !r.banned ? `<button type="button" class="tbtn danger" data-act="mod:ban:${i}">Sperren</button>` : ''}
           </div></li>`).join('')}</ul>`;
+  } else if (w.tab === 'aushang') {
+    body = `<section class="good-box"><h2>Neuer Aushang</h2>
+      <label class="field">Überschrift<input type="text" id="au-title" maxlength="80" placeholder="z. B. Neue Version: die Feste ist da"></label>
+      <label class="field">Text<textarea id="au-body" maxlength="1500" rows="5" placeholder="Was alle wissen sollen …"></textarea></label>
+      <div class="row"><button type="button" class="tbtn" data-act="aushangpost">Anschlagen</button></div></section>
+      ${(ui.aushang ?? []).map((a) => `<article class="notice"><h2>${esc(a.title)}</h2><p class="muted">${when(a.created_at)} · ${esc(a.author)}</p><p>${esc(a.body)}</p>
+        <button type="button" class="tbtn ghost" data-act="aushangdel:${a.id}">Abnehmen</button></article>`).join('')}`;
   } else if (w.tab === 'banned') {
     body = w.banned === null ? '<p class="muted">…</p>' : !w.banned.length ? '<p class="muted">Niemand ist gesperrt.</p>'
       : `<ul class="warriors">${w.banned.map((b) => `<li class="warrior"><span></span><span class="t-info"><strong>${esc(b.name)}</strong><small>Stufe ${b.level} · ${b.dragon_kills} Drachenkills</small></span>
@@ -1414,6 +1585,7 @@ function wacheScreen(s: GameState): string {
     ${body}`;
   return layout(s, main, [
     { title: 'Die Wache', items: [
+      { act: 'wache:aushang', label: 'Aushang schreiben', key: 'x', primary: w.tab === 'aushang' },
       { act: 'wache:reports', label: 'Meldungen', key: 'm', hint: w.reports?.length ? String(w.reports.length) : '', primary: w.tab === 'reports' },
       { act: 'wache:cheats', label: 'Auffällige Spielstände', key: 'a', primary: w.tab === 'cheats' },
       { act: 'wache:banned', label: 'Gesperrte', key: 'g', primary: w.tab === 'banned' },
@@ -1518,14 +1690,14 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), tresen: () => tresenScreen(s!), dag: () => dagScreen(s!), fivesix: () => fivesixScreen(s!), aushang: () => aushangScreen(s!), lager: () => lagerScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!),
     impressum: () => legalScreen('impressum'), datenschutz: () => legalScreen('datenschutz'), wache: () => wacheScreen(s!), blocks: () => blocksScreen(s!), deleteAccount: () => deleteAccountScreen(s!),
   };
   root.innerHTML = views[scr]();
   sound.music(trackFor(scr));
   soundCues();
   if (cloud.signedIn && !safetyLoaded) loadSafety();
-  if (scr === 'village') { loadSquare('dorfplatz'); checkMail(); loadStatue(); }
+  if (scr === 'village') { loadSquare('dorfplatz'); checkMail(); loadStatue(); if (ui.aushang === null) { ui.aushang = []; loadAushang(); } }
   if (scr === 'inn') loadSquare('gasthaus');
   if (scr === 'shadows') loadSquare('schattenreich');
   if (scr === 'seer' && s?.player.seerPaid) loadSquare('schattenreich');
@@ -1548,7 +1720,7 @@ function trackFor(scr: Screen): TrackId {
   if (!s.player.alive || scr === 'shadows' || scr === 'haunt' || (scr === 'seer' && s.player.seerPaid)) return 'schattenreich';
   if (scr === 'feste' || scr === 'heirlooms' || (scr === 'fight' && s.fight?.kind === 'feste')) return FESTE_MUSIC ? 'feste' : 'schattenreich';
   if (scr === 'forest') return 'wald';
-  if (scr === 'inn' || scr === 'flirt' || scr === 'innGuests') return 'gasthaus';
+  if (scr === 'inn' || scr === 'flirt' || scr === 'innGuests' || scr === 'tresen' || scr === 'dag' || scr === 'fivesix') return 'gasthaus';
   return 'dorf';
 }
 
@@ -1610,6 +1782,16 @@ let syncTimer = 0;
 let syncing = false;
 
 /** Nach Änderungen kurz warten und dann abgleichen, damit nicht jeder Klick eine Anfrage auslöst. */
+/** Vor einem Serveraufruf, der Gold oder Werte ändert: eigenen Stand hochladen und als abgeglichen merken. */
+async function pushFirst(st: GameState): Promise<void> {
+  saveGame(st);
+  try {
+    await cloud.push(JSON.parse(JSON.stringify(st)) as GameState);
+    prefs.lastSyncedAt = st.savedAt ?? 0;
+    savePrefs(prefs);
+  } catch { /* der Server prüft selbst */ }
+}
+
 function scheduleSync(delay = 8000): void {
   if (!cloud.enabled || !cloud.signedIn) return;
   window.clearTimeout(syncTimer);
@@ -1757,7 +1939,7 @@ function handle(act: string, el: HTMLElement): void {
       }, (e) => say(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.', 'warn')).finally(render);
       return;
     }
-    case 'wache': ui.wache.tab = a as 'reports' | 'banned' | 'cheats'; ui.flash = []; loadWache(); return;
+    case 'wache': ui.wache.tab = a as 'reports' | 'banned' | 'cheats' | 'aushang'; ui.flash = []; loadWache(); return;
     case 'mod': {
       const r = ui.wache.reports?.[Number(b)];
       if (!r) return;
@@ -1822,7 +2004,7 @@ function handle(act: string, el: HTMLElement): void {
       ui.pvp.busy = true; render();
       // Erst den eigenen Stand hochladen, damit der Server weiß, dass du tot bist.
       const st = s;
-      cloud.push(st).then(() => cloud.haunt(a)).then((res) => {
+      pushFirst(st).then(() => cloud.haunt(a)).then((res) => {
         ui.flash = [applyHaunt(st, res)];
         saveGame(st); scheduleSync(500);
       }, (e) => { say(e instanceof CloudError ? e.message : 'Das Spuken hat nicht geklappt.', 'warn'); })
@@ -1877,6 +2059,12 @@ function handle(act: string, el: HTMLElement): void {
       if (a === 'blocks' && cloud.signedIn) { go('blocks'); cloud.blocks().then((r) => { ui.blocksList = r; ui.blocked = new Set(r.map((x) => x.blocked)); }, () => {}).finally(render); return; }
       if (a === 'deleteAccount') ui.delMsg = '';
       if (a === 'felsen' && cloud.enabled) cloud.hallOfFame(40).then((rows) => { ui.fame = rows; if (ui.screen === 'felsen') render(); }, () => {});
+      if (a === 'tresen') ui.flash = [];
+      if (a === 'dag' && cloud.signedIn) { ui.bounties = null; go('dag'); loadWarriors(); cloud.bounties().then((b) => { ui.bounties = b; }, (e) => { ui.bounties = []; say(e instanceof CloudError ? e.message : 'Dag schweigt.', 'warn'); }).finally(render); return; }
+      if (a === 'fivesix' && cloud.signedIn) { ui.dice = { info: null, last: null, err: '', busy: false }; go('fivesix'); cloud.jackpot().then((i) => { ui.dice.info = i; }, (e) => { ui.dice.err = e instanceof CloudError ? e.message : 'Der Tisch ist leer.'; }).finally(render); return; }
+      if (a === 'aushang' && cloud.enabled) { ui.aushang = null; go('aushang'); loadAushang(); return; }
+      if (a === 'fame' && cloud.enabled) loadFameCat();
+      if (a === 'bank') ui.bankMode = '';
       if (a === 'fame' && cloud.enabled) cloud.hallOfFame().then((rows) => { ui.fame = rows; if (ui.screen === 'fame') render(); }, () => {});
       go(a as Screen);
       return;
@@ -2002,7 +2190,8 @@ function handle(act: string, el: HTMLElement): void {
       const text = (inp?.value ?? '').trim();
       if (!text) return;
       ui.sayText = text;
-      cloud.postComment(text, section).then(() => { ui.sayText = ''; ui.squares[section].error = ''; loadSquare(section, true); },
+      const drunkText = s && (s.player.drunk ?? 0) > 0 ? slur(text, s.player.drunk ?? 0) : text;
+      cloud.postComment(drunkText, section).then(() => { ui.sayText = ''; ui.squares[section].error = ''; loadSquare(section, true); },
         (e) => { ui.squares[section].error = e instanceof CloudError ? e.message : 'Das hat nicht geklappt.'; render(); });
       return;
     }
@@ -2122,13 +2311,86 @@ function handle(act: string, el: HTMLElement): void {
     case 'bank': {
       const amtInput = document.getElementById('amount') as HTMLInputElement | null;
       const v = b === 'all' ? Infinity : Number(amtInput?.value ?? 0);
-      say(a === 'dep' ? bankDeposit(s, v) : bankWithdraw(s, v), 'gold');
+      say(a === 'dep' ? bankDeposit(s, v) : a === 'loan' ? bankBorrow(s, v) : bankWithdraw(s, v), 'gold');
       commit();
       return;
     }
     case 'event': ui.flash = resolveEvent(s, a); commit(); return;
     case 'talk': say(talkToFrieda(s), 'info'); commit(); return;
-    case 'inn': say(a === 'beer' ? drinkHarzbier(s) : requestSong(s), 'good'); commit(); return;
+    case 'inn': say(requestSong(s), 'good'); commit(); return;
+    case 'drink': {
+      const r = orderDrink(s, a as DrinkId);
+      ui.flash = r.lines.map((t, i) => ({ t, k: !r.ok ? 'warn' as const : i === 0 ? 'info' as const : 'good' as const }));
+      commit(); return;
+    }
+    case 'bankmode': {
+      ui.bankMode = ui.bankMode === a ? '' : a as 'loan' | 'transfer';
+      if (ui.bankMode === 'transfer' && ui.warriors === null) loadWarriors();
+      render(); return;
+    }
+    case 'transfer': {
+      const to = (document.getElementById('tf-to') as HTMLSelectElement | null)?.value ?? '';
+      const amount = Math.floor(Number((document.getElementById('tf-amount') as HTMLInputElement | null)?.value));
+      if (!to || !(amount > 0)) { say('Wem und wie viel?', 'warn'); render(); return; }
+      if (s.player.bank < amount) { say(`Auf deinem Konto liegen nur ${Math.max(0, s.player.bank)} Gold.`, 'warn'); render(); return; }
+      cloud.transferGold(to, amount).then((r) => {
+        s.player.bank -= r.amount;
+        saveGame(s); scheduleSync(500);
+        say(`Ansgar trägt es ins Buch ein: ${r.amount} Gold an ${r.name}. Heute kannst du noch ${Math.max(0, r.left_today)} Gold überweisen.`, 'good');
+      }, (e) => say(e instanceof CloudError ? e.message : 'Die Überweisung hat nicht geklappt.', 'warn')).finally(render);
+      return;
+    }
+    case 'bounty': {
+      const to = (document.getElementById('bounty-to') as HTMLSelectElement | null)?.value ?? '';
+      const amount = Math.floor(Number((document.getElementById('bounty-amount') as HTMLInputElement | null)?.value));
+      if (!to || !(amount > 0)) { say('„Auf wen, und wie viel?“, brummt Dag.', 'warn'); render(); return; }
+      const fee = Math.ceil(amount * 0.1);
+      if (s.player.gold < amount + fee) { say(`Das kostet ${amount + fee} Gold mit Dags Anteil. So viel hast du nicht dabei.`, 'warn'); render(); return; }
+      pushFirst(s).then(() => cloud.setBounty(to, amount)).then((r) => {
+        s.player.gold -= r.paid;
+        saveGame(s); scheduleSync(500);
+        say(`Dag steckt ${r.paid} Gold ein und nickt. „Auf ${r.name} sind jetzt ${r.total} Gold ausgesetzt.“`, 'good');
+        cloud.bounties().then((b) => { ui.bounties = b; }, () => {}).finally(render);
+      }, (e) => { say(e instanceof CloudError ? e.message : 'Dag hat dich nicht verstanden.', 'warn'); render(); });
+      return;
+    }
+    case 'roll': {
+      const d = ui.dice;
+      if (d.busy) return;
+      d.busy = true; d.err = '';
+      pushFirst(s).then(() => cloud.rollFiveSix()).then((r) => {
+        s.player.gold += r.win - r.cost;
+        d.last = r;
+        if (d.info) { d.info = { ...d.info, pot: r.pot, plays_left: r.plays_left }; }
+        saveGame(s); scheduleSync(500);
+        if (r.win) sound.play('coins');
+      }, (e) => { d.err = e instanceof CloudError ? e.message : 'Der Becher klemmt.'; }).finally(() => {
+        d.busy = false;
+        cloud.jackpot().then((i) => { d.info = i; }, () => {}).finally(render);
+      });
+      render();
+      return;
+    }
+    case 'aushangseen': prefs.aushangSeen = Number(a); savePrefs(prefs); render(); return;
+    case 'aushangpost': {
+      const title = ((document.getElementById('au-title') as HTMLInputElement | null)?.value ?? '').trim();
+      const body = ((document.getElementById('au-body') as HTMLTextAreaElement | null)?.value ?? '').trim();
+      if (!title || !body) { say('Überschrift und Text, bitte.', 'warn'); render(); return; }
+      cloud.postAushang(title, body).then(() => { say('Angeschlagen. Alle sehen es beim nächsten Besuch im Dorf.', 'good'); loadAushang(); },
+        (e) => { say(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.', 'warn'); render(); });
+      return;
+    }
+    case 'aushangdel': cloud.deleteAushang(Number(a)).then(() => { say('Abgenommen.', 'good'); loadAushang(); }, (e) => { say(e instanceof CloudError ? e.message : 'Das hat nicht geklappt.', 'warn'); render(); }); return;
+    case 'merc': {
+      if (a === 'hire') { const r = hireCompanion(s, b as CompanionId); say(r.text, r.ok ? 'good' : 'warn'); }
+      else if (a === 'heal') { const r = healCompanion(s); say(r.text, r.ok ? 'good' : 'warn'); }
+      else if (a === 'dismiss') {
+        if (!ui.confirmDelete) { ui.confirmDelete = true; render(); return; }
+        ui.confirmDelete = false; say(dismissCompanion(s), 'info');
+      }
+      commit(); return;
+    }
+    case 'famecat': ui.fameCat = a as FameCat; loadFameCat(); render(); return;
     case 'mount': {
       if (a === 'buy') { const before = s.player.mount; const t = buyMount(s, b as MountId); say(t, s.player.mount !== before ? 'good' : 'warn'); ui.confirmDelete = false; commit(); return; }
       if (a === 'feed') { const r = feedMount(s); say(r.text, r.ok ? 'good' : 'info'); commit(); return; }

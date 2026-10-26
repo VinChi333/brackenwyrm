@@ -75,6 +75,10 @@ export function validate(x: unknown): GameState | null {
   s.player.seerPaid = !!s.player.seerPaid;
   s.player.pendingChoice = s.player.pendingChoice === 'spec' || s.player.pendingChoice === 'race' ? s.player.pendingChoice : '';
   s.player.festeFound = !!s.player.festeFound;
+  s.player.drunk = Math.max(0, Math.min(100, Number(s.player.drunk) || 0));
+  s.player.hardDrinks = Math.max(0, Number(s.player.hardDrinks) || 0);
+  const cp = s.player.companion;
+  s.player.companion = cp && typeof cp === 'object' && typeof cp.id === 'string' && Number.isFinite(cp.hp) && Number.isFinite(cp.maxHp) ? cp : null;
   s.player.festeDay = typeof s.player.festeDay === 'string' ? s.player.festeDay : '';
   s.player.festeScrolls = Math.max(0, Math.floor(Number(s.player.festeScrolls) || 0));
   s.player.festeTreasures = Math.max(0, Math.floor(Number(s.player.festeTreasures) || 0));
@@ -123,6 +127,7 @@ export interface Prefs {
   musicVol: number;       // 0–1
   sfxVol: number;         // 0–1
   muted: boolean;
+  aushangSeen?: number;   // zuletzt gelesener Aushang am Rathaus
 }
 
 const PREFS_KEY = 'brackenwyrm.prefs';

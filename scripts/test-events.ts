@@ -24,7 +24,7 @@ t(`alle ${FOREST_EVENTS.length} Ereignisse laufen mit jeder Wahl ohne Fehler`, (
           const s2 = structuredClone(s);
           if (c.available && !c.available(s2.player)) continue;
           const out = c.run(s2.player, { s: s2, announce: (x) => announce(s2, x), data: ctx.data });
-          assert.ok(out.length > 0, `${ev.id}/${c.id} ohne Text`);
+          assert.ok(out.length > 0 || !!s2.pendingEvent, `${ev.id}/${c.id} ohne Text`);
           const q = s2.player;
           assert.ok(q.gold >= 0 && q.gems >= 0 && q.forestFights >= 0 && q.charm >= 0, `${ev.id}/${c.id}: negative Werte`);
           assert.ok(!q.alive || q.hp >= 1, `${ev.id}/${c.id}: lebt mit 0 LP`);

@@ -21,6 +21,9 @@ await db.exec(readFileSync(new URL('../server/supabase-3-briefe.sql', import.met
 await db.exec(readFileSync(new URL('../server/supabase-3-briefe.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-4-schutz.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-4-schutz.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-5-dorfleben.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-4-schutz.sql', import.meta.url), 'utf8')); // Teil 4 nach Teil 5 darf nichts kaputt machen
+await db.exec(readFileSync(new URL('../server/supabase-5-dorfleben.sql', import.meta.url), 'utf8'));
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c', N = '00000000-0000-0000-0000-00000000000d';
 await db.exec(`insert into auth.users values ('${A}','a@x'),('${B}','b@x'),('${C}','c@x'),('${N}','n@x')`);
 async function as(uid, sql, params) {
@@ -371,6 +374,101 @@ r = await db.query(`select from_user, from_name from public.mail where subject =
 ok(r.rows[0].from_user === null && r.rows[0].from_name === 'Ein verschwundener Held', 'geschickte Briefe bleiben beim Empfänger, ohne Namen');
 let anonDel = false; try { await db.exec(`reset role; set role anon;`); await db.query(`select public.delete_account()`); } catch { anonDel = true; } finally { await db.exec('reset role'); }
 ok(anonDel, 'ohne Anmeldung kann niemand löschen');
+
+// ---------- Teil 5: Kopfgeld ----------
+await db.exec(`update public.fighters set level = 6, gold = 5000, banned = false, bounties_today = 0, pvp_wins = 0, alive = true where user_id in ('${A}','${B}','${C}');`);
+let bad5 = ''; try { await as(A, `select public.set_bounty('${B}', 100)`); } catch (e) { bad5 = e.message; }
+ok(/zwischen 300 und 1200/.test(bad5), 'Kopfgeld: Betrag muss 50 bis 200 je Stufe sein: ' + bad5);
+r = await as(A, `select public.set_bounty('${B}', 500) j`);
+ok(r.rows[0].j.paid === 550 && r.rows[0].j.total === 500, 'Kopfgeld gesetzt, Dag behält 10 %');
+r = await db.query(`select gold from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].gold === 4450, 'Gold für Kopfgeld abgezogen');
+let selfB = false; try { await as(A, `select public.set_bounty('${A}', 400)`); } catch (e) { selfB = /selbst/.test(e.message); }
+ok(selfB, 'kein Kopfgeld auf sich selbst');
+await as(C, `select public.set_bounty('${B}', 600)`);
+r = await as(C, `select * from public.bounty_list()`);
+ok(r.rows[0].name === 'Opfer' && Number(r.rows[0].total) === 1100 && r.rows[0].setters === 2, 'Liste der Kopfgelder');
+let hook = false; try { await as(A, `select public.bw_after_pvp('${A}', '${B}')`); } catch { hook = true; }
+ok(hook, 'Spieler können sich Kopfgeld nicht selbst auszahlen');
+r = await db.query(`select public.bw_after_pvp('${A}', '${B}') as g`);
+ok(r.rows[0].g === 600, 'Sieger bekommt die Kopfgelder der anderen (nicht sein eigenes)');
+r = await db.query(`select gold, pvp_wins from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].gold === 5050 && r.rows[0].pvp_wins === 1, 'Gold gutgeschrieben, Sieg gezählt (' + JSON.stringify(r.rows[0]) + ')');
+r = await as(C, `select * from public.bounty_list()`);
+ok(Number(r.rows[0].total) === 500, 'eigenes Kopfgeld bleibt offen');
+r = await db.query(`select body from public.news where body like '%Kopfgeld von 600%'`);
+ok(r.rows.length === 1, 'Neuigkeit über das kassierte Kopfgeld');
+
+// ---------- Teil 5: Überweisen ----------
+await db.exec(`update public.fighters set sent_today = 0, sent_day = null; delete from public.transfers; update public.fighters set level = 2 where user_id = '${B}'`);
+let tooMuch = ''; try { await as(A, `select public.transfer_gold('${B}', 51)`); } catch (e) { tooMuch = e.message; }
+ok(/höchstens 50 Gold/.test(tooMuch), 'Überweisung höchstens 25 je Stufe des Empfängers');
+r = await as(A, `select public.transfer_gold('${B}', 50) j`);
+ok(r.rows[0].j.amount === 50 && r.rows[0].j.left_today === 100, 'Überweisung klappt, Tagesrest stimmt');
+r = await as(B, `select kind, gold, other_name from public.pvp_events where kind = 'transfer'`);
+ok(r.rows.length === 1 && r.rows[0].gold === 50 && r.rows[0].other_name === 'Angreifer', 'Empfänger bekommt die Nachricht mit dem Gold');
+await as(A, `select public.transfer_gold('${B}', 50)`); await as(A, `select public.transfer_gold('${B}', 50)`);
+let daily = ''; try { await as(A, `select public.transfer_gold('${C}', 10)`); } catch (e) { daily = e.message; }
+ok(/nur noch 0 Gold/.test(daily), 'Tagesgrenze für Überweisungen');
+await db.exec(`update public.fighters set sent_today = 0 where user_id = '${A}'`);
+let three = ''; try { await as(C, `select public.transfer_gold('${B}', 10)`); } catch (e) { three = e.message; }
+ok(/drei Überweisungen/.test(three), 'höchstens drei Überweisungen pro Empfänger und Tag');
+await db.exec(`update public.fighters set level = 2, dragon_kills = 0 where user_id = '${C}'`);
+let low = ''; try { await as(C, `select public.transfer_gold('${A}', 10)`); } catch (e) { low = e.message; }
+ok(/ab Stufe 3/.test(low), 'Überweisen erst ab Stufe 3');
+
+// ---------- Teil 5: Fünf Sechser ----------
+await db.exec(`update public.jackpot set pot = 500; delete from public.fivesix_plays; update public.fighters set gold = 5000, level = 6 where user_id = '${A}'`);
+r = await as(A, `select public.fivesix_info() j`);
+ok(r.rows[0].j.pot === 500 && r.rows[0].j.plays_left === 10 && r.rows[0].j.cost === 30, 'Jackpot-Info: Topf, Würfe, Kosten');
+let wins = 0, potGrew = true, lastPot = 500;
+for (let i = 0; i < 10; i++) {
+  const j = (await as(A, `select public.fivesix_roll() j`)).rows[0].j;
+  wins += j.win;
+  if (j.dice.length !== 5) potGrew = false;
+  if (!j.win && j.pot !== lastPot + 30) potGrew = false;
+  lastPot = j.pot;
+}
+ok(potGrew, 'jeder Wurf ohne Gewinn füllt den Topf um den Einsatz');
+let eleven = false; try { await as(A, `select public.fivesix_roll()`); } catch (e) { eleven = /genug gewürfelt/.test(e.message); }
+ok(eleven, 'höchstens 10 Würfe am Tag');
+r = await db.query(`select gold from public.fighters where user_id = '${A}'`);
+ok(r.rows[0].gold === 5000 - 300 + wins, 'Gold auf dem Server stimmt mit Einsätzen und Gewinnen');
+{
+  let fives = 0; await db.exec(`update public.jackpot set pot = 1000`);
+  for (let i = 0; i < 4000 && !fives; i++) {
+    await db.exec(`delete from public.fivesix_plays; update public.fighters set gold = 5000 where user_id = '${A}'`);
+    const j = (await as(A, `select public.fivesix_roll() j`)).rows[0].j;
+    if (j.sixes === 5) fives = j.win;
+  }
+  if (fives) { r = await db.query(`select pot, last5, last5_pot from public.jackpot`); ok(r.rows[0].pot === 500 && r.rows[0].last5 === 'Angreifer', `Jackpot geknackt (${fives} Gold), Topf wieder bei 500`); }
+  else console.log('   (in 4000 Würfen keine fünf Sechser, Wahrscheinlichkeit 1:7776)');
+}
+
+// ---------- Teil 5: Aushang ----------
+let notAdm = false; try { await as(B, `select public.post_aushang('Hallo', 'Test')`); } catch (e) { notAdm = /Wache/.test(e.message); }
+ok(notAdm, 'Aushang nur für die Wache');
+await as(C, `select public.post_aushang('Neue Version 0.40', 'Das Kontor kann jetzt überweisen.')`);
+r = await asAnon(`select title, author from public.aushang order by id desc limit 1`);
+ok(r.rows[0]?.title === 'Neue Version 0.40' && r.rows[0].author === 'Wach', 'Aushang für alle lesbar, mit Namen der Wache');
+
+// ---------- Teil 5: Ranglisten ----------
+await as(A, `update public.fighters set charm = 9999, wealth = 999999999, fastest_dk = 2, feste_treasures = 5 where user_id = '${A}'`);
+r = await db.query(`select charm, wealth, fastest_dk, feste_treasures, dragon_kills, level, days_played from public.fighters where user_id = '${A}'`);
+const fa = r.rows[0];
+ok(fa.charm === 300 && Number(fa.wealth) === 50000 * fa.level * (1 + fa.dragon_kills) && (fa.dragon_kills === 0 ? fa.fastest_dk === 0 : fa.fastest_dk === 4) && fa.feste_treasures <= fa.days_played,
+  `Ranglisten-Werte begrenzt (Charme ${fa.charm}, schnellster Drache ${fa.fastest_dk})`);
+await db.exec(`update public.fighters set fastest_dk = 0, pvp_wins = 3 where user_id = '${C}'; update public.fighters set fastest_dk = 12, dragon_kills = greatest(dragon_kills, 1) where user_id = '${B}'`);
+r = await asAnon(`select name, value from public.hall_of_fame('furcht', 5)`);
+ok(r.rows[0].name === 'Wach' && Number(r.rows[0].value) === 3, 'Rangliste der Gefürchtetsten (auch ohne Anmeldung)');
+r = await asAnon(`select name, value from public.hall_of_fame('schnell', 5)`);
+ok(r.rows.every((x) => Number(x.value) > 0) && r.rows.some((x) => x.name === 'Opfer'), 'Schnellste Drachentöter ohne die, die noch keinen haben');
+r = await asAnon(`select name from public.hall_of_fame('charme', 5)`);
+ok(r.rows[0].name === 'Angreifer', 'Charmanteste');
+await db.exec(`update public.fighters set banned = true where user_id = '${A}'`);
+r = await asAnon(`select name from public.hall_of_fame('charme', 5)`);
+ok(!r.rows.some((x) => x.name === 'Angreifer'), 'Gesperrte erscheinen in keiner Rangliste');
+await db.exec(`update public.fighters set banned = false where user_id = '${A}'`);
 
 // Aktualisierung einer Datenbank mit dem alten Teil 2 (ohne Rassen)
 {

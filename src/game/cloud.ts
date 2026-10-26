@@ -20,14 +20,21 @@ export interface PvpResult {
   hero: { hp: number; max: number };
   foe: { name: string; level: number; specialty: string; race?: string; gender: Gender; hp: number; max: number; weapon_tier: number };
   gold: number; exp_win: number; exp_lose: number; fights_left: number;
+  bounty?: number;                 // kassiertes Kopfgeld (Teil 5)
 }
-export interface PvpEvent { id: number; kind: 'slain' | 'defended' | 'haunted'; other_name: string; place: string; gold: number; exp: number; created_at: string }
+export interface PvpEvent { id: number; kind: 'slain' | 'defended' | 'haunted' | 'transfer'; other_name: string; place: string; gold: number; exp: number; created_at: string }
 export interface NewsRow { created_at: string; body: string }
 export interface WarriorRow { userId: string; name: string; gender: Gender; level: number; race: RaceId; specialty: SpecialtyId; dragonKills: number; alive: boolean; online: boolean; inInn: boolean; lastSeen: string; bio: string; mount: string; marriedTo: string; daysPlayed: number; heirlooms: string[] }
 export interface MailRow { id: number; created_at: string; from_user: string | null; from_name: string; subject: string; body: string; seen: boolean }
 export interface CommentRow { id: number; created_at: string; name: string; body: string; user_id?: string }
 export type ReportKind = 'chat' | 'brief' | 'steckbrief' | 'name';
 export interface BlockRow { blocked: string; name: string }
+export interface BountyRow { target: string; name: string; gender: Gender; level: number; dragon_kills: number; total: number; setters: number }
+export interface JackpotInfo { pot: number; last5: string; last5_pot: number; last4: string; last4_pot: number; last3: string; last3_pot: number; plays_left: number; cost: number }
+export interface DiceResult { dice: number[]; sixes: number; win: number; cost: number; pot: number; plays_left: number }
+export interface AushangRow { id: number; created_at: string; title: string; body: string; author: string }
+export type FameCat = 'drachen' | 'reich' | 'charme' | 'schnell' | 'erben' | 'furcht' | 'schatz' | 'veteran';
+export interface FameCatRow { name: string; gender: Gender; dragonKills: number; level: number; value: number }
 export interface ModReport { kind: ReportKind; ref_id: number; target: string | null; target_name: string; banned: boolean; content: string; reports: number; first_at: string; hidden: boolean }
 export interface ModCheat { created_at: string; user_id: string; name: string; field: string; sent: string; kept: string; banned: boolean }
 export interface ModBanned { user_id: string; name: string; level: number; dragon_kills: number }
@@ -143,20 +150,22 @@ export class Cloud {
       alive: p.alive, in_inn: p.alive && p.innRoom,
       bio: (p.bio ?? '').slice(0, 400), mount: p.mount, married_to: p.marriedTo,
       heirlooms: (p.heirlooms ?? []).join(','),
+      charm: Math.max(0, p.charm), wealth: Math.max(0, p.gold + p.bank), fastest_dk: state.stats.fastestDragon || 0, feste_treasures: p.festeTreasures ?? 0,
     };
     const send = (b: object) => this.call('/rest/v1/fighters', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: b });
     // Ältere Datenbanken kennen manche Spalten noch nicht: dann Schritt für Schritt einfacher speichern.
-    const { heirlooms: _h, ...noHeir } = body;
+    const { charm: _c, wealth: _we, fastest_dk: _f, feste_treasures: _t, ...noFame } = body;
+    const { heirlooms: _h, ...noHeir } = noFame;
     const { bio: _b, mount: _m, married_to: _w, ...noBio } = noHeir;
     const { race: _r, ...noRace } = noBio;
-    const attempts: Record<string, unknown>[] = [body, noHeir, noBio, { ...noRace, specialty: LEGACY_REVERSE[p.specialty] }];
+    const attempts: Record<string, unknown>[] = [body, noFame, noHeir, noBio, { ...noRace, specialty: LEGACY_REVERSE[p.specialty] }];
     for (let i = 0; i < attempts.length; i++) {
       try {
         await send(attempts[i]);
         return;
       } catch (e) {
         if (e instanceof CloudError && /404|42P01|PGRST205/.test(e.message)) return;  // Tabelle gibt es (noch) nicht
-        const schemaError = e instanceof CloudError && /heirlooms|bio|mount|married|race|PGRST204|42703|42501|23514|check/i.test(e.message) && e.code === 'server';
+        const schemaError = e instanceof CloudError && /charm|wealth|fastest|feste_treasures|heirlooms|bio|mount|married|race|PGRST204|42703|42501|23514|check/i.test(e.message) && e.code === 'server';
         if (!schemaError || i === attempts.length - 1) throw e;
       }
     }
@@ -408,6 +417,74 @@ export class Cloud {
       throw e;
     }
     this.signOut();
+  }
+
+  // ---------- Dorfleben (Teil 5) ----------
+
+  private missingPart5(e: unknown): boolean {
+    return e instanceof CloudError && e.code === 'server' && /404|PGRST202|42883|42P01|PGRST205/.test(e.message);
+  }
+
+  private async rpc5<T>(name: string, body: object, what: string): Promise<T> {
+    await this.ensureSession();
+    try {
+      return await this.call(`/rest/v1/rpc/${name}`, { method: 'POST', body });
+    } catch (e) {
+      if (this.missingPart5(e)) throw new CloudError('server', `${what} ist auf dem Server noch nicht eingerichtet (Teil 5).`);
+      throw e;
+    }
+  }
+
+  setBounty(target: string, amount: number): Promise<{ paid: number; name: string; total: number }> {
+    return this.rpc5('set_bounty', { target, amount }, 'Das Kopfgeld');
+  }
+
+  async bounties(): Promise<BountyRow[]> {
+    const rows = await this.rpc5<BountyRow[]>('bounty_list', {}, 'Das Kopfgeld');
+    return (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, total: Number(r.total), gender: r.gender === 'f' ? 'f' : 'm' }));
+  }
+
+  transferGold(target: string, amount: number): Promise<{ amount: number; name: string; left_today: number }> {
+    return this.rpc5('transfer_gold', { target, amount }, 'Überweisen');
+  }
+
+  jackpot(): Promise<JackpotInfo> {
+    return this.rpc5('fivesix_info', {}, 'Fünf Sechser');
+  }
+
+  rollFiveSix(): Promise<DiceResult> {
+    return this.rpc5('fivesix_roll', {}, 'Fünf Sechser');
+  }
+
+  async aushang(limit = 10): Promise<AushangRow[]> {
+    try {
+      const rows = await this.call(`/rest/v1/aushang?select=id,created_at,title,body,author&order=created_at.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+      return Array.isArray(rows) ? rows : [];
+    } catch (e) {
+      if (this.missingPart5(e)) return [];
+      throw e;
+    }
+  }
+
+  async postAushang(title: string, body: string): Promise<void> {
+    await this.rpc5('post_aushang', { title, body }, 'Der Aushang');
+  }
+
+  async deleteAushang(id: number): Promise<void> {
+    await this.rpc5('delete_aushang', { aushang_id: id }, 'Der Aushang');
+  }
+
+  /** Rangliste einer Kategorie. undefined = Server kennt die Ranglisten noch nicht. */
+  async fameCategory(cat: FameCat, limit = 20): Promise<FameCatRow[] | undefined> {
+    try {
+      const rows = await this.call('/rest/v1/rpc/hall_of_fame', { method: 'POST', body: { cat, lim: limit } }, !!this.session);
+      return (Array.isArray(rows) ? rows : []).map((r: { name: string; gender: string; dragon_kills: number; level: number; value: number }) => ({
+        name: r.name, gender: r.gender === 'f' ? 'f' : 'm', dragonKills: r.dragon_kills, level: r.level, value: Number(r.value),
+      }));
+    } catch (e) {
+      if (this.missingPart5(e)) return undefined;
+      throw e;
+    }
   }
 
   // ---------- intern ----------

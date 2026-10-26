@@ -432,6 +432,68 @@ export const FOREST_EVENTS: ForestEvent[] = [
       return [{ t: FESTE_TEXT.found, k: 'gold' }, { t: 'Ab jetzt findest du den Weg zur versunkenen Feste im Wald wieder.', k: 'good' }];
     } },
 
+  // Die verrückte Audrey und ihre Kätzchen (Original: Crazy Audrey). Zwei gleiche: +2 Waldkämpfe, drei gleiche: +5, keine: -2.
+  { id: 'audrey', weight: 3,
+    prompt: () => [
+      { t: 'Auf einer seltsam stillen Lichtung stehen drei fest verschnürte Weidenkörbe. Aus einem kommt ein leises Miauen. Gerade als du nach dem ersten Deckel greifst, stürzt eine zerzauste Frau aus dem Gebüsch und reißt die Körbe an sich. Die verrückte Audrey!', k: 'warn' },
+      { t: '„Vier Farben gibt’s von Kätzchen hier, in jedem Korb, das glaube mir. Kommen zwei gleiche aus dem Korb heraus, gibt’s Salbe für die Füße, und du läufst wie nie zuvor. Kommt keines gleich, so sag ich dir: Du gehst heut früher schlafen, glaub es mir.“ Sie kichert. „Spielst du?“', k: 'info' },
+    ],
+    choices: [
+      { id: 'spielen', label: 'Audreys Spiel spielen', key: 's', run: (p) => {
+        const colors = ['getigert', 'rot', 'schwarz', 'weiß'];
+        const c = [0, 1, 2].map(() => colors[roll(0, 3)]);
+        const lines: LogLine[] = [{ t: `Audrey klopft auf den ersten Korb, ein ${c[0]}es Kätzchen schaut heraus. Dann auf den zweiten: ein ${c[1]}es. Und auf den dritten: ein ${c[2]}es Kätzchen hüpft ihr auf die Schulter.`, k: 'info' }];
+        const same = new Set(c).size;
+        if (same === 1) {
+          p.forestFights += 5;
+          lines.push({ t: 'Drei gleiche! Audrey kreischt vor Freude und lässt einen ganzen Beutel Salbe fallen. Du reibst sie dir zwischen die Zehen und fühlst dich, als könntest du bis Sonnenuntergang laufen. (+5 Waldkämpfe)', k: 'gold' });
+        } else if (same === 2) {
+          p.forestFights += 2;
+          lines.push({ t: 'Zwei gleiche! Audrey krault das Kätzchen auf ihrer Schulter und reicht dir ein Döschen Salbe. Du reibst sie dir zwischen die Zehen. (+2 Waldkämpfe)', k: 'good' });
+        } else {
+          const lost = Math.min(2, p.forestFights);
+          p.forestFights -= lost;
+          lines.push({ t: `Keine zwei gleich. Audrey starrt dich an, bis dir ganz schummrig wird. Du fühlst dich auf einmal schrecklich müde.${lost ? ` (−${lost} Waldkämpfe)` : ''}`, k: 'bad' });
+        }
+        return lines;
+      } },
+      { id: 'weg', label: 'Ganz schnell wegrennen', key: 'w', run: () => [{ t: 'Du rennst, so schnell du kannst, weg von dieser verrückten Frau. Hinter dir miaut es empört.', k: 'info' }] },
+    ] },
+
+  // Die Plumpsklos im Wald (Original: Outhouse). Danach: Hände waschen oder nicht?
+  { id: 'klo', weight: 3,
+    prompt: (p) => [{ t: `Ein strenger Geruch kündigt sie an: Moosgrund hält seine Plumpsklos hier draußen im Wald, weil der Gestank die Monster fernhält. Es gibt ein feines Häuschen mit Herz in der Tür (${p.level * 5} Gold, ein Klogeist kassiert) und ein öffentliches Loch hinter einem Busch.`, k: 'warn' }],
+    choices: [
+      { id: 'fein', label: 'Das feine Häuschen', key: 'f', hint: (p) => `${p.level * 5} Gold`, available: (p) => p.gold >= p.level * 5, run: (p, ctx) => {
+        p.gold -= p.level * 5;
+        ctx.s.pendingEvent = { id: 'klo2', lines: [{ t: 'Du zahlst den Klogeist, und er dreht sich höflich um. Das sauberste Plumpsklo im ganzen Land! Es gibt sogar weiches Moos statt Blättern. Neben der Tür steht ein Waschtrog.', k: 'info' }], data: 1 };
+        return [];
+      } },
+      { id: 'loch', label: 'Das öffentliche Loch', key: 'o', run: (_p, ctx) => {
+        ctx.s.pendingEvent = { id: 'klo2', lines: [{ t: 'Der Gestank ist so stark, dass dir die Augen tränen und die Nasenhaare sich kräuseln. Du hockst dich über das Loch und rutschst beinahe hinein. So schnell wie möglich bist du fertig. Neben dem Busch steht ein Waschtrog.', k: 'info' }], data: 0 };
+        return [];
+      } },
+      { id: 'weiter', label: 'Einhalten und weitergehen', key: 'w', run: () => [{ t: 'Du hältst die Luft an und gehst schnell weiter. Es geht auch so.', k: 'info' }] },
+    ] },
+  { id: 'klo2', weight: 0, when: () => false,
+    neutral: true,
+    choices: [
+      { id: 'waschen', label: 'Hände waschen', key: 'h', run: (p, ctx) => {
+        const lines: LogLine[] = [{ t: 'Hände waschen ist immer gut. Du richtest dich im Spiegelbild des Wassers her und gehst weiter.', k: 'info' }];
+        if (chance(0.6)) { const g = p.level * (ctx.data ? 4 : 2); p.gold += g; lines.push({ t: `Die Waschtrog-Fee segnet dich! Für so viel Sauberkeit bekommst du ${g} Gold.`, k: 'gold' }); }
+        if (chance(0.25)) { p.gems += 1; lines.push({ t: 'Und an der Türschwelle liegt ein Edelstein. Glückspilz!', k: 'gold' }); }
+        return lines;
+      } },
+      { id: 'nicht', label: 'Ach was, einfach weiter', key: 'w', run: (p) => {
+        if (chance(0.5) && p.gold > 0) {
+          const g = Math.min(p.gold, p.level * 3);
+          p.gold -= g;
+          return [{ t: `Deine Hände stinken fürchterlich. Hat dir deine Mutter nichts beigebracht? Der Klogeist wirft dich auf den schmierigen Boden und nimmt dir zur Strafe ${g} Gold ab. Wenigstens steht das nicht in den Neuigkeiten.`, k: 'bad' }];
+        }
+        return [{ t: 'Du wischst dir die Hände an der Hose ab und gehst weiter. Niemand hat es gesehen. Hoffentlich.', k: 'info' }];
+      } },
+    ] },
+
   { id: 'turm', weight: 4,
     prompt: (p) => [{ t: `Aus einem efeubewachsenen Turm ruft jemand um Hilfe. Am Fenster siehst du ${p.gender === 'f' ? 'einen jungen Mann' : 'eine junge Frau'} winken. Die Tür ist mit einem dicken Riegel verschlossen.`, k: 'warn' }],
     choices: [

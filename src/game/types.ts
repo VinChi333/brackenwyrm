@@ -179,6 +179,9 @@ export interface Player {
   festeScrolls?: number;       // gelesene Schriftrollen der Wyrmjäger
   festeTreasures?: number;     // wie oft den Schatz gehoben
   heirlooms?: string[];        // Erbstücke der Wyrmjäger (bleiben für immer)
+  drunk?: number;              // Rausch 0–100 (Getränke am Tresen)
+  hardDrinks?: number;         // harte Getränke heute
+  companion?: Companion | null; // angeheuerter Begleiter aus dem Söldnerlager
 }
 
 export type DragonPoint = 'atk' | 'def' | 'hp' | 'ff';
@@ -207,6 +210,13 @@ export interface PendingEvent {
 }
 
 /** Ein Ausflug in die versunkene Feste (Regeln in game/feste.ts). */
+/** Ein Begleiter aus dem Söldnerlager (Original: mercenarycamp / companions). */
+export interface Companion {
+  id: string;              // welcher Söldner (content/companions.ts)
+  hp: number;
+  maxHp: number;
+}
+
 export interface FesteRun {
   day: string;
   pos: number;

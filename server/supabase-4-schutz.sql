@@ -368,6 +368,14 @@ $$;
 revoke all on function public.warriors() from public, anon;
 grant execute on function public.warriors() to authenticated;
 
+-- Haken nach einem gewonnenen Spielerkampf (Kopfgeld, Siegzähler). Teil 5 füllt ihn; hier nur ein leerer Platzhalter,
+-- der nie etwas überschreibt, das schon da ist.
+do $$ begin
+  if to_regprocedure('public.bw_after_pvp(uuid,uuid)') is null then
+    execute 'create function public.bw_after_pvp(winner uuid, loser uuid) returns int language sql as ''select 0''';
+  end if;
+end $$;
+
 -- Spielerkämpfe: Gesperrte greifen nicht an und werden nicht angegriffen (sonst wie in Teil 2).
 drop function if exists public.pvp_targets(text);
 create or replace function public.pvp_targets(place text default 'felder')
@@ -405,6 +413,7 @@ declare
   hd int; fd int; n int := 0;
   won boolean;
   gold_amt int; exp_win int; exp_lose int;
+  bounty int := 0;
 begin
   select * into me from public.fighters f where f.user_id = auth.uid() for update;
   if me.user_id is null then raise exception 'Kein Spielerkonto gefunden.' using errcode = 'P0001'; end if;
@@ -450,6 +459,7 @@ begin
     exp_lose := round(t.exp * 0.05)::int;
     update public.fighters set gold = 0, exp = greatest(0, exp - exp_lose), alive = false, hp = 0, pvp_flag = now() where user_id = t.user_id;
     update public.fighters set gold = gold + gold_amt, exp = exp + exp_win, hp = my_hp, pk = true, pvp_day = me.pvp_day, pvp_used = me.pvp_used where user_id = me.user_id;
+    bounty := public.bw_after_pvp(me.user_id, t.user_id);  -- Kopfgeld (Teil 5), sonst 0
     insert into public.pvp_events (user_id, kind, other_name, place, gold, exp) values (t.user_id, 'slain', me.name, place, gold_amt, exp_lose);
     insert into public.news (user_id, body) values (null,
       case when place = 'gasthaus'
@@ -470,7 +480,7 @@ begin
     'hero', jsonb_build_object('hp', greatest(0, my_hp), 'max', my_max),
     'foe', jsonb_build_object('name', t.name, 'level', t.level, 'specialty', t.specialty, 'race', t.race, 'gender', t.gender, 'hp', t_hp, 'max', t_max, 'weapon_tier', t.weapon_tier),
     'gold', gold_amt, 'exp_win', case when won then exp_win else 0 end, 'exp_lose', case when won then 0 else exp_lose end,
-    'fights_left', 3 - me.pvp_used);
+    'fights_left', 3 - me.pvp_used, 'bounty', bounty);
 end $$;
 
 revoke all on function public.pvp_targets(text), public.pvp_attack(uuid, text) from public, anon;
