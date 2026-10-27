@@ -16,6 +16,7 @@ const NOT_TEXT = [
   /^https?:\/\//,
   /^[\s\d.,:;+\-–—×%°/()|·•…→←↑↓✓✗★☆♥]*$/,
   /\.(webp|png|jpg|mp3|svg|css|ts|js)$/,
+  /^\/(rest|auth)\//, /\?select=/, /=eq\./, /^Bearer /, /resolution=/, /^BW\d:/, /^\s*data-[a-z-]+="/, /^\[data-/, /^\.[a-z-]+ \./,
 ];
 function looksLikeText(raw: string): boolean {
   const s = raw.replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\{\d+\}/g, ' ').trim();
@@ -58,7 +59,9 @@ for (const file of files) {
 
   const isInlineExpr = (e: ts.Expression): boolean => {
     const txt = e.getText(sf);
-    if (txt.includes('`') || /Html\(|html\(|<[a-z]/.test(txt)) return false;
+    if (txt.includes('`') || /<[a-z]/.test(txt)) return false;
+    // Aufrufe, die HTML liefern, trennen den Satz
+    if (/(html|Html|Art|art|Portrait|portrait|Card|card|bar|Bar|Choices|choices|layout|flash|nav|Nav|dots|icon|Icon|svg|Svg|Box|box|List|list|Table|table|Row|row|Screen|screen)\s*\(/.test(txt)) return false;
     return true;
   };
 
@@ -67,6 +70,10 @@ for (const file of files) {
     // Schon übersetzt: unverändert, aber Ausdrücke darin weiter bearbeiten
     if (ts.isTaggedTemplateExpression(node) || (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && TR_FUNCS.has(node.expression.text))) return splice(node);
     if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !skipContext(node) && !ignored(node) && looksLikeText(node.text)) {
+      if (/<[a-zA-Z]/.test(node.text)) {
+        const raw = ts.isNoSubstitutionTemplateLiteral(node) ? node.getText(sf).slice(1, -1) : node.text.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
+        return renderItems([{ k: 'lit', raw }]);
+      }
       count++;
       return `t(${node.getText(sf)})`;
     }
@@ -106,6 +113,10 @@ for (const file of files) {
   const renderHtml = (node: ts.TemplateExpression): string => {
     const items: Item[] = [{ k: 'lit', raw: rawOf(node.head) }];
     for (const sp of node.templateSpans) { items.push({ k: 'expr', e: sp.expression }, { k: 'lit', raw: rawOf(sp.literal) }); }
+    return renderItems(items);
+  };
+
+  const renderItems = (items: Item[]): string => {
 
     // In Tokens zerlegen: tag (mit Ausdrücken darin), text, expr
     type Tok = { k: 'tag'; parts: (string | ts.Expression)[]; name: string; inline: boolean } | { k: 'text'; s: string } | { k: 'expr'; e: ts.Expression };

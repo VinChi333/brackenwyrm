@@ -1,44 +1,46 @@
 import type { ItemDef } from '../game/types';
 
+import { t } from '../i18n';
+
 // Stufe 0 ist die Startausrüstung. Wert = Angriff (Waffe) bzw. Verteidigung (Rüstung).
 // Preise folgen ungefähr 28 × Stufe^1,8 und wachsen mit den Einnahmen mit. Gold bleibt trotzdem eine Entscheidung.
 
 const W: [string, number][] = [
-  ['Haselstecken', 0],
-  ['Schnitzmesser', 30],
-  ['Holzfälleraxt', 100],
-  ['Jagdspeer', 200],
-  ['Kurzschwert', 340],
-  ['Dornenkeule', 510],
-  ['Langschwert', 700],
-  ['Kriegsbeil', 930],
-  ['Harzgehärtete Klinge', 1180],
-  ['Rabenschnabel-Hammer', 1460],
-  ['Eschenlanze', 1770],
-  ['Mondsichel', 2100],
-  ['Wurzelstahl-Schwert', 2450],
-  ['Glutklinge', 2830],
-  ['Farnschneide', 3240],
-  ['Wyrmzahn', 3670],
+  [t('Haselstecken'), 0],
+  [t('Schnitzmesser'), 30],
+  [t('Holzfälleraxt'), 100],
+  [t('Jagdspeer'), 200],
+  [t('Kurzschwert'), 340],
+  [t('Dornenkeule'), 510],
+  [t('Langschwert'), 700],
+  [t('Kriegsbeil'), 930],
+  [t('Harzgehärtete Klinge'), 1180],
+  [t('Rabenschnabel-Hammer'), 1460],
+  [t('Eschenlanze'), 1770],
+  [t('Mondsichel'), 2100],
+  [t('Wurzelstahl-Schwert'), 2450],
+  [t('Glutklinge'), 2830],
+  [t('Farnschneide'), 3240],
+  [t('Wyrmzahn'), 3670],
 ];
 
 const A: [string, number][] = [
-  ['Leinenhemd', 0],
-  ['Filzwams', 30],
-  ['Lederweste', 100],
-  ['Gesteppter Gambeson', 200],
-  ['Beschlagenes Leder', 340],
-  ['Rindenpanzer', 510],
-  ['Kettenhemd', 700],
-  ['Schuppenpanzer', 930],
-  ['Moosgrüne Brünne', 1180],
-  ['Eisenplatten', 1460],
-  ['Harzlack-Rüstung', 1770],
-  ['Wolfsfell-Plattenrock', 2100],
-  ['Wurzelstahl-Panzer', 2450],
-  ['Glutschuppen-Harnisch', 2830],
-  ['Farnritter-Rüstung', 3240],
-  ['Wyrmschuppen-Panzer', 3670],
+  [t('Leinenhemd'), 0],
+  [t('Filzwams'), 30],
+  [t('Lederweste'), 100],
+  [t('Gesteppter Gambeson'), 200],
+  [t('Beschlagenes Leder'), 340],
+  [t('Rindenpanzer'), 510],
+  [t('Kettenhemd'), 700],
+  [t('Schuppenpanzer'), 930],
+  [t('Moosgrüne Brünne'), 1180],
+  [t('Eisenplatten'), 1460],
+  [t('Harzlack-Rüstung'), 1770],
+  [t('Wolfsfell-Plattenrock'), 2100],
+  [t('Wurzelstahl-Panzer'), 2450],
+  [t('Glutschuppen-Harnisch'), 2830],
+  [t('Farnritter-Rüstung'), 3240],
+  [t('Wyrmschuppen-Panzer'), 3670],
 ];
 
 export const WEAPONS: ItemDef[] = W.map(([name, price], tier) => ({ tier, name, value: tier * 2 + 1, price }));

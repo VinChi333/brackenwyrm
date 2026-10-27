@@ -10,6 +10,9 @@ import { expPerKill, goldPerKill, masterToughness, maxHp, monsterStats, toughen,
 import { between, chance, pick, roll } from './rng';
 import { FESTE_MONSTERS, FESTE_TEXT, HEIRLOOMS, HUETER, SCROLLS, hasHeirloom, heirloom } from '../content/feste';
 import type { FesteRun, Fight, GameState, Player } from './types';
+import { t } from '../i18n';
+import { news } from '../i18n/news';
+
 export type { FesteRun };
 
 export const SIZE = 9;
@@ -30,7 +33,7 @@ const DY: Record<Dir, number> = { n: -1, o: 0, s: 1, w: 0 };
 const BIT: Record<Dir, number> = { n: 1, o: 2, s: 4, w: 8 };
 const OPP: Record<Dir, Dir> = { n: 's', o: 'w', s: 'n', w: 'o' };
 export const DIRS: Dir[] = ['n', 'o', 's', 'w'];
-export const DIR_NAME: Record<Dir, string> = { n: 'Norden', o: 'Osten', s: 'Süden', w: 'Westen' };
+export const DIR_NAME: Record<Dir, string> = { n: t('Norden'), o: t('Osten'), s: t('Süden'), w: t('Westen') };
 
 export type CellThing = '' | 'monster' | 'trap' | 'chest' | 'well' | 'torch' | 'scroll' | 'boss';
 
@@ -188,10 +191,10 @@ export function exits(s: GameState): Dir[] {
 
 function compass(from: number, to: number): string {
   const [x1, y1] = cellXY(from); const [x2, y2] = cellXY(to);
-  const ns = y2 < y1 ? 'Nord' : y2 > y1 ? 'Süd' : '';
+  const ns = y2 < y1 ? t('Nord') : y2 > y1 ? t('Süd') : '';
   const ow = x2 > x1 ? 'ost' : x2 < x1 ? 'west' : '';
   if (!ns && !ow) return 'genau hier';
-  if (!ns) return `im ${ow === 'ost' ? 'Osten' : 'Westen'}`;
+  if (!ns) return `im ${ow === 'ost' ? t('Osten') : t('Westen')}`;
   if (!ow) return `im ${ns}en`;
   return `im ${ns}${ow}en`;
 }
@@ -229,7 +232,7 @@ export function moveFeste(s: GameState, d: Dir): void {
   if (!run || run.over || s.fight || !p.alive) return;
   const m = mazeFor(run.day);
   const n = step(m, run.pos, d);
-  if (n === null) { run.log = [{ t: 'Da ist eine Wand. Massiv, feucht und sehr überzeugt von sich.', k: 'info' }]; return; }
+  if (n === null) { run.log = [{ t: t('Da ist eine Wand. Massiv, feucht und sehr überzeugt von sich.'), k: 'info' }]; return; }
   run.light -= 1;
   run.from = run.pos;
   run.pos = n;
@@ -237,12 +240,12 @@ export function moveFeste(s: GameState, d: Dir): void {
   run.log = [];
   const thing = m.things[n];
   if (thing && !run.done.includes(n)) resolveCell(s, run, m, n, thing);
-  else if (n === m.boss && run.bossDown) run.log.push({ t: 'Die Halle des Hüters. Es ist still geworden.', k: 'info' });
+  else if (n === m.boss && run.bossDown) run.log.push({ t: t('Die Halle des Hüters. Es ist still geworden.'), k: 'info' });
   if (!s.fight && !run.over && run.light <= 0) {
     run.over = 'dark';
     run.log.push({ t: FESTE_TEXT.dark, k: 'warn' });
   } else if (!s.fight && !run.over && run.light === 10) {
-    run.log.push({ t: 'Deine Fackel wird kleiner. Noch 10 Schritte Licht.', k: 'warn' });
+    run.log.push({ t: t('Deine Fackel wird kleiner. Noch 10 Schritte Licht.'), k: 'warn' });
   }
 }
 
@@ -260,7 +263,7 @@ function resolveCell(s: GameState, run: FesteRun, m: Maze, c: number, thing: Cel
       done();
       const dmg = Math.max(1, Math.round(maxHp(p) * between(0.1, 0.22)));
       p.hp = Math.max(1, p.hp - dmg);
-      run.log.push({ t: `${pick(FESTE_TEXT.traps)} ${dmg} Schaden.`, k: 'bad' });
+      run.log.push({ t: t`${pick(FESTE_TEXT.traps)} ${dmg} Schaden.`, k: 'bad' });
       return;
     }
     case 'chest': {
@@ -268,9 +271,9 @@ function resolveCell(s: GameState, run: FesteRun, m: Maze, c: number, thing: Cel
       if (chance(0.15)) { run.log.push({ t: FESTE_TEXT.chestEmpty, k: 'info' }); return; }
       const gold = Math.round(goldPerKill(p.level) * between(1.5, 3.5));
       p.gold += gold; run.gold += gold;
-      let t = `Eine alte Truhe! Darin: ${gold} Gold`;
-      if (chance(0.3)) { p.gems += 1; run.gems += 1; t += ' und ein Edelstein'; }
-      run.log.push({ t: `${t}.`, k: 'gold' });
+      let msg = t`Eine alte Truhe! Darin: ${gold} Gold`;
+      if (chance(0.3)) { p.gems += 1; run.gems += 1; msg += t(' und ein Edelstein'); }
+      run.log.push({ t: `${msg}.`, k: 'gold' });
       return;
     }
     case 'well':
@@ -281,7 +284,7 @@ function resolveCell(s: GameState, run: FesteRun, m: Maze, c: number, thing: Cel
     case 'torch':
       done();
       run.light += TORCH_LIGHT;
-      run.log.push({ t: `${FESTE_TEXT.torch} (+${TORCH_LIGHT} Schritte Licht)`, k: 'good' });
+      run.log.push({ t: t`${FESTE_TEXT.torch} (+${TORCH_LIGHT} Schritte Licht)`, k: 'good' });
       return;
     case 'scroll': {
       done();
@@ -289,12 +292,12 @@ function resolveCell(s: GameState, run: FesteRun, m: Maze, c: number, thing: Cel
       const where = compass(c, m.boss);
       if (i < SCROLLS.length) {
         p.festeScrolls = i + 1;
-        run.log.push({ t: `Eine Schriftrolle der Wyrmjäger (${i + 1} von ${SCROLLS.length}):`, k: 'info' });
-        run.log.push({ t: `„${SCROLLS[i]}“`, k: 'info' });
+        run.log.push({ t: t`Eine Schriftrolle der Wyrmjäger (${i + 1} von ${SCROLLS.length}):`, k: 'info' });
+        run.log.push({ t: t`„${SCROLLS[i]}“`, k: 'info' });
       } else {
-        run.log.push({ t: 'Eine Schriftrolle, die du schon kennst.', k: 'info' });
+        run.log.push({ t: t('Eine Schriftrolle, die du schon kennst.'), k: 'info' });
       }
-      run.log.push({ t: `Am Rand hat jemand eine Skizze gekritzelt: Die Halle des Hüters liegt von hier aus ${where}.`, k: 'gold' });
+      run.log.push({ t: t`Am Rand hat jemand eine Skizze gekritzelt: Die Halle des Hüters liegt von hier aus ${where}.`, k: 'gold' });
       return;
     }
     default:
@@ -310,7 +313,7 @@ export function afterFesteFight(s: GameState, result: Fight['over'], monsterId: 
     if (monsterId === HUETER.id) { run.bossDown = true; takeTreasure(s); }
   } else if (result === 'fled') {
     run.pos = run.from;
-    run.log = [{ t: 'Du rennst zurück, woher du gekommen bist. Das Ding bleibt, wo es ist.', k: 'warn' }];
+    run.log = [{ t: t('Du rennst zurück, woher du gekommen bist. Das Ding bleibt, wo es ist.'), k: 'warn' }];
   } else if (result === 'lose') {
     run.over = 'dead';
   }
@@ -324,7 +327,7 @@ function takeTreasure(s: GameState): void {
   const gems = roll(2, 4) + (p.dragonKills >= 3 ? 1 : 0);
   p.gold += gold; p.gems += gems;
   run.gold += gold; run.gems += gems;
-  run.log = [{ t: FESTE_TEXT.treasure, k: 'info' }, { t: `Du stopfst dir ${gold} Gold und ${gems} Edelsteine in die Taschen.`, k: 'gold' }];
+  run.log = [{ t: FESTE_TEXT.treasure, k: 'info' }, { t: t`Du stopfst dir ${gold} Gold und ${gems} Edelsteine in die Taschen.`, k: 'gold' }];
   const missing = HEIRLOOMS.filter((h) => !hasHeirloom(p, h.id));
   const first = !(p.heirlooms?.length) && !(p.festeTreasures);
   if (missing.length && (first || chance(HEIRLOOM_CHANCE))) {
@@ -333,8 +336,8 @@ function takeTreasure(s: GameState): void {
     run.heirloom = h.id;
     if (h.id === 'siegelring') p.charm += 1;
     if (h.id === 'amulett') p.hp += 5;
-    run.log.push({ t: `Zwischen den Münzen liegt etwas Besonderes: ${h.name}! (${h.bonus}, für immer)`, k: 'gold' });
-    if (p.heirlooms.length === HEIRLOOMS.length) run.log.push({ t: 'Du hast alle Erbstücke der Wyrmjäger beisammen. Du bist ihr Erbe.', k: 'gold' });
+    run.log.push({ t: t`Zwischen den Münzen liegt etwas Besonderes: ${h.name}! (${h.bonus}, für immer)`, k: 'gold' });
+    if (p.heirlooms.length === HEIRLOOMS.length) run.log.push({ t: t('Du hast alle Erbstücke der Wyrmjäger beisammen. Du bist ihr Erbe.'), k: 'gold' });
   }
   p.festeTreasures = (p.festeTreasures ?? 0) + 1;
   run.over = 'treasure';
@@ -349,7 +352,7 @@ export function leaveFeste(s: GameState): void {
 
 /** Zusammenfassung für die Tagesneuigkeiten (nur beim Schatz). */
 export function treasureNews(p: Player, first: boolean): string {
-  return `${p.name} hat ${first ? `heute als ${p.gender === 'f' ? 'Erste' : 'Erster'} ` : ''}den Hüter der versunkenen Feste besiegt und ihren Schatz gehoben!`;
+  return first ? news(p.gender === 'f' ? 'festeTreasureFirstF' : 'festeTreasureFirstM', p.name) : news('festeTreasure', p.name);
 }
 
 export function heirloomNames(ids: string[] | undefined): string[] {

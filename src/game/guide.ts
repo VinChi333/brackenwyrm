@@ -3,6 +3,8 @@ import { GUIDE_OPEN_LEVEL, GUIDE_STEPS, PLACE_NAMES, PLACE_UNLOCK, type GuideSte
 import { maxHp } from './balance';
 import type { GameState, Guide } from './types';
 
+import { t } from '../i18n';
+
 export function newGuide(): Guide {
   return { step: 0, flags: [], seen: [], open: false, lvl: 1, fresh: [] };
 }
@@ -65,7 +67,7 @@ export function guideUpdate(s: GameState): string[] {
     const fresh = Object.entries(PLACE_UNLOCK).filter(([, l]) => l > g.lvl && l <= p.level).map(([a]) => a);
     if (fresh.length) {
       g.fresh.push(...fresh.filter((a) => !g.fresh.includes(a)));
-      out.push(`Neu in Moosgrund: ${fresh.map((a) => PLACE_NAMES[a] ?? a).join(', ')}.`);
+      out.push(t`Neu in Moosgrund: ${fresh.map((a) => PLACE_NAMES[a] ?? a).join(', ')}.`);
     }
   }
   g.lvl = Math.max(g.lvl, p.level);

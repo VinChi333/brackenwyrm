@@ -6,6 +6,9 @@ import { LEGACY_REVERSE, normalizeSpecialty } from '../content/specialties';
 import { normalizeRace } from '../content/races';
 import type { GameState, Gender, RaceId, SpecialtyId } from './types';
 
+import { t } from '../i18n';
+import { serverText } from '../i18n/server';
+
 const URL_ = (import.meta.env?.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '') ?? '';
 const KEY_ = (import.meta.env?.VITE_SUPABASE_ANON_KEY as string | undefined) ?? '';
 const SESSION_KEY = 'brackenwyrm.session';
@@ -59,7 +62,7 @@ export class Cloud {
   /** Neues Konto mit E-Mail und Passwort. Braucht in Supabase "Confirm email" = aus. */
   async signUp(email: string, password: string): Promise<void> {
     const r = await this.authCall('/auth/v1/signup', { email, password });
-    if (!r?.access_token) throw new CloudError('confirm', 'Konto angelegt, muss aber erst per E-Mail bestätigt werden. In Supabase "Confirm email" ausschalten.');
+    if (!r?.access_token) throw new CloudError('confirm', t('Konto angelegt, muss aber erst per E-Mail bestätigt werden. In Supabase "Confirm email" ausschalten.'));
     this.setSession(r);
   }
 
@@ -70,37 +73,37 @@ export class Cloud {
 
   /** Auth-Anfrage mit verständlichen Fehlermeldungen. */
   private async authCall(path: string, body: unknown): Promise<any> {
-    if (!this.enabled) throw new CloudError('server', 'Online-Spielstand ist nicht eingerichtet.');
+    if (!this.enabled) throw new CloudError('server', t('Online-Spielstand ist nicht eingerichtet.'));
     let res: Response;
     try {
-      res = await this.http(this.url + path, { method: 'POST', headers: { apikey: this.key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      res = await this.http(this.url + path, { method: t('POST'), headers: { apikey: this.key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     } catch {
-      throw new CloudError('offline', 'Keine Verbindung zum Server.');
+      throw new CloudError('offline', t('Keine Verbindung zum Server.'));
     }
     const text = await res.text();
     const data = text ? JSON.parse(text) : null;
     if (res.ok) return data;
     const code = String(data?.error_code ?? data?.code ?? data?.error ?? '');
     const msg = String(data?.msg ?? data?.message ?? data?.error_description ?? '');
-    if (/already|exists|registered/i.test(code + msg)) throw new CloudError('exists', 'Für diese E-Mail gibt es schon ein Konto. Bitte anmelden.');
-    if (/weak|password.*(short|least|characters)/i.test(code + msg)) throw new CloudError('weak', 'Das Passwort ist zu kurz oder zu einfach (mindestens 6 Zeichen).');
-    if (/invalid.*(credential|grant)|invalid login/i.test(code + msg)) throw new CloudError('bad_login', 'E-Mail oder Passwort stimmt nicht.');
-    if (/not.*confirmed/i.test(code + msg)) throw new CloudError('confirm', 'Die E-Mail-Adresse ist noch nicht bestätigt.');
-    throw new CloudError('server', `Anmeldung fehlgeschlagen (${res.status}).`);
+    if (/already|exists|registered/i.test(code + msg)) throw new CloudError('exists', t('Für diese E-Mail gibt es schon ein Konto. Bitte anmelden.'));
+    if (/weak|password.*(short|least|characters)/i.test(code + msg)) throw new CloudError('weak', t('Das Passwort ist zu kurz oder zu einfach (mindestens 6 Zeichen).'));
+    if (/invalid.*(credential|grant)|invalid login/i.test(code + msg)) throw new CloudError('bad_login', t('E-Mail oder Passwort stimmt nicht.'));
+    if (/not.*confirmed/i.test(code + msg)) throw new CloudError('confirm', t('Die E-Mail-Adresse ist noch nicht bestätigt.'));
+    throw new CloudError('server', t`Anmeldung fehlgeschlagen (${res.status}).`);
   }
 
   /** Schickt einen Anmeldecode an die E-Mail-Adresse (legt das Konto bei Bedarf an). */
   async requestCode(email: string): Promise<void> {
-    await this.call('/auth/v1/otp', { method: 'POST', body: { email, create_user: true } }, false);
+    await this.call('/auth/v1/otp', { method: t('POST'), body: { email, create_user: true } }, false);
   }
 
   /** Prüft den Code aus der E-Mail und meldet an. */
   async verifyCode(email: string, code: string): Promise<void> {
     try {
-      const r = await this.call('/auth/v1/verify', { method: 'POST', body: { type: 'email', email, token: code.trim() } }, false);
+      const r = await this.call('/auth/v1/verify', { method: t('POST'), body: { type: 'email', email, token: code.trim() } }, false);
       this.setSession(r);
     } catch (e) {
-      if (e instanceof CloudError && e.code === 'auth') throw new CloudError('bad_code', 'Der Code stimmt nicht oder ist abgelaufen.');
+      if (e instanceof CloudError && e.code === 'auth') throw new CloudError('bad_code', t('Der Code stimmt nicht oder ist abgelaufen.'));
       throw e;
     }
   }
@@ -112,7 +115,7 @@ export class Cloud {
 
   async pull(): Promise<RemoteSave | null> {
     const s = await this.ensureSession();
-    const rows = await this.call(`/rest/v1/saves?select=data,saved_at&user_id=eq.${s.userId}`, { method: 'GET' });
+    const rows = await this.call(`/rest/v1/saves?select=data,saved_at&user_id=eq.${s.userId}`, { method: t('GET') });
     const row = Array.isArray(rows) ? rows[0] : null;
     if (!row) return null;
     const state = validate(row.data);
@@ -123,12 +126,12 @@ export class Cloud {
     const s = await this.ensureSession();
     const p = state.player;
     await this.call('/rest/v1/saves', {
-      method: 'POST',
+      method: t('POST'),
       prefer: 'resolution=merge-duplicates,return=minimal',
       body: { user_id: s.userId, data: state, saved_at: state.savedAt ?? Date.now() },
     });
     const profile = { user_id: s.userId, name: p.name, level: p.level, dragon_kills: p.dragonKills };
-    const sendProfile = (body: object) => this.call('/rest/v1/profiles', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body });
+    const sendProfile = (body: object) => this.call('/rest/v1/profiles', { method: t('POST'), prefer: 'resolution=merge-duplicates,return=minimal', body });
     try {
       await sendProfile({ ...profile, gender: p.gender });
     } catch (e) {
@@ -152,7 +155,7 @@ export class Cloud {
       heirlooms: (p.heirlooms ?? []).join(','),
       charm: Math.max(0, p.charm), wealth: Math.max(0, p.gold + p.bank), fastest_dk: state.stats.fastestDragon || 0, feste_treasures: p.festeTreasures ?? 0,
     };
-    const send = (b: object) => this.call('/rest/v1/fighters', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: b });
+    const send = (b: object) => this.call('/rest/v1/fighters', { method: t('POST'), prefer: 'resolution=merge-duplicates,return=minimal', body: b });
     // Ältere Datenbanken kennen manche Spalten noch nicht: dann Schritt für Schritt einfacher speichern.
     const { charm: _c, wealth: _we, fastest_dk: _f, feste_treasures: _t, ...noFame } = body;
     const { heirlooms: _h, ...noHeir } = noFame;
@@ -177,7 +180,7 @@ export class Cloud {
   async pvpEvents(): Promise<PvpEvent[]> {
     await this.ensureSession();
     try {
-      const rows = await this.call('/rest/v1/pvp_events?select=id,kind,other_name,place,gold,exp,created_at&applied=eq.false&order=id', { method: 'GET' });
+      const rows = await this.call('/rest/v1/pvp_events?select=id,kind,other_name,place,gold,exp,created_at&applied=eq.false&order=id', { method: t('GET') });
       return Array.isArray(rows) ? rows : [];
     } catch (e) {
       if (e instanceof CloudError && /404|42P01|PGRST205/.test(e.message)) return [];
@@ -187,12 +190,12 @@ export class Cloud {
 
   async ackEvents(ids: number[]): Promise<void> {
     if (!ids.length) return;
-    await this.call(`/rest/v1/pvp_events?id=in.(${ids.map(Number).join(',')})`, { method: 'PATCH', prefer: 'return=minimal', body: { applied: true } });
+    await this.call(`/rest/v1/pvp_events?id=in.(${ids.map(Number).join(',')})`, { method: t('PATCH'), prefer: 'return=minimal', body: { applied: true } });
   }
 
   async pvpTargets(place: 'felder' | 'gasthaus'): Promise<PvpTarget[]> {
     await this.ensureSession();
-    const rows = await this.call('/rest/v1/rpc/pvp_targets', { method: 'POST', body: { place } });
+    const rows = await this.call('/rest/v1/rpc/pvp_targets', { method: t('POST'), body: { place } });
     return (Array.isArray(rows) ? rows : []).map((r: { user_id: string; name: string; level: number; specialty: string; race?: string; gender: Gender; dragon_kills: number; attackable: boolean; note: string }) => ({
       userId: r.user_id, name: r.name, level: r.level, specialty: normalizeSpecialty(r.specialty), race: normalizeRace(r.race), gender: r.gender, dragonKills: r.dragon_kills, attackable: r.attackable, note: r.note,
     }));
@@ -200,41 +203,41 @@ export class Cloud {
 
   async pvpStatus(): Promise<{ fights_left: number; immune: boolean } | null> {
     await this.ensureSession();
-    return await this.call('/rest/v1/rpc/pvp_status', { method: 'POST', body: {} });
+    return await this.call('/rest/v1/rpc/pvp_status', { method: t('POST'), body: {} });
   }
 
   async pvpAttack(target: string, place: 'felder' | 'gasthaus'): Promise<PvpResult> {
     await this.ensureSession();
-    return await this.call('/rest/v1/rpc/pvp_attack', { method: 'POST', body: { target, place } });
+    return await this.call('/rest/v1/rpc/pvp_attack', { method: t('POST'), body: { target, place } });
   }
 
   // ---------- Dorfplatz und Neuigkeiten ----------
 
   async news(limit = 30): Promise<NewsRow[]> {
-    const rows = await this.call(`/rest/v1/news?select=created_at,body&order=created_at.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+    const rows = await this.call(`/rest/v1/news?select=created_at,body&order=created_at.desc&limit=${limit}`, { method: t('GET') }, !!this.session);
     return Array.isArray(rows) ? rows : [];
   }
 
   /** Neuigkeiten, in denen ein Name vorkommt (für Steckbrief und Denkmal). */
   async newsAbout(text: string, limit = 5): Promise<NewsRow[]> {
     const q = encodeURIComponent(`*${text.replace(/[*,()]/g, '')}*`);
-    const rows = await this.call(`/rest/v1/news?select=created_at,body&body=like.${q}&order=created_at.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+    const rows = await this.call(`/rest/v1/news?select=created_at,body&body=like.${q}&order=created_at.desc&limit=${limit}`, { method: t('GET') }, !!this.session);
     return Array.isArray(rows) ? rows : [];
   }
 
   async postNews(body: string): Promise<void> {
     await this.ensureSession();
-    await this.call('/rest/v1/news', { method: 'POST', prefer: 'return=minimal', body: { body: body.slice(0, 200) } });
+    await this.call('/rest/v1/news', { method: t('POST'), prefer: 'return=minimal', body: { body: body.slice(0, 200) } });
   }
 
   async comments(section = 'dorfplatz', limit = 25): Promise<CommentRow[]> {
-    const rows = await this.call(`/rest/v1/commentary?select=id,created_at,name,body,user_id&section=eq.${encodeURIComponent(section)}&order=created_at.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+    const rows = await this.call(`/rest/v1/commentary?select=id,created_at,name,body,user_id&section=eq.${encodeURIComponent(section)}&order=created_at.desc&limit=${limit}`, { method: t('GET') }, !!this.session);
     return Array.isArray(rows) ? rows : [];
   }
 
   async postComment(body: string, section = 'dorfplatz'): Promise<void> {
     await this.ensureSession();
-    await this.call('/rest/v1/commentary', { method: 'POST', prefer: 'return=minimal', body: { section, body: body.slice(0, 200) } });
+    await this.call('/rest/v1/commentary', { method: t('POST'), prefer: 'return=minimal', body: { section, body: body.slice(0, 200) } });
   }
 
   // ---------- Kriegerliste und Briefe (Teil 3 der Datenbank) ----------
@@ -247,14 +250,14 @@ export class Cloud {
   async warriors(): Promise<WarriorRow[]> {
     await this.ensureSession();
     try {
-      const rows = await this.call('/rest/v1/rpc/warriors', { method: 'POST', body: {} });
+      const rows = await this.call('/rest/v1/rpc/warriors', { method: t('POST'), body: {} });
       return (Array.isArray(rows) ? rows : []).map((r: Record<string, unknown>) => ({
         userId: String(r.user_id), name: String(r.name), gender: r.gender === 'f' ? 'f' : 'm', level: Number(r.level), race: normalizeRace(r.race),
         specialty: normalizeSpecialty(r.specialty), dragonKills: Number(r.dragon_kills), alive: !!r.alive, online: !!r.online, inInn: !!r.in_inn, lastSeen: String(r.last_seen),
         bio: String(r.bio ?? ''), mount: String(r.mount ?? ''), marriedTo: String(r.married_to ?? ''), daysPlayed: Number(r.days_played ?? 0), heirlooms: String(r.heirlooms ?? '').split(',').filter(Boolean),
       }));
     } catch (e) {
-      if (this.missingPart3(e)) throw new CloudError('server', 'Die Kriegerliste ist auf dem Server noch nicht eingerichtet (Teil 3).');
+      if (this.missingPart3(e)) throw new CloudError('server', t('Die Kriegerliste ist auf dem Server noch nicht eingerichtet (Teil 3).'));
       throw e;
     }
   }
@@ -262,10 +265,10 @@ export class Cloud {
   async mailbox(limit = 50): Promise<MailRow[]> {
     await this.ensureSession();
     try {
-      const rows = await this.call(`/rest/v1/mail?select=id,created_at,from_user,from_name,subject,body,seen&order=created_at.desc&limit=${limit}`, { method: 'GET' });
+      const rows = await this.call(`/rest/v1/mail?select=id,created_at,from_user,from_name,subject,body,seen&order=created_at.desc&limit=${limit}`, { method: t('GET') });
       return Array.isArray(rows) ? rows : [];
     } catch (e) {
-      if (this.missingPart3(e)) throw new CloudError('server', 'Briefe sind auf dem Server noch nicht eingerichtet (Teil 3).');
+      if (this.missingPart3(e)) throw new CloudError('server', t('Briefe sind auf dem Server noch nicht eingerichtet (Teil 3).'));
       throw e;
     }
   }
@@ -274,7 +277,7 @@ export class Cloud {
   async unreadMail(): Promise<number> {
     if (!this.session) return 0;
     try {
-      const rows = await this.call('/rest/v1/mail?select=id&seen=eq.false&limit=100', { method: 'GET' });
+      const rows = await this.call('/rest/v1/mail?select=id&seen=eq.false&limit=100', { method: t('GET') });
       return Array.isArray(rows) ? rows.length : 0;
     } catch {
       return 0;
@@ -283,37 +286,37 @@ export class Cloud {
 
   async sendMail(to: string, subject: string, body: string): Promise<void> {
     await this.ensureSession();
-    await this.call('/rest/v1/mail', { method: 'POST', prefer: 'return=minimal', body: { to_user: to, subject: subject.slice(0, 60), body: body.slice(0, 1000) } });
+    await this.call('/rest/v1/mail', { method: t('POST'), prefer: 'return=minimal', body: { to_user: to, subject: subject.slice(0, 60), body: body.slice(0, 1000) } });
   }
 
   async markMailSeen(ids: number[]): Promise<void> {
     if (!ids.length) return;
     await this.ensureSession();
-    await this.call(`/rest/v1/mail?id=in.(${ids.map(Number).join(',')})`, { method: 'PATCH', prefer: 'return=minimal', body: { seen: true } });
+    await this.call(`/rest/v1/mail?id=in.(${ids.map(Number).join(',')})`, { method: t('PATCH'), prefer: 'return=minimal', body: { seen: true } });
   }
 
   async deleteMail(id: number): Promise<void> {
     await this.ensureSession();
-    await this.call(`/rest/v1/mail?id=eq.${Number(id)}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await this.call(`/rest/v1/mail?id=eq.${Number(id)}`, { method: t('DELETE'), prefer: 'return=minimal' });
   }
 
   /** Spuken (Teil 3): einen lebenden Helden heimsuchen. */
   async haunt(target: string): Promise<{ success: boolean; name: string }> {
     await this.ensureSession();
     try {
-      return await this.call('/rest/v1/rpc/haunt', { method: 'POST', body: { target } });
+      return await this.call('/rest/v1/rpc/haunt', { method: t('POST'), body: { target } });
     } catch (e) {
-      if (this.missingPart3(e)) throw new CloudError('server', 'Spuken ist auf dem Server noch nicht eingerichtet (Teil 3).');
+      if (this.missingPart3(e)) throw new CloudError('server', t('Spuken ist auf dem Server noch nicht eingerichtet (Teil 3).'));
       throw e;
     }
   }
 
   /** Die besten Drachentöter aller Spieler für die Ruhmeshalle. */
   async hallOfFame(limit = 20): Promise<FameRow[]> {
-    const q = (cols: string) => this.call(`/rest/v1/profiles?select=${cols}&order=dragon_kills.desc,level.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+    const q = (cols: string) => this.call(`/rest/v1/profiles?select=${cols}&order=dragon_kills.desc,level.desc&limit=${limit}`, { method: t('GET') }, !!this.session);
     let rows: unknown;
-    try { rows = await q('name,level,dragon_kills,gender'); } catch (e) {
-      if (e instanceof CloudError && /gender|42703/.test(e.message)) rows = await q('name,level,dragon_kills'); else throw e;
+    try { rows = await q(t('name,level,dragon_kills,gender')); } catch (e) {
+      if (e instanceof CloudError && /gender|42703/.test(e.message)) rows = await q(t('name,level,dragon_kills')); else throw e;
     }
     return (Array.isArray(rows) ? rows : []).map((r: { name: string; level: number; dragon_kills: number; gender?: string }) => ({
       name: r.name, level: r.level, dragonKills: r.dragon_kills, gender: r.gender === 'f' ? 'f' : 'm',
@@ -329,7 +332,7 @@ export class Cloud {
   /** Wer zuletzt den Drachen erschlagen hat (geprüft vom Server). null = niemand; undefined = Server kennt das noch nicht. */
   async lastDragonSlayer(): Promise<{ name: string; gender: Gender; dragonKills: number } | null | undefined> {
     try {
-      const rows = await this.call('/rest/v1/rpc/last_dragon_slayer', { method: 'POST', body: {} }, !!this.session);
+      const rows = await this.call('/rest/v1/rpc/last_dragon_slayer', { method: t('POST'), body: {} }, !!this.session);
       const r = Array.isArray(rows) ? rows[0] : null;
       return r ? { name: String(r.name), gender: r.gender === 'f' ? 'f' : 'm', dragonKills: Number(r.dragon_kills) } : null;
     } catch (e) {
@@ -341,9 +344,9 @@ export class Cloud {
   async report(kind: ReportKind, ref: number, target: string | null): Promise<string> {
     await this.ensureSession();
     try {
-      return String(await this.call('/rest/v1/rpc/report', { method: 'POST', body: { kind, ref, target } }) ?? 'Danke.');
+      return String(await this.call('/rest/v1/rpc/report', { method: t('POST'), body: { kind, ref, target } }) ?? t('Danke.'));
     } catch (e) {
-      if (this.missingPart4(e)) throw new CloudError('server', 'Melden ist auf dem Server noch nicht eingerichtet (Teil 4).');
+      if (this.missingPart4(e)) throw new CloudError('server', t('Melden ist auf dem Server noch nicht eingerichtet (Teil 4).'));
       throw e;
     }
   }
@@ -351,7 +354,7 @@ export class Cloud {
   async blocks(): Promise<BlockRow[]> {
     await this.ensureSession();
     try {
-      const rows = await this.call('/rest/v1/rpc/my_blocks', { method: 'POST', body: {} });
+      const rows = await this.call('/rest/v1/rpc/my_blocks', { method: t('POST'), body: {} });
       return Array.isArray(rows) ? rows.map((r: BlockRow) => ({ blocked: String(r.blocked), name: String(r.name) })) : [];
     } catch (e) {
       if (this.missingPart4(e)) return [];
@@ -362,58 +365,58 @@ export class Cloud {
   async block(uid: string): Promise<void> {
     await this.ensureSession();
     try {
-      await this.call('/rest/v1/blocks', { method: 'POST', prefer: 'resolution=ignore-duplicates,return=minimal', body: { blocked: uid } });
+      await this.call('/rest/v1/blocks', { method: t('POST'), prefer: 'resolution=ignore-duplicates,return=minimal', body: { blocked: uid } });
     } catch (e) {
-      if (this.missingPart4(e)) throw new CloudError('server', 'Blockieren ist auf dem Server noch nicht eingerichtet (Teil 4).');
+      if (this.missingPart4(e)) throw new CloudError('server', t('Blockieren ist auf dem Server noch nicht eingerichtet (Teil 4).'));
       throw e;
     }
   }
 
   async unblock(uid: string): Promise<void> {
     await this.ensureSession();
-    await this.call(`/rest/v1/blocks?blocked=eq.${encodeURIComponent(uid)}`, { method: 'DELETE', prefer: 'return=minimal' });
+    await this.call(`/rest/v1/blocks?blocked=eq.${encodeURIComponent(uid)}`, { method: t('DELETE'), prefer: 'return=minimal' });
   }
 
   async isAdmin(): Promise<boolean> {
     if (!this.session) return false;
-    try { return !!(await this.call('/rest/v1/rpc/is_admin', { method: 'POST', body: {} })); } catch { return false; }
+    try { return !!(await this.call('/rest/v1/rpc/is_admin', { method: t('POST'), body: {} })); } catch { return false; }
   }
 
   async modReports(): Promise<ModReport[]> {
     await this.ensureSession();
-    const rows = await this.call('/rest/v1/rpc/mod_reports', { method: 'POST', body: {} });
+    const rows = await this.call('/rest/v1/rpc/mod_reports', { method: t('POST'), body: {} });
     return Array.isArray(rows) ? rows : [];
   }
 
   async modDecide(kind: ReportKind, ref: number, target: string | null, action: 'ok' | 'hide' | 'ban'): Promise<void> {
     await this.ensureSession();
-    await this.call('/rest/v1/rpc/mod_decide', { method: 'POST', body: { kind, ref, target, action } });
+    await this.call('/rest/v1/rpc/mod_decide', { method: t('POST'), body: { kind, ref, target, action } });
   }
 
   async modBanned(): Promise<ModBanned[]> {
     await this.ensureSession();
-    const rows = await this.call('/rest/v1/rpc/mod_banned', { method: 'POST', body: {} });
+    const rows = await this.call('/rest/v1/rpc/mod_banned', { method: t('POST'), body: {} });
     return Array.isArray(rows) ? rows : [];
   }
 
   async modCheats(): Promise<ModCheat[]> {
     await this.ensureSession();
-    const rows = await this.call('/rest/v1/rpc/mod_cheats', { method: 'POST', body: {} });
+    const rows = await this.call('/rest/v1/rpc/mod_cheats', { method: t('POST'), body: {} });
     return Array.isArray(rows) ? rows : [];
   }
 
   async modBan(target: string, ban: boolean): Promise<void> {
     await this.ensureSession();
-    await this.call(`/rest/v1/rpc/${ban ? 'mod_ban' : 'mod_unban'}`, { method: 'POST', body: { target } });
+    await this.call(`/rest/v1/rpc/${ban ? 'mod_ban' : 'mod_unban'}`, { method: t('POST'), body: { target } });
   }
 
   /** Konto und alle Daten auf dem Server löschen. Danach abgemeldet. */
   async deleteAccount(): Promise<void> {
     await this.ensureSession();
     try {
-      await this.call('/rest/v1/rpc/delete_account', { method: 'POST', body: {} });
+      await this.call('/rest/v1/rpc/delete_account', { method: t('POST'), body: {} });
     } catch (e) {
-      if (this.missingPart4(e)) throw new CloudError('server', 'Konto löschen ist auf dem Server noch nicht eingerichtet (Teil 4). Schreib uns, dann löschen wir es von Hand.');
+      if (this.missingPart4(e)) throw new CloudError('server', t('Konto löschen ist auf dem Server noch nicht eingerichtet (Teil 4). Schreib uns, dann löschen wir es von Hand.'));
       throw e;
     }
     this.signOut();
@@ -428,37 +431,37 @@ export class Cloud {
   private async rpc5<T>(name: string, body: object, what: string): Promise<T> {
     await this.ensureSession();
     try {
-      return await this.call(`/rest/v1/rpc/${name}`, { method: 'POST', body });
+      return await this.call(`/rest/v1/rpc/${name}`, { method: t('POST'), body });
     } catch (e) {
-      if (this.missingPart5(e)) throw new CloudError('server', `${what} ist auf dem Server noch nicht eingerichtet (Teil 5).`);
+      if (this.missingPart5(e)) throw new CloudError('server', t`${what} ist auf dem Server noch nicht eingerichtet (Teil 5).`);
       throw e;
     }
   }
 
   setBounty(target: string, amount: number): Promise<{ paid: number; name: string; total: number }> {
-    return this.rpc5('set_bounty', { target, amount }, 'Das Kopfgeld');
+    return this.rpc5('set_bounty', { target, amount }, t('Das Kopfgeld'));
   }
 
   async bounties(): Promise<BountyRow[]> {
-    const rows = await this.rpc5<BountyRow[]>('bounty_list', {}, 'Das Kopfgeld');
+    const rows = await this.rpc5<BountyRow[]>('bounty_list', {}, t('Das Kopfgeld'));
     return (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, total: Number(r.total), gender: r.gender === 'f' ? 'f' : 'm' }));
   }
 
   transferGold(target: string, amount: number): Promise<{ amount: number; name: string; left_today: number }> {
-    return this.rpc5('transfer_gold', { target, amount }, 'Überweisen');
+    return this.rpc5('transfer_gold', { target, amount }, t('Überweisen'));
   }
 
   jackpot(): Promise<JackpotInfo> {
-    return this.rpc5('fivesix_info', {}, 'Fünf Sechser');
+    return this.rpc5('fivesix_info', {}, t('Fünf Sechser'));
   }
 
   rollFiveSix(): Promise<DiceResult> {
-    return this.rpc5('fivesix_roll', {}, 'Fünf Sechser');
+    return this.rpc5('fivesix_roll', {}, t('Fünf Sechser'));
   }
 
   async aushang(limit = 10): Promise<AushangRow[]> {
     try {
-      const rows = await this.call(`/rest/v1/aushang?select=id,created_at,title,body,author&order=created_at.desc&limit=${limit}`, { method: 'GET' }, !!this.session);
+      const rows = await this.call(`/rest/v1/aushang?select=id,created_at,title,body,author&order=created_at.desc&limit=${limit}`, { method: t('GET') }, !!this.session);
       return Array.isArray(rows) ? rows : [];
     } catch (e) {
       if (this.missingPart5(e)) return [];
@@ -467,17 +470,17 @@ export class Cloud {
   }
 
   async postAushang(title: string, body: string): Promise<void> {
-    await this.rpc5('post_aushang', { title, body }, 'Der Aushang');
+    await this.rpc5('post_aushang', { title, body }, t('Der Aushang'));
   }
 
   async deleteAushang(id: number): Promise<void> {
-    await this.rpc5('delete_aushang', { aushang_id: id }, 'Der Aushang');
+    await this.rpc5('delete_aushang', { aushang_id: id }, t('Der Aushang'));
   }
 
   /** Rangliste einer Kategorie. undefined = Server kennt die Ranglisten noch nicht. */
   async fameCategory(cat: FameCat, limit = 20): Promise<FameCatRow[] | undefined> {
     try {
-      const rows = await this.call('/rest/v1/rpc/hall_of_fame', { method: 'POST', body: { cat, lim: limit } }, !!this.session);
+      const rows = await this.call('/rest/v1/rpc/hall_of_fame', { method: t('POST'), body: { cat, lim: limit } }, !!this.session);
       return (Array.isArray(rows) ? rows : []).map((r: { name: string; gender: string; dragon_kills: number; level: number; value: number }) => ({
         name: r.name, gender: r.gender === 'f' ? 'f' : 'm', dragonKills: r.dragon_kills, level: r.level, value: Number(r.value),
       }));
@@ -491,15 +494,15 @@ export class Cloud {
 
   private async ensureSession(): Promise<Session> {
     const s = this.session;
-    if (!s) throw new CloudError('auth', 'Nicht angemeldet.');
+    if (!s) throw new CloudError('auth', t('Nicht angemeldet.'));
     if (Date.now() < s.expiresAt - 60_000) return s;
-    const r = await this.call('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: s.refreshToken } }, false);
+    const r = await this.call('/auth/v1/token?grant_type=refresh_token', { method: t('POST'), body: { refresh_token: s.refreshToken } }, false);
     this.setSession(r);
     return this.session!;
   }
 
   private async call(path: string, o: { method: string; body?: unknown; prefer?: string }, auth = true): Promise<any> {
-    if (!this.enabled) throw new CloudError('server', 'Online-Spielstand ist nicht eingerichtet.');
+    if (!this.enabled) throw new CloudError('server', t('Online-Spielstand ist nicht eingerichtet.'));
     const headers: Record<string, string> = { apikey: this.key, 'Content-Type': 'application/json' };
     // Angemeldet: eigener Zugangsschlüssel. Sonst nur der öffentliche Projektschlüssel als apikey
     // (funktioniert mit dem alten anon key und dem neuen publishable key).
@@ -509,22 +512,22 @@ export class Cloud {
     try {
       res = await this.http(this.url + path, { method: o.method, headers, body: o.body === undefined ? undefined : JSON.stringify(o.body) });
     } catch {
-      throw new CloudError('offline', 'Keine Verbindung. Der Spielstand bleibt auf diesem Gerät und wird später abgeglichen.');
+      throw new CloudError('offline', t('Keine Verbindung. Der Spielstand bleibt auf diesem Gerät und wird später abgeglichen.'));
     }
     if (res.status === 401 || res.status === 403) {
       if (auth) this.signOut();
-      throw new CloudError('auth', 'Anmeldung abgelaufen. Bitte neu anmelden.');
+      throw new CloudError('auth', t('Anmeldung abgelaufen. Bitte neu anmelden.'));
     }
-    if (res.status === 400 && path.startsWith('/auth/v1/verify')) throw new CloudError('auth', 'Code ungültig.');
+    if (res.status === 400 && path.startsWith('/auth/v1/verify')) throw new CloudError('auth', t('Code ungültig.'));
     if (!res.ok) {
       // Die genaue Meldung des Servers mitgeben, damit sich Fehler finden lassen.
       let detail = '';
       let d: { code?: string; message?: string; hint?: string } = {};
       try { d = JSON.parse(await res.text()); detail = [d.code, d.message, d.hint].filter(Boolean).join(' – '); } catch { /* keine Details */ }
       // Spielregeln vom Server ("Du hast heute schon 3 Spielerkämpfe gehabt.") direkt so anzeigen
-      if (d.code === 'P0001' && d.message) throw new CloudError('rule', d.message);
+      if (d.code === 'P0001' && d.message) throw new CloudError('rule', serverText(d.message));
       const where = path.split('?')[0].replace('/rest/v1/', '');
-      throw new CloudError('server', `Server-Fehler ${res.status} bei ${where}${detail ? `: ${detail}` : ''}`);
+      throw new CloudError('server', t`Server-Fehler ${res.status} bei ${where}${detail ? `: ${detail}` : ''}`);
     }
     const text = await res.text();
     return text ? JSON.parse(text) : null;

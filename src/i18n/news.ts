@@ -3,6 +3,9 @@
 // auf Englisch und umgekehrt. Der Name des Helden steht im Klartext drin (der Server prüft das).
 import { t } from './index';
 import { addServerPatterns, serverText } from './server';
+import { datIndef, monsterById } from '../content/monsters';
+import { masterForLevel } from '../content/masters';
+import { titleFor } from '../content/titles';
 
 export const NEWS = {
   earlyReturn: 'Morwen hat {0} vorzeitig aus dem Schattenreich zurückgebracht.',
@@ -37,14 +40,14 @@ export function news(id: NewsId, ...vals: (string | number)[]): string {
   return ['§' + id, ...vals.map((v) => String(v).replace(/\|/g, '/'))].join('|');
 }
 
-type Resolver = (v: string) => string | null;
-let resolver: Resolver = () => null;
-/** Die Oberfläche meldet hier, wie z. B. "@m:borkenwolf" ausgeschrieben wird ("einem Borkenwolf"). */
-export function setNewsResolver(r: Resolver): void { resolver = r; }
-
+/** Platzhalter: "~Text" übersetzen, "@m:id:Name" Gegner, "@M:Stufe" Meister, "@t:Drachen:Geschlecht" Titel. */
 function value(v: string): string {
   if (v.startsWith('~')) return t(v.slice(1));
-  return resolver(v) ?? v;
+  const [kind, a, b] = v.split(':');
+  if (kind === '@m') return datIndef(a, monsterById(a)?.name ?? v.split(':').slice(2).join(':'));
+  if (kind === '@M') return masterForLevel(Number(a))?.name ?? v;
+  if (kind === '@t') return titleFor(Number(a), b === 'f' ? 'f' : 'm');
+  return v;
 }
 
 /** Eine gespeicherte Neuigkeit in der Sprache des Lesers. Alte Klartext-Neuigkeiten und Server-Texte gehen durch serverText. */

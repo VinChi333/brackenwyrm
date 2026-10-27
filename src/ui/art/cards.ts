@@ -10,6 +10,8 @@ import { MOUNTS } from '../../content/mounts';
 import type { Gender, MonsterDef, MountId, RaceId, ShapeId, SpecialtyId } from '../../game/types';
 import { creature, humanoid } from './silhouettes';
 
+import { t } from '../../i18n';
+
 /**
  * Illustrationen, Schlüssel = Monster-ID. Jede Datei in src/assets/monsters/<id>.webp wird
  * automatisch übernommen (auch "dragon.webp", "master-3.webp", "hero.webp").
@@ -157,7 +159,7 @@ export function mountCard(id: MountId): CardInfo {
   const m = MOUNTS[id];
   const glow = '#d9b26a';
   const a = artFor(`mount-${id}`, () => shadowArt(creature('horse', glow), 'horse', glow));
-  return { key: `mount-${id}`, name: m.name, level: m.rank, tier: m.rank === 3 ? 'gold' : m.rank === 2 ? 'silver' : 'bronze', art: a.art, hasIllustration: a.real, flavor: m.blurb, glow, fx: 'motes', tierLabel: 'Reittier' };
+  return { key: `mount-${id}`, name: m.name, level: m.rank, tier: m.rank === 3 ? 'gold' : m.rank === 2 ? 'silver' : 'bronze', art: a.art, hasIllustration: a.real, flavor: m.blurb, glow, fx: 'motes', tierLabel: t('Reittier') };
 }
 
 export function cardFor(key: string): CardInfo | null {
@@ -169,7 +171,7 @@ export function cardFor(key: string): CardInfo | null {
   return m ? monsterCard(m) : null;
 }
 
-const TIER_LABEL: Record<Tier, string> = { bronze: 'Gewöhnlich', silver: 'Selten', gold: 'Episch', legend: 'Legendär', shade: 'Schatten' };
+const TIER_LABEL: Record<Tier, string> = { bronze: t('Gewöhnlich'), silver: t('Selten'), gold: t('Episch'), legend: t('Legendär'), shade: t('Schatten') };
 
 /** Kleiner, fester Zufall aus einem Text, damit die Teilchen bei jedem Neuzeichnen gleich liegen. */
 function seeded(key: string): () => number {
@@ -204,9 +206,9 @@ export function cardHtml(c: CardInfo, opts: { hp?: [number, number, number] | nu
   const shade = c.tier === 'shade';
   const shine = live && (c.tier === 'gold' || c.tier === 'legend') ? '<span class="card-shine" aria-hidden="true"></span>' : '';
   return `<figure class="card tier-${c.tier} ${live ? 'is-live' : ''} ${opts.fx ? 'has-fx' : ''} ${opts.cls ?? ''}" data-tilt>
-    <div class="card-art">${c.art}${(live || shade) && opts.fx ? fxLayer(c, c.tier === 'legend' ? 16 : 10) : ''}${shine}${live || shade ? '' : '<span class="card-tag">Illustration folgt</span>'}</div>
-    ${shade ? '<div class="card-level" title="Seele">✦</div>' : `<div class="card-level" title="Stufe">${c.level}</div>`}
-    ${opts.isNew ? '<div class="card-new">Neu</div>' : ''}
+    <div class="card-art">${c.art}${(live || shade) && opts.fx ? fxLayer(c, c.tier === 'legend' ? 16 : 10) : ''}${shine}${live || shade ? '' : `${t`<span class="card-tag">Illustration folgt</span>`}`}</div>
+    ${shade ? '<div class="card-level" title="Seele">✦</div>' : `<div class="card-level" title="${t`Stufe`}">${c.level}</div>`}
+    ${opts.isNew ? `<div class="card-new">${t`Neu`}</div>` : ''}
     <figcaption class="card-plate"><span class="card-name">${c.name}</span><span class="card-tier">${c.tierLabel ?? TIER_LABEL[c.tier]}</span></figcaption>
     ${hp ? `<div class="card-hp" aria-label="Lebenspunkte ${hp[0]} von ${hp[1]}"><i style="--from:${hp[2]}%;--to:${Math.round((100 * hp[0]) / hp[1])}%;width:${Math.round((100 * hp[0]) / hp[1])}%"></i><span>${hp[0]} / ${hp[1]}</span></div>` : ''}
     ${opts.count ? `<div class="card-count">${opts.count}× besiegt</div>` : ''}
@@ -215,10 +217,10 @@ export function cardHtml(c: CardInfo, opts: { hp?: [number, number, number] | nu
 
 export function cardBack(level: number): string {
   return `<figure class="card card-back tier-${tierFor(level)}"><div class="card-art"><span class="card-q">?</span></div>
-    <div class="card-level">${level}</div><figcaption class="card-plate"><span class="card-name">???</span><span class="card-tier">Stufe ${level}</span></figcaption></figure>`;
+    <div class="card-level">${level}</div><figcaption class="card-plate">${t`<span class="card-name">???</span><span class="card-tier">Stufe ${level}</span>`}</figcaption></figure>`;
 }
 
 export function shadeBack(): string {
   return `<figure class="card card-back tier-shade"><div class="card-art"><span class="card-q">?</span></div>
-    <div class="card-level">✦</div><figcaption class="card-plate"><span class="card-name">???</span><span class="card-tier">Schatten</span></figcaption></figure>`;
+    <div class="card-level">✦</div><figcaption class="card-plate">${t`<span class="card-name">???</span><span class="card-tier">Schatten</span>`}</figcaption></figure>`;
 }

@@ -1,5 +1,7 @@
 import type { Gender, RaceId } from '../game/types';
 
+import { t } from '../i18n';
+
 // Die vier Rassen wie im Original, mit denselben Vorteilen.
 
 export interface RaceDef {
@@ -11,14 +13,14 @@ export interface RaceDef {
 }
 
 export const RACES: Record<RaceId, RaceDef> = {
-  mensch: { id: 'mensch', name: ['Mensch', 'Mensch'], plural: 'Menschen', bonus: '+1 Waldkampf pro Tag',
-    blurb: 'Menschen sind zäh und ausdauernd. Wo andere müde werden, gehen sie noch einmal in den Wald.' },
-  elf: { id: 'elf', name: ['Elf', 'Elfe'], plural: 'Elfen', bonus: 'Mehr Verteidigung (+1, alle 5 Stufen +1 mehr)',
-    blurb: 'Elfen sind flink und aufmerksam. Kaum ein Schlag trifft sie dort, wo er treffen sollte.' },
-  troll: { id: 'troll', name: ['Troll', 'Trollin'], plural: 'Trolle', bonus: 'Mehr Angriff (+1, alle 5 Stufen +1 mehr)',
-    blurb: 'Waldtrolle sind riesig und schlaksig, ihre Arme reichen bis zu den Knien, und in ihrer Mähne wächst Moos. Sie schlagen zu, bevor sie nachdenken. Meistens ist das auch besser so.' },
-  zwerg: { id: 'zwerg', name: ['Zwerg', 'Zwergin'], plural: 'Zwerge', bonus: '20 % mehr Gold im Wald',
-    blurb: 'Zwerge riechen Gold durch drei Fuß Moos hindurch. Kein Beutel im Wald bleibt ungefunden.' },
+  mensch: { id: 'mensch', name: [t('Mensch'), t('Mensch')], plural: t('Menschen'), bonus: t('+1 Waldkampf pro Tag'),
+    blurb: t('Menschen sind zäh und ausdauernd. Wo andere müde werden, gehen sie noch einmal in den Wald.') },
+  elf: { id: 'elf', name: [t('Elf'), t('Elfe')], plural: t('Elfen'), bonus: t('Mehr Verteidigung (+1, alle 5 Stufen +1 mehr)'),
+    blurb: t('Elfen sind flink und aufmerksam. Kaum ein Schlag trifft sie dort, wo er treffen sollte.') },
+  troll: { id: 'troll', name: [t('Troll'), t('Trollin')], plural: t('Trolle'), bonus: t('Mehr Angriff (+1, alle 5 Stufen +1 mehr)'),
+    blurb: t('Waldtrolle sind riesig und schlaksig, ihre Arme reichen bis zu den Knien, und in ihrer Mähne wächst Moos. Sie schlagen zu, bevor sie nachdenken. Meistens ist das auch besser so.') },
+  zwerg: { id: 'zwerg', name: [t('Zwerg'), t('Zwergin')], plural: t('Zwerge'), bonus: t('20 % mehr Gold im Wald'),
+    blurb: t('Zwerge riechen Gold durch drei Fuß Moos hindurch. Kein Beutel im Wald bleibt ungefunden.') },
 };
 
 export const RACE_ORDER: RaceId[] = ['mensch', 'elf', 'troll', 'zwerg'];

@@ -1,5 +1,6 @@
 // Prüft den Neustart nach dem Drachenkill (wie im Original).
 import assert from 'node:assert/strict';
+import { showNews } from '../src/i18n/news';
 import { chooseDragonBonus, newGame } from '../src/game/engine';
 import { FOREST_FIGHTS_PER_DAY, maxHp } from '../src/game/balance';
 import { titleFor } from '../src/content/titles';
@@ -40,7 +41,7 @@ t('erster Drachenkill: alles auf Anfang, Edelsteine bleiben, Kontor ist leer', (
   assert.equal(s.pendingDragonBonus, false);
   assert.equal(r.title, 'Pagin');
   assert.ok(s.news.some((x) => x.includes('Pagin Hilda')));
-  assert.ok(s.outbox.some((x) => x.includes('Pagin')));
+  assert.ok(s.outbox.some((x) => showNews(x).includes('Pagin')));
 });
 t('Startgold wächst bis 300, Edelsteine ab dem 8. Drachen', () => {
   const a = killedDragon(9); chooseDragonBonus(a, 'atk');

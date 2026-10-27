@@ -8,6 +8,8 @@ import { PARTNERS, defaultPartner, looksVerdict } from '../content/lovers';
 import { roll } from './rng';
 import type { Buff, GameState, PartnerId, Player } from './types';
 
+import { t } from '../i18n';
+
 /** Schwelle, Obergrenze für den Charmegewinn und bis zu welchem Charme ein Fehlversuch einen Punkt kostet. */
 const MOVES: { need: number; cap: number; loseBelow: number }[] = [
   { need: 2, cap: 4, loseBelow: 0 },
@@ -43,13 +45,13 @@ export function visitSpouse(s: GameState): FlirtResult {
   p.seenLover = true;
   if (roll(1, 4) === 1) {
     const lines = [pt.married.grumpy[roll(0, pt.married.grumpy.length - 1)]];
-    if (p.charm > 0) { p.charm -= 1; lines.push('Du verlierst einen Charmepunkt.'); }
+    if (p.charm > 0) { p.charm -= 1; lines.push(t('Du verlierst einen Charmepunkt.')); }
     return { lines, kind: 'bad' };
   }
   p.buffs = p.buffs.filter((b) => b.name !== pt.buffName);
   p.buffs.push(loverBuff(pt.id));
   p.charm += 1;
-  return { lines: [pt.married.happy[roll(0, pt.married.happy.length - 1)], `${pt.buffName} schützt dich im Kampf (+20 % Verteidigung). Du bekommst einen Charmepunkt.`], kind: 'good' };
+  return { lines: [pt.married.happy[roll(0, pt.married.happy.length - 1)], t`${pt.buffName} schützt dich im Kampf (+20 % Verteidigung). Du bekommst einen Charmepunkt.`], kind: 'good' };
 }
 
 /** Flirtversuch 0 bis 6 (6 = Heiratsantrag). Gibt die Erzählung zurück; Neuigkeiten gehen über announce(). */
@@ -57,7 +59,7 @@ export function flirt(s: GameState, move: number, announce: (s: GameState, t: st
   const p = s.player;
   const id = partnerOf(p);
   const pt = PARTNERS[id];
-  if (p.marriedTo && p.marriedTo !== id) return { lines: [`Du bist mit ${PARTNERS[p.marriedTo].name} verheiratet. Mit jemand anderem zu flirten wäre keine gute Idee …`], kind: 'info' };
+  if (p.marriedTo && p.marriedTo !== id) return { lines: [t`Du bist mit ${PARTNERS[p.marriedTo].name} verheiratet. Mit jemand anderem zu flirten wäre keine gute Idee …`], kind: 'info' };
   if (p.marriedTo === id) return visitSpouse(s);
   if (p.seenLover) return { lines: [pt.notToday], kind: 'info' };
   if (move < 0 || move > 6) return { lines: [], kind: 'info' };
@@ -71,13 +73,13 @@ export function flirt(s: GameState, move: number, announce: (s: GameState, t: st
       p.marriedTo = id;
       p.buffs = p.buffs.filter((b) => b.name !== pt.buffName);
       p.buffs.push(loverBuff(id));
-      lines.push(pt.proposalYes, `Ihr seid verheiratet! ${pt.buffName} schützt dich im Kampf (+20 % Verteidigung).`);
+      lines.push(pt.proposalYes, t`Ihr seid verheiratet! ${pt.buffName} schützt dich im Kampf (+20 % Verteidigung).`);
       announce(s, pt.weddingNews(p.name));
-      s.news.push(`Du hast ${pt.name} geheiratet.`);
+      s.news.push(t`Du hast ${pt.name} geheiratet.`);
       return { lines, kind: 'gold' };
     }
     p.forestFights = 0;
-    lines.push(pt.proposalNo, 'Du hast heute keine Waldkämpfe mehr.');
+    lines.push(pt.proposalNo, t('Du hast heute keine Waldkämpfe mehr.'));
     return { lines, kind: 'bad' };
   }
 
@@ -93,7 +95,7 @@ export function flirt(s: GameState, move: number, announce: (s: GameState, t: st
     if (move === 5) {
       if (p.forestFights > 0) {
         p.forestFights = Math.max(0, p.forestFights - STAIRS_TURNS);
-        lines.push(`Du bist erschöpft. (−${STAIRS_TURNS} Waldkämpfe)`);
+        lines.push(t`Du bist erschöpft. (−${STAIRS_TURNS} Waldkämpfe)`);
       }
       announce(s, pt.stairsNews(p.name));
     }
@@ -102,8 +104,8 @@ export function flirt(s: GameState, move: number, announce: (s: GameState, t: st
     kind = 'bad';
     if (c > 0 && c < m.loseBelow) c -= 1;
   }
-  if (c > p.charm) lines.push('Du bekommst einen Charmepunkt!');
-  if (c < p.charm) lines.push('Du verlierst einen Charmepunkt!');
+  if (c > p.charm) lines.push(t('Du bekommst einen Charmepunkt!'));
+  if (c < p.charm) lines.push(t('Du verlierst einen Charmepunkt!'));
   p.charm = c;
   return { lines, kind };
 }
@@ -112,7 +114,7 @@ export function flirt(s: GameState, move: number, announce: (s: GameState, t: st
 export function askLooks(p: Player): string {
   const friend = PARTNERS[friendOf(p)];
   const c = p.charm + roll(-1, 1);
-  return `${friend.name} mustert dich lange und sehr ernst. Nur ein Freund ist wirklich ehrlich, deshalb hast du gefragt. Schließlich sagt ${friend.pron}: „${looksVerdict(c, p.gender === 'f')}“`;
+  return t`${friend.name} mustert dich lange und sehr ernst. Nur ein Freund ist wirklich ehrlich, deshalb hast du gefragt. Schließlich sagt ${friend.pron}: „${looksVerdict(c, p.gender === 'f')}“`;
 }
 
 /** Beim neuen Tag: Verheiratete lassen sich etwas gehen. Gibt Meldungen für die Neuigkeiten zurück. */
@@ -124,7 +126,7 @@ export function loverNewDay(s: GameState, announce: (s: GameState, t: string) =>
   const dk = Math.max(1, Math.round(0.85 * Math.sqrt(p.dragonKills)));
   const loss = roll(1, dk);
   p.charm -= loss;
-  const out = [`Du bist verheiratet, also musst du nicht mehr so auf dein Äußeres achten. Du lässt dich ein bisschen gehen (−${loss} Charme).`];
+  const out = [t`Du bist verheiratet, also musst du nicht mehr so auf dein Äußeres achten. Du lässt dich ein bisschen gehen (−${loss} Charme).`];
   if (p.charm <= 0) {
     out.push(pt.leftLetter(p.name, p.gender === 'f'));
     announce(s, pt.leftNews(p.name));

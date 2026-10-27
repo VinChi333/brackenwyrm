@@ -1,5 +1,6 @@
 // Prüft Flirten und Heiraten im Gasthaus (Regeln wie im Original).
 import assert from 'node:assert/strict';
+import { showNews } from '../src/i18n/news';
 import { announce, newGame, startNewDay } from '../src/game/engine';
 import { flirt, partnerOf, visitSpouse, askLooks, MARRY_CHARM } from '../src/game/lovers';
 import { seedRng } from '../src/game/rng';
@@ -39,7 +40,7 @@ t('Treppe hinauf: kostet 2 Waldkämpfe und landet in den Neuigkeiten', () => {
   s.player.charm = 20; s.player.forestFights = 10;
   flirt(s, 5, announce);
   assert.equal(s.player.forestFights, 8); assert.equal(s.player.charm, 21);
-  assert.ok(s.outbox.some((x) => x.includes('Treppe')));
+  assert.ok(s.outbox.some((x) => showNews(x).includes('Treppe')));
 });
 t('grober Fehlversuch kostet Charme', () => {
   let lost = false;
@@ -63,7 +64,7 @@ t('Antrag mit 22 Charme: Hochzeit, Schutz im Kampf, Neuigkeit', () => {
   flirt(s, 6, announce);
   assert.equal(s.player.marriedTo, 'florian');
   assert.ok(s.player.buffs.some((b) => b.defMult === 1.2 && b.rounds === 60));
-  assert.ok(s.outbox.some((x) => x.includes('geheiratet')));
+  assert.ok(s.outbox.some((x) => showNews(x).includes('geheiratet')));
   const other = { ...s }; other.player.loverPref = 'frieda'; other.player.seenLover = false;
   assert.equal(flirt(other, 0, announce).kind, 'info', 'verheiratet flirtet man nicht mit anderen');
 });
@@ -73,7 +74,7 @@ t('Verheiratete verlieren täglich Charme und werden bei 0 verlassen', () => {
   startNewDay(s);
   assert.equal(s.player.marriedTo, ''); assert.equal(s.player.charm, 0);
   assert.ok(s.news.some((x) => x.includes('Zettel')));
-  assert.ok(s.outbox.some((x) => x.includes('anderen Interessen')));
+  assert.ok(s.outbox.some((x) => showNews(x).includes('anderen Interessen')));
 });
 t('Zeit mit dem Ehepartner: meist Schutz und Charme, einmal pro Tag', () => {
   const s = newGame('Hagen', 'dunkel');

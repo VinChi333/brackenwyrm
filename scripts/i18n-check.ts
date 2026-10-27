@@ -29,6 +29,8 @@ const NOT_TEXT = [
   /^(Enter|Escape|Tab|Space|Backspace)$/,
   /^https?:\/\//,
   /^[\s\d.,:;+\-–—×%°/()|·•…→←↑↓✓✗★☆♥]*$/,
+  /\.(webp|png|jpg|mp3|svg|css|ts|js)$/,
+  /^\/(rest|auth)\//, /\?select=/, /=eq\./, /^Bearer/, /resolution=/, /^BW\d:/, /^\s*data-[a-z-]+="/, /^\[data-/, /^\.[a-z-]+ \./,
 ];
 
 const keys = new Map<string, string[]>();   // Schlüssel → Fundstellen

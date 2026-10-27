@@ -5,6 +5,8 @@ import { ARMORS, WEAPONS } from '../content/items';
 import { MOUNTS } from '../content/mounts';
 import type { Combatant, MountId, Player } from './types';
 
+import { t } from '../i18n';
+
 export const MAX_LEVEL = 15;
 export const FOREST_FIGHTS_PER_DAY = 20;
 export const EVENT_CHANCE = 0.15; // wie im Original (forestchance 15)
@@ -12,7 +14,7 @@ export const GEM_DROP_CHANCE = 0.03;
 /** Anteil der Erfahrung der aktuellen Stufe, der beim Tod verloren geht. */
 export const DEATH_EXP_LOSS = 0.15;
 export const BANK_INTEREST = 0.03;
-export const HARZBIER_BUFF = { name: 'Harzbier-Mut', atkMult: 1.15, rounds: 10 };
+export const HARZBIER_BUFF = { name: t('Harzbier-Mut'), atkMult: 1.15, rounds: 10 };
 
 // ---------- Schattenreich (wie im Original: Seelenkraft, Schattenkämpfe, Gunst) ----------
 export const GRAVE_FIGHTS_PER_DAY = 10;
