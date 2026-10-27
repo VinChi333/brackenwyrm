@@ -794,7 +794,7 @@ export function chooseDragonBonus(s: GameState, bonus: DragonBonus, specialty?: 
   const lines = [
     `Moosgrund feiert dich als Drachentöter. Es ist dein ${dk}. Sieg über den Brackenwyrm. Doch Wyrme kehren wieder …`,
     `Von heute an nennt man dich ${title} ${p.name}.`,
-    `Du beginnst ein neues Leben als ${raceName(p.race, p.gender)}. Deine Fähigkeit: ${SPECIALTIES[p.specialty].name}. Im Beutel: ${gold} Gold${gems ? ` und ${gems} Edelstein${gems > 1 ? 'en' : ''}` : ''}.`,
+    `Du beginnst ein neues Leben als ${raceName(p.race, p.gender)}. Deine Fähigkeit: ${SPECIALTIES[p.specialty].name}. Im Beutel: ${gold} Gold${gems ? (gems > 1 ? ` und ${gems} Edelsteinen` : ' und 1 Edelstein') : ''}.`,
   ];
   if (flawless) lines.push(`Für deinen makellosen Sieg schenkt dir der Dorfrat ${FLAWLESS_GOLD} Gold und ${FLAWLESS_GEMS} Edelstein.`);
   s.news = [...lines, ...s.news];

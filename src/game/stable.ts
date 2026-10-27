@@ -23,7 +23,7 @@ export function feedPrice(p: Player): number {
 export function buyMount(s: GameState, id: MountId): string {
   const p = s.player;
   const m = MOUNTS[id];
-  if (p.mount === id) return `Du hast doch schon ein${id === 'pony' ? '' : 'en'} ${m.name}.`;
+  if (p.mount === id) return id === 'pony' ? 'Du hast doch schon ein Pony.' : `Du hast doch schon einen ${m.name}.`;
   const cost = tradeCost(p, id);
   if (p.gems < cost) return `„Na, da fehlt no was“, brummt Merten. ${m.name === 'Pony' ? 'Das Pony' : `Der ${m.name}`} kostet ${m.gems} Edelsteine${p.mount ? `, für dein jetziges Tier gibt er dir ${mountRepay(p.mount)}` : ''}.`;
   const old = p.mount;

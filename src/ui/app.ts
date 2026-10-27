@@ -444,7 +444,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:inn', label: 'Gasthaus', key: 'g' },
       { act: 'go:bank', label: 'Kontor', key: 'k', hint: p.bank ? `${p.bank} Gold` : '' },
       { act: 'go:stable', label: 'Mertens Pferdestall', key: 'p', hint: p.mount ? MOUNTS[p.mount].name : '' },
-      { act: 'go:quirin', label: 'Quirins Tränke', key: 'q', hint: p.pendingChoice ? 'du musst dich entscheiden' : p.gems ? `${p.gems} Edelstein${p.gems === 1 ? '' : 'e'}` : '' },
+      { act: 'go:quirin', label: 'Quirins Tränke', key: 'q', hint: p.pendingChoice ? 'du musst dich entscheiden' : p.gems ? (p.gems === 1 ? '1 Edelstein' : `${p.gems} Edelsteine`) : '' },
     ] },
     { title: 'Am Dorfrand', items: [
       { act: 'go:lager', label: 'Söldnerlager', key: 'ö', hint: p.companion ? `${companionDef(p.companion.id)?.name ?? ''}${p.companion.hp <= 0 ? ' (k. o.)' : ''}` : 'Begleiter anheuern' },
@@ -1298,7 +1298,7 @@ function festeScreen(s: GameState): string {
     const summary = run && run.over
       ? `<section class="event-box log">${run.log.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}
           ${run.heirloom && festeArt(`erbstueck-${run.heirloom}`) ? `<figure class="heir-found"><img src="${festeArt(`erbstueck-${run.heirloom}`)}" alt="${esc(heirloom(run.heirloom)?.name ?? '')}"><figcaption>${esc(heirloom(run.heirloom)?.name ?? '')}</figcaption></figure>` : ''}
-          ${run.gold || run.gems ? `<p class="gold">Ausbeute heute: ${run.gold} Gold${run.gems ? `, ${run.gems} Edelstein${run.gems === 1 ? '' : 'e'}` : ''}${run.heirloom ? `, ${esc(heirloom(run.heirloom)?.name ?? '')}` : ''}.</p>` : ''}</section>`
+          ${run.gold || run.gems ? `<p class="gold">Ausbeute heute: ${run.gold} Gold${run.gems ? (run.gems === 1 ? ', 1 Edelstein' : `, ${run.gems} Edelsteine`) : ''}${run.heirloom ? `, ${esc(heirloom(run.heirloom)?.name ?? '')}` : ''}.</p>` : ''}</section>`
       : '';
     const art = run?.over === 'treasure' && treasureArt ? treasureArt : entranceArt;
     const main = `<h1>${FESTE_NAME}</h1>
@@ -1361,7 +1361,7 @@ function quirinScreen(s: GameState): string {
     ${flashHtml()}
     ${choice}
     <ul class="potions">${POTIONS.map((pt) => `<li><strong>${pt.name}</strong> <span class="gem">${pt.gems} Edelsteine</span><br><span class="gold">${pt.effect}</span><br><small class="muted">${pt.blurb}</small></li>`).join('')}</ul>
-    <p class="muted">Du hast ${p.gems} Edelstein${p.gems === 1 ? '' : 'e'}${p.potionHp ? ` · durch Lebenstränke schon +${p.potionHp} Lebenspunkte` : ''}.</p>`;
+    <p class="muted">Du hast ${p.gems === 1 ? 'einen Edelstein' : `${p.gems} Edelsteine`}${p.potionHp ? ` · durch Lebenstränke schon +${p.potionHp} Lebenspunkte` : ''}.</p>`;
   return layout(s, main, [
     { title: 'Trinken', items: POTIONS.map((pt, i) => ({
       act: `potion:${pt.id}`, label: pt.name, key: String(i + 1), hint: `${pt.gems} Edelsteine`,
@@ -1728,7 +1728,7 @@ function dragonBonusScreen(s: GameState): string {
     ${specChoices(spec, 'dkspec')}
     <h2>Das nimmst du mit</h2>
     <ul class="plain">
-      <li>${gold} Gold für den Neuanfang${gems ? ` und ${gems} Edelstein${gems > 1 ? 'e' : ''} dazu` : ''}</li>
+      <li>${gold} Gold für den Neuanfang${gems ? (gems > 1 ? ` und ${gems} Edelsteine dazu` : ' und 1 Edelstein dazu') : ''}</li>
       <li>Deine ${p.gems} Edelsteine, Morwens Gunst, dein Bestiarium und deine Ruhmeshalle</li>
       <li>${p.dragonPoints.length ? `Deine bisherigen Drachenpunkte (${[p.bonusAtk ? `+${p.bonusAtk} Angriff` : '', p.bonusDef ? `+${p.bonusDef} Verteidigung` : '', p.baseMaxHp ? `+${p.baseMaxHp} Lebenspunkte` : '', p.bonusFights ? `+${p.bonusFights} Waldkämpfe` : ''].filter(Boolean).join(', ')}) und den neuen dazu` : 'Deinen ersten Drachenpunkt'}</li>
       <li>Ein frischer Tag mit ${forestFightsPerDay({ ...p, race }) + (ui.dkPoint === 'ff' ? 1 : 0)} Waldkämpfen</li>
