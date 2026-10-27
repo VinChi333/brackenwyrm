@@ -44,7 +44,7 @@ t('Vergessen: neue Fähigkeit, Punkte bleiben; erst wählen, dann wieder trinken
   assert.equal(s.player.pendingChoice, 'spec');
   assert.equal(drinkPotion(s, 'verwandlung').ok, false, 'erst entscheiden');
   assert.equal(s.player.gems, 4);
-  assert.ok(chooseNewSpecialty(s, 'dieb').includes('Diebeskünste') || s.player.specialty === 'dieb');
+  assert.ok(chooseNewSpecialty(s, 'dieb').includes('Schurkenkunst') || s.player.specialty === 'dieb');
   assert.equal(s.player.specialty, 'dieb'); assert.equal(s.player.skill, 4); assert.equal(s.player.pendingChoice, '');
 });
 t('Verwandlung: neue Rasse und Übelkeit für 10 Runden', () => {

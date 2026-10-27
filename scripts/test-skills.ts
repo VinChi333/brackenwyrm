@@ -40,7 +40,7 @@ t('Künste kosten 1/2/3/5 Punkte und brauchen genug Punkte', () => {
   assert.equal(s.player.specialUses, 3, 'zu teuer: keine Punkte weg');
   fightAction(s, 'skill:2');
   assert.equal(s.player.specialUses, 1);
-  assert.ok(s.player.buffs.some((b) => b.name === 'Giftklinge' && b.atkMult === 2));
+  assert.ok(s.player.buffs.some((b) => b.name === 'Natternbiss' && b.atkMult === 2));
 });
 t('Versteckter Angriff: Gegner trifft 5 Runden lang nicht', () => {
   const s = newGame('X', 'dieb');
@@ -50,7 +50,7 @@ t('Versteckter Angriff: Gegner trifft 5 Runden lang nicht', () => {
   for (let i = 0; i < 4; i++) fightAction(s, 'attack');
   assert.equal(s.player.hp, 500, 'keine Lebenspunkte verloren');
   fightAction(s, 'attack');
-  assert.ok(s.fight!.log.some((l) => l.t.includes('wieder zu sehen')));
+  assert.ok(s.fight!.log.some((l) => l.t.includes('aus dem Farn')));
 });
 t('Seelenwelke: Gegner wehrt sich nicht und greift nicht an', () => {
   const s = newGame('X', 'dunkel');
@@ -58,14 +58,14 @@ t('Seelenwelke: Gegner wehrt sich nicht und greift nicht an', () => {
   arena(s, 80);
   fightAction(s, 'skill:5');
   assert.equal(s.player.hp, 500);
-  assert.ok(s.fight!.log.some((l) => l.t.includes('Seelenwelke!')));
+  assert.ok(s.fight!.log.some((l) => l.t.includes('Seelenfessel!')));
 });
-t('Skelettkrieger und Erdfaust schlagen zusätzlich zu', () => {
+t('Knochenwacht und Wurzelpeitsche schlagen zusätzlich zu', () => {
   const s = newGame('X', 'mystik');
   s.player.level = 10; s.player.specialUses = 2; s.player.baseMaxHp = 500; s.player.hp = maxHp(s.player);
   arena(s, 1);
   fightAction(s, 'skill:2');
-  assert.ok(s.fight!.log.some((l) => l.t.includes('Faust aus Erde trifft')));
+  assert.ok(s.fight!.log.some((l) => l.t.includes('Wurzel peitscht')));
 });
 t('Regeneration heilt, Lebensentzug heilt durch Treffer', () => {
   const s = newGame('X', 'mystik');
@@ -73,14 +73,14 @@ t('Regeneration heilt, Lebensentzug heilt durch Treffer', () => {
   arena(s, 1);
   fightAction(s, 'skill:1');
   assert.ok(s.player.hp > 10 - 1);
-  assert.ok(s.fight!.log.some((l) => l.t.includes('heilst um')));
+  assert.ok(s.fight!.log.some((l) => l.t.includes('heilt dich um')));
 });
 t('Blitzaura gibt dem Gegner doppelten Schaden zurück', () => {
   const s = newGame('X', 'mystik');
   s.player.specialUses = 5; s.player.baseMaxHp = 900; s.player.hp = maxHp(s.player);
   arena(s, 60);
-  for (let i = 0; i < 5 && !s.fight!.log.some((l) => l.t.includes('Blitze')); i++) fightAction(s, i === 0 ? 'skill:5' : 'attack');
-  assert.ok(s.fight!.log.some((l) => l.t.includes('Blitze aus deiner Haut')));
+  for (let i = 0; i < 5 && !s.fight!.log.some((l) => l.t.includes('Funken')); i++) fightAction(s, i === 0 ? 'skill:5' : 'attack');
+  assert.ok(s.fight!.log.some((l) => l.t.includes('Funken beißen zurück')));
 });
 t('Meister besiegt: Fähigkeitsstufe steigt, jede dritte bringt einen Punkt', () => {
   const s = newGame('X', 'dunkel');
@@ -104,7 +104,7 @@ t('Zwerge finden mehr Gold', () => {
   }
   assert.ok(dwarf > human * 1.1, `${dwarf} gegen ${human}`);
 });
-t('alte Spielstände: Klingenkunst wird Dunkle Künste, Rasse Mensch, Fähigkeitsstufe aus der Stufe', () => {
+t('alte Spielstände: Klingenkunst wird Totenbeschwörung, Rasse Mensch, Fähigkeitsstufe aus der Stufe', () => {
   const s = newGame('Alt', 'dunkel') as any;
   s.player.specialty = 'schleich'; delete s.player.race; delete s.player.skill; s.player.level = 7;
   const v = validate(JSON.parse(JSON.stringify(s)))!;

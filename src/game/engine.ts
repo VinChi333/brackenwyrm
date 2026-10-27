@@ -26,6 +26,7 @@ import { mountBuff, mountNewDay } from './stable';
 import type { Buff, DragonPoint, Fight, GameState, Gender, LogLine, Player, RaceId, SpecialtyId } from './types';
 
 import { t } from '../i18n';
+import { gameDayKey } from './clock';
 import { news } from '../i18n/news';
 
 export function todayKey(d = new Date()): string {
@@ -53,7 +54,7 @@ export function newGame(name: string, specialty: SpecialtyId, gender: Gender = '
     v: 1,
     player: newPlayer(name, specialty, gender, race),
     day: 1,
-    lastRealDate: todayKey(),
+    lastRealDate: gameDayKey(),
     fight: null,
     pendingDragonBonus: false,
     news: [t('Du kommst in Moosgrund an. Hinter dem Dorf rauscht der Brackenwald.')],
@@ -67,8 +68,8 @@ export function newGame(name: string, specialty: SpecialtyId, gender: Gender = '
   };
 }
 
-/** Prüft, ob seit dem letzten Spielen ein echter Kalendertag vergangen ist. */
-export function checkRealDay(s: GameState, today = todayKey()): boolean {
+/** Prüft, ob die Dorfuhr seit dem letzten Spielen einen neuen Spieltag geschlagen hat (um 6 und 18 Uhr). */
+export function checkRealDay(s: GameState, today = gameDayKey()): boolean {
   if (s.lastRealDate === today) return false;
   s.lastRealDate = today;
   s.stats.realDays += 1;
@@ -284,17 +285,17 @@ export function resurrect(s: GameState): string {
   return msg;
 }
 
-/** Spuken wie im Original: kostet 25 Gunst, das Opfer verliert am nächsten Morgen Waldkämpfe (im Original 1 von 10). */
+/** Spuken: kostet 25 Gunst, das Opfer verliert am nächsten Morgen Waldkämpfe. */
 export const HAUNT_FAVOR = 25;
 export const HAUNT_TURNS = 2;
 
 const HAUNT_FAILS = [
-  t('Gerade als du {n} so richtig erschrecken willst, niest {n} und bekommt gar nichts mit.'),
-  t('Du spukst wie ein Weltmeister, aber {n} schläft tief und fest und merkt nichts.'),
-  t('Du willst {n} heimsuchen, stolperst aber über deinen eigenen Geisterschweif und landest auf dem … Gesicht.'),
-  t('{n} schaut dich verschlafen an, dreht sich um und murmelt etwas von zu viel Wurstbrot vor dem Schlafengehen.'),
-  t('{n} wacht auf, sieht dich an, sagt „Toll!“ und versucht dich zu fangen.'),
-  t('Du willst {n} erschrecken, siehst dich aber selbst im Spiegel und erschrickst vor dem Geist!'),
+  t('Du schwebst über {n} und heulst dein schaurigstes Heulen. {n} zieht sich nur die Decke über den Kopf.'),
+  t('Du rasselst mit Ketten, die du gar nicht hast. {n} schnarcht im Takt dazu.'),
+  t('Du schwebst durch die Wand, aber leider in den Schrank nebenan. Bis du herausfindest, ist {n} längst wach und frühstückt.'),
+  t('{n} blinzelt dich an, murmelt „Nicht schon wieder, Oma“ und schläft weiter.'),
+  t('{n} wacht auf, bietet dir höflich einen Stuhl an und fragt, ob du Tee möchtest. So macht Spuken keinen Spaß.'),
+  t('Eine Katze faucht dich an, und du flüchtest schneller zurück ins Schattenreich, als du gekommen bist.'),
 ];
 
 /** Ergebnis vom Server übernehmen: Gunst abziehen, Text erzählen. */
@@ -472,7 +473,7 @@ export function fightAction(s: GameState, action: FightAction): void {
     const buffs = grave ? [] : p.buffs;
     for (const b of buffs) if (b.roundMsg) log.push({ t: say.text(b.roundMsg, N), k: 'special' });
 
-    // Helfer (Skelettkrieger, Voodoo, Erdfaust) schlagen zuerst zu
+    // Helfer (Knochenwacht, Wachsfigur, Wurzelpeitsche) schlagen zuerst zu
     let helperDmg = 0;
     for (const b of buffs) {
       for (let i = 0; i < (b.minions ?? 0) && f.foe.hp > 0; i++) {

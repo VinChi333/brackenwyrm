@@ -43,7 +43,7 @@ t('tödliches Ereignis: Tod wird verbucht, Text landet in den Neuigkeiten', () =
     if (!s.player.alive) {
       died = true;
       assert.equal(s.stats.deaths, 1); assert.equal(s.player.hp, 0); assert.equal(s.pendingEvent, null);
-      assert.ok(s.news.some((x) => x.includes('Schädel')));
+      assert.ok(s.news.some((x) => x.includes('Spiegelbild')));
     }
   }
   assert.ok(died, 'in 400 Schlucken nie gestorben?');

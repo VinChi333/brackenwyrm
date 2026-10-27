@@ -138,9 +138,9 @@ const placeholderBad = [...keys.keys()].filter((k) => {
 });
 
 if (args.has('--keys')) {
-  console.log(JSON.stringify([...keys.keys()], null, 1));
-  process.exit(0);
-}
+  // erst fertig schreiben, dann beenden (sonst wird die Ausgabe in einer Pipe abgeschnitten)
+  process.stdout.write(JSON.stringify([...keys.keys()], null, 1) + '\n', () => process.exit(0));
+} else {
 // Arbeitslisten für die Übersetzung: pro Quelldatei "Nr<TAB>Text" (nur fehlende), dazu ids.json
 const exportDir = process.argv[process.argv.indexOf('--export') + 1];
 if (args.has('--export') && exportDir) {
@@ -178,3 +178,4 @@ if (args.has('--list')) {
 if (placeholderBad.length) { console.log('\nPlatzhalter stimmen nicht überein:'); for (const k of placeholderBad) console.log(`  ${k.slice(0, 120)}  →  ${EN[k].slice(0, 120)}`); }
 const strict = args.has('--strict');
 process.exit(strict && (missing.length || loose.length || placeholderBad.length) ? 1 : 0);
+}

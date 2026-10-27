@@ -72,15 +72,15 @@ export const FOREST_EVENTS: ForestEvent[] = [
     p.gold += g;
     return [{ t: t`Ein Eichhörnchen hat in einem hohlen Baum Gold versteckt. Es hätte besser aufpassen sollen. Du findest ${g} Gold.`, k: 'gold' }];
   } },
-  // Wie der alte Mann mit dem Stock im Original: ein Schlag macht hübscher oder hässlicher.
+  // Die Elster: macht dich hübscher oder zerzaust dich.
   { id: 'kauz', weight: 6, run: (p) => {
     if (chance(0.5)) {
       p.charm += 1;
-      return [{ t: t('Ein alter Kauz springt hinter einem Baum hervor und haut dir mit einem knorrigen Stock auf den Kopf. „Der Schönheitsstock!“, kichert er und verschwindet. Du fühlst dich tatsächlich etwas hübscher. (+1 Charme)'), k: 'good' }];
+      return [{ t: t('Eine Elster landet auf deiner Schulter, zupft dir die Haare zurecht und poliert mit dem Schnabel deine Gürtelschnalle. Dann fliegt sie zufrieden davon. Du siehst tatsächlich besser aus. (+1 Charme)'), k: 'good' }];
     }
     const lost = p.charm > 0;
     if (lost) p.charm -= 1;
-    return [{ t: t`Ein alter Kauz springt hinter einem Baum hervor und haut dir mit einem krummen Stock auf den Kopf. „Der Hässlichkeitsstock!“, kichert er und verschwindet.${lost ? t(' Du fühlst dich weniger ansehnlich. (−1 Charme)') : t(' Viel kaputt machen konnte er nicht mehr.')}`, k: 'bad' }];
+    return [{ t: t`Eine Elster stürzt sich auf dich und reißt dir ein Büschel Haare für ihr Nest aus.${lost ? t(' Du siehst jetzt aus, als hätte dich ein Sturm frisiert. (−1 Charme)') : t(' Viel schlimmer konnte es nicht mehr werden.')}`, k: 'bad' }];
   } },
   { id: 'edelstein', weight: 5, run: (p) => {
     p.gems += 1;
@@ -257,7 +257,7 @@ export const FOREST_EVENTS: ForestEvent[] = [
         const d = hurt(p, 0.25);
         return [{ t: t`Er schläft nicht. Eine Faust, groß wie ein Brotlaib, trifft dich: ${d} Schaden.`, k: 'bad' }];
       } },
-      { id: 'weg', label: t('Leise weitergehen'), key: 'l', run: () => [{ t: t('Du schleichst vorbei. Er murmelt etwas von Wurstbroten.'), k: 'info' }] },
+      { id: 'weg', label: t('Leise weitergehen'), key: 'l', run: () => [{ t: t('Du schleichst vorbei. Er murmelt im Schlaf: „Noch fünf Minuten, Mama.“'), k: 'info' }] },
     ] },
   { id: 'wanderer', weight: 5,
     prompt: () => [{ t: t('Ein verletzter Wanderer sitzt am Wegrand und hält sich das Bein. „Ein Eulenbär“, stöhnt er. „Hast du etwas Verbandszeug?“'), k: 'warn' }],
@@ -270,60 +270,59 @@ export const FOREST_EVENTS: ForestEvent[] = [
       } },
       { id: 'weg', label: t('Keine Zeit'), key: 'k', run: () => [{ t: t('Du gehst weiter. Er ruft dir etwas nach, das man in Moosgrund nicht laut sagt.'), k: 'info' }] },
     ] },
-  // ---------- Nach dem Original (LoGD-Waldereignisse), in die Welt von Moosgrund übertragen ----------
-  // Waldkämpfe zählen doppelt so viel wie im Original, weil unser Tag 20 statt 10 hat.
+  // ---------- Größere Ereignisse mit Wahl ----------
 
-  // Glowing Stream: Trinken kann alles bedeuten, vom Tod bis zur vollen Heilung.
+  // Der Silberbach: Trinken kann alles bedeuten, vom Tod bis zur vollen Heilung.
   { id: 'leuchtbach', weight: 5,
-    prompt: () => [{ t: t('Du findest einen kleinen Bach, dessen Wasser schwach leuchtet. Es plätschert über runde, schneeweiße Steine. Du spürst eine seltsame Kraft darin. Ein Schluck könnte dir ungeahnte Stärke geben, oder dich zum Krüppel machen.'), k: 'warn' }],
+    prompt: () => [{ t: t('Zwischen Farnwedeln rieselt ein Bach, dessen Wasser wie flüssiges Mondlicht schimmert. Die Rehe trinken nicht daraus, sie machen einen Bogen darum. Ein Schluck kann Wunder wirken. Oder das Gegenteil.'), k: 'warn' }],
     choices: [
       { id: 'trinken', label: t('Trinken'), key: 't', run: (p) => {
         const r = roll(1, 10);
-        const head = { t: t('Du kniest dich ans Ufer und nimmst einen langen Schluck. Wärme breitet sich in deiner Brust aus …'), k: 'info' as const };
+        const head = { t: t('Du schöpfst mit beiden Händen und trinkst. Das Wasser schmeckt nach Eisen und Sternen …'), k: 'info' as const };
         if (r === 1) {
           p.alive = false;
-          return [head, { t: t('… gefolgt von einer klammen, schrecklichen Kälte. Du sinkst ans Ufer und merkst erst jetzt, dass die weißen Steine gebleichte Schädel sind. Dir wird schwarz vor Augen.'), k: 'bad' },
-            { t: t('Die Tiere des Waldes meiden diesen Ort, darum behältst du dein Gold. Und die Lehre wiegt die Erfahrung auf, die du sonst verloren hättest.'), k: 'info' }];
+          return [head, { t: t('… und dann wird es still in dir. Ganz still. Das Letzte, was du siehst, ist dein Spiegelbild, das dir traurig zuwinkt.'), k: 'bad' },
+            { t: t('Weil die Tiere den Bach meiden, rührt niemand dein Gold an. Und was du hier gelernt hast, nimmt dir keiner: Du verlierst keine Erfahrung.'), k: 'info' }];
         }
         if (r === 2) {
           const lost = Math.min(2, p.forestFights);
           p.forestFights -= lost;
           p.hp = Math.max(1, Math.min(p.hp, Math.round(maxHp(p) * 0.1)));
-          return [head, { t: t('… gefolgt von eisiger Kälte. Schon wird dir schwarz vor Augen, da hörst du ein Kichern: Eine winzige Fee streut dir Feenstaub ins Gesicht, und du kommst wieder auf die Beine.'), k: 'warn' },
-            { t: t`Knapp überlebt. Du verlierst die meisten Lebenspunkte${lost ? t` und ${lost} Waldkämpfe` : ''}.`, k: 'bad' }];
+          return [head, { t: t('… und dann wird dir eiskalt. Gerade als dir die Knie nachgeben, stupst dich ein Reh mit der Schnauze an, und irgendwie kommst du wieder hoch.'), k: 'warn' },
+            { t: t`Mit knapper Not überlebt. Die meisten Lebenspunkte sind weg${lost ? t`, dazu ${lost} Waldkämpfe` : ''}.`, k: 'bad' }];
         }
-        if (r === 3) { p.hp = Math.max(p.hp, maxHp(p)); p.forestFights += 2; return [head, { t: t('Du fühlst dich BELEBT! Volle Lebenspunkte und Kraft für 2 weitere Waldkämpfe.'), k: 'good' }]; }
-        if (r === 4) { p.gems += 1; return [head, { t: t('Du fühlst dich WACHSAM! Unter einem der Kiesel glitzert etwas: ein Edelstein!'), k: 'gold' }]; }
-        if (r <= 7) { p.forestFights += 2; return [head, { t: t('Du fühlst dich VOLLER TATENDRANG! 2 zusätzliche Waldkämpfe.'), k: 'good' }]; }
+        if (r === 3) { p.hp = Math.max(p.hp, maxHp(p)); p.forestFights += 2; return [head, { t: t('Ein warmes Prickeln läuft dir bis in die Fingerspitzen. Volle Lebenspunkte und Kraft für 2 weitere Waldkämpfe.'), k: 'good' }]; }
+        if (r === 4) { p.gems += 1; return [head, { t: t('Deine Augen werden scharf wie die eines Falken. Im Bachbett entdeckst du einen Edelstein!'), k: 'gold' }]; }
+        if (r <= 7) { p.forestFights += 2; return [head, { t: t('Dein Herz schlägt wie eine Kriegstrommel. Du könntest Bäume ausreißen: 2 zusätzliche Waldkämpfe.'), k: 'good' }]; }
         p.hp = Math.max(p.hp, maxHp(p));
-        return [head, { t: t('Du fühlst dich GESUND! Deine Lebenspunkte sind wieder voll.'), k: 'good' }];
+        return [head, { t: t('Alle Schmerzen sind wie weggespült. Deine Lebenspunkte sind wieder voll.'), k: 'good' }];
       } },
-      { id: 'nicht', label: t('Nicht trinken'), key: 'n', run: () => [{ t: t('Die unheimliche Kraft im Wasser ist dir nicht geheuer. Du lässt den Bach leuchten und gehst weiter.'), k: 'info' }] },
+      { id: 'nicht', label: t('Nicht trinken'), key: 'n', run: () => [{ t: t('Was die Rehe nicht trinken, trinkst du auch nicht. Du gehst weiter.'), k: 'info' }] },
     ] },
 
-  // Gold Mine: Graben kostet Zeit, bringt Gold und Edelsteine, manchmal einen Einsturz.
+  // Der alte Stollen: Graben kostet Zeit, bringt Gold und Edelsteine, manchmal einen Einsturz.
   { id: 'stollen', weight: 5, minLevel: 2,
-    prompt: () => [{ t: t('Tief im Wald stößt du auf einen alten, verlassenen Stollen. Davor liegt rostiges Werkzeug. Graben würde dich Zeit für 2 Waldkämpfe kosten, und an den Wänden siehst du Spuren alter Einstürze.'), k: 'warn' }],
+    prompt: () => [{ t: t('Ein Stollen führt schräg in den Hang. An den Balken hängen Spinnweben, am Eingang lehnt eine Spitzhacke, als hätte jemand gerade Pause gemacht. Eine Weile graben würde dich 2 Waldkämpfe kosten. Die Balken knarren bedenklich.'), k: 'warn' }],
     choices: [
-      { id: 'graben', label: t('Nach Gold und Edelsteinen graben'), key: 'g', available: (p) => p.forestFights > 0, hint: () => t('2 Waldkämpfe'), run: (p, ctx) => {
+      { id: 'graben', label: t('Mit der Spitzhacke graben'), key: 'g', available: (p) => p.forestFights > 0, hint: () => t('2 Waldkämpfe'), run: (p, ctx) => {
         const r = roll(1, 20);
         const tired = () => { p.forestFights = Math.max(0, p.forestFights - 2); };
-        if (r <= 5) { tired(); return [{ t: t('Nach Stunden harter Arbeit findest du nur wertlose Steine und einen Schädel.'), k: 'info' }]; }
-        if (r <= 10) { const g = roll(p.level * 5, p.level * 20); p.gold += g; tired(); return [{ t: t`Nach Stunden harter Arbeit findest du ${g} Gold!`, k: 'gold' }]; }
-        if (r <= 15) { const n = roll(1, Math.round(p.level / 7) + 1); p.gems += n; tired(); return [{ t: t`Nach Stunden harter Arbeit findest du ${n === 1 ? t('einen Edelstein') : t`${n} Edelsteine`}!`, k: 'gold' }]; }
+        if (r <= 5) { tired(); return [{ t: t('Du hackst und schaufelst, bis dir der Rücken wehtut. Ausbeute: ein rostiger Löffel und sehr viel Staub.'), k: 'info' }]; }
+        if (r <= 10) { const g = roll(p.level * 5, p.level * 20); p.gold += g; tired(); return [{ t: t`Plötzlich klingt die Spitzhacke anders. Zwischen dem Geröll blinken ${g} Gold!`, k: 'gold' }]; }
+        if (r <= 15) { const n = roll(1, Math.round(p.level / 7) + 1); p.gems += n; tired(); return [{ t: t`Im Fels steckt etwas Funkelndes. Vorsichtig klopfst du ${n === 1 ? t('einen Edelstein') : t`${n} Edelsteine`} heraus!`, k: 'gold' }]; }
         if (r <= 18) {
           const g = roll(p.level * 10, p.level * 40); const n = roll(1, Math.round(p.level / 3) + 1);
           p.gold += g; p.gems += n; tired();
           ctx.announce(news('mineRich', p.name));
-          return [{ t: t`Du hast die Hauptader gefunden! ${n === 1 ? t('Ein Edelstein') : t`${n} Edelsteine`} und ${g} Gold!`, k: 'gold' }];
+          return [{ t: t`Eine goldene Ader zieht sich quer durch die Wand! Du stopfst dir die Taschen voll: ${n === 1 ? t('Ein Edelstein') : t`${n} Edelsteine`} und ${g} Gold!`, k: 'gold' }];
         }
         // Einsturz: Zwerge kennen sich unter Tage aus, ein Reittier kann dich herausziehen.
-        const lines: LogLine[] = [{ t: t('Du glaubst, einen riesigen Edelstein und Gold zu sehen. Gierig holst du mit der Spitzhacke weit aus … und die Decke gibt nach!'), k: 'warn' }];
+        const lines: LogLine[] = [{ t: t('Hinter einem Felsbrocken glitzert es verheißungsvoll. Du holst mit der Spitzhacke weit aus … und über dir knackt ein Balken!'), k: 'warn' }];
         const saved = (p.race === 'zwerg' && chance(0.5)) ? 'zwerg' : (p.mount && chance(0.3)) ? 'mount' : chance(0.2) ? 'luck' : '';
         if (saved) {
           p.forestFights = 0;
-          lines.push({ t: saved === 'zwerg' ? t('Dein Zwergenblut warnt dich im letzten Moment. Du springst zur Seite, bevor die Felsen fallen.') : saved === 'mount' ? t('Dein Reittier zerrt dich im letzten Moment am Kragen heraus!') : t('Mit purem Glück entkommst du dem Einsturz.'), k: 'good' });
-          lines.push({ t: t('Der Schreck sitzt so tief, dass du dich heute keinem Gegner mehr stellen kannst.'), k: 'warn' });
+          lines.push({ t: saved === 'zwerg' ? t('Zwerge hören, wenn ein Berg seufzt. Du bist draußen, bevor der erste Stein fällt.') : saved === 'mount' ? t('Dein Reittier wiehert, packt dich am Kragen und zerrt dich ins Freie!') : t('Ein Felsbrocken verfehlt dich um Haaresbreite, und du stolperst ins Tageslicht.'), k: 'good' });
+          lines.push({ t: t('Deine Knie zittern noch Stunden später. Für heute kämpfst du gegen niemanden mehr.'), k: 'warn' });
           return lines;
         }
         const exp = Math.round(p.exp * 0.1);
@@ -331,76 +330,76 @@ export const FOREST_EVENTS: ForestEvent[] = [
         p.exp += exp; p.gold -= lostGold;
         p.alive = false;
         ctx.announce(news('mineBuried', p.name));
-        lines.push({ t: t`Tonnen von Fels begraben dich. Immerhin hast du etwas übers Graben gelernt (${exp} Erfahrung). ${lostGold} Gold bleiben unter dem Geröll.`, k: 'bad' });
+        lines.push({ t: t`Der Stollen stürzt über dir ein. Dein letzter Gedanke: Holzbalken sollte man öfter prüfen. (${exp} Erfahrung für diese Lektion) ${lostGold} Gold bleiben im Geröll.`, k: 'bad' });
         return lines;
       } },
-      { id: 'weg', label: t('Zurück in den Wald'), key: 'w', run: () => [{ t: t('Für so eine mühsame Art, reich zu werden, hast du keine Zeit. Du lässt den Stollen hinter dir.'), k: 'info' }] },
+      { id: 'weg', label: t('Zurück in den Wald'), key: 'w', run: () => [{ t: t('Graben ist was für Maulwürfe. Du lässt den Stollen hinter dir.'), k: 'info' }] },
     ] },
 
-  // Die verrückte Hulda (Original: Crazy Audrey): drei Körbe, drei Kätzchen. Gleiche Farben bringen Salbe (Waldkämpfe).
+  // Hulda und ihre Leuchtkäfer: drei Gläser, gleiche Farben bringen Salbe (Waldkämpfe), selten drei Mondfalter.
   { id: 'hulda', weight: 4,
     prompt: () => [
-      { t: t('Auf einer stillen Lichtung stehen drei fest verschlossene Körbe. Aus einem hörst du ein leises Miauen. Kaum greifst du nach dem Deckel, springt die verrückte Hulda aus dem Gebüsch und reißt die Körbe an sich.'), k: 'warn' },
-      { t: t('„Drei Körbe hab ich, das ist wahr, vier Kätzchen drin, ein buntes Paar. Kommen zwei gleiche Farben raus, geb ich dir Salbe für den Strauß. Sind alle drei verschieden bunt, gehst du heut früher in den Grund.“'), k: 'info' },
+      { t: t('Auf einem Baumstumpf hockt die alte Hulda, eine Pfeife im Mundwinkel, vor drei zugebundenen Einmachgläsern. In jedem summt und leuchtet etwas. „Ein Spielchen, Wanderer?“'), k: 'warn' },
+      { t: t('„Ich schüttle meine Gläser, und die Käfer leuchten auf. Haben zwei dieselbe Farbe, kriegst du von meiner Salbe. Sind alle drei verschieden, hab ich gewonnen, und meine Käfer dürfen dich ein bisschen ärgern.“'), k: 'info' },
     ],
     choices: [
-      { id: 'spielen', label: t('Huldas Spiel spielen'), key: 's', run: (p) => {
-        const colors = [t('getigertes'), t('schwarzes'), t('rotes'), t('weißes')];
+      { id: 'spielen', label: t('Mit Hulda spielen'), key: 's', run: (p) => {
+        const colors = [t('grün'), t('golden'), t('blau'), t('rot')];
         let c = [roll(0, 3), roll(0, 3), roll(0, 3)];
         const hedgehogs = roll(1, 20) === 1;
         if (hedgehogs) c = [4, 4, 4];
-        const name = (i: number) => (i === 4 ? t('ein Igel') : t`ein ${colors[i]} Kätzchen`);
-        const lines: LogLine[] = [{ t: t`Hulda klopft auf den ersten Korb: ${name(c[0])} schaut heraus. Der zweite: ${name(c[1])}. Aus dem dritten hüpft ${name(c[2])} und klettert Hulda auf die Schulter.`, k: 'info' }];
+        const name = (i: number) => (i === 4 ? t('ein silberner Mondfalter') : t`ein Käfer, der ${colors[i]} leuchtet`);
+        const lines: LogLine[] = [{ t: t`Hulda schüttelt das erste Glas: ${name(c[0])}. Im zweiten: ${name(c[1])}. Im dritten: ${name(c[2])}.`, k: 'info' }];
         if (c[0] === c[1] && c[1] === c[2]) {
-          if (hedgehogs) { p.forestFights += 10; lines.push({ t: t('„Igel? IGEL?? Hahaha, IGEL!“ Hulda schnappt sie sich und rennt jubelnd in den Wald. Sie hat einen ganzen Beutel Salbe fallen lassen! 10 zusätzliche Waldkämpfe.'), k: 'gold' }); }
-          else { p.forestFights += 4; lines.push({ t: t('„Ihr seid ALLE ganz böse Kätzchen!“, schimpft Hulda. „Weil alle gleich waren, kriegst du ZWEI Salben.“ Du reibst sie dir zwischen die Zehen. 4 zusätzliche Waldkämpfe.'), k: 'good' }); }
+          if (hedgehogs) { p.forestFights += 10; lines.push({ t: t('Drei Mondfalter! Hulda fällt vor Staunen die Pfeife aus dem Mund. Sie drückt dir einen ganzen Tiegel Salbe in die Hand und tanzt mit ihren Gläsern davon. 10 zusätzliche Waldkämpfe.'), k: 'gold' }); }
+          else { p.forestFights += 4; lines.push({ t: t('„Alle drei gleich? Das hatte ich noch nie!“ Hulda gibt dir zwei Döschen Salbe. Du reibst dir die Waden ein und fühlst dich wie neu. 4 zusätzliche Waldkämpfe.'), k: 'good' }); }
         } else if (c[0] === c[1] || c[1] === c[2] || c[0] === c[2]) {
           p.forestFights += 2;
-          lines.push({ t: t('„Ihr verrückten Kätzchen, was wisst ihr schon!“ Trotzdem gibt Hulda dir eine Salbe. 2 zusätzliche Waldkämpfe.'), k: 'good' });
+          lines.push({ t: t('„Na gut, gewonnen“, brummt Hulda und schiebt dir ein Döschen Salbe hin. 2 zusätzliche Waldkämpfe.'), k: 'good' });
         } else if (p.forestFights > 0) {
           p.forestFights = Math.max(0, p.forestFights - 2);
-          lines.push({ t: t('„Gut gemacht, meine Schätzchen!“ Das Kätzchen auf ihrer Schulter springt dich an. Es abzuwehren kostet dich Kraft. 2 Waldkämpfe weniger.'), k: 'bad' });
+          lines.push({ t: t('„Meine Runde!“ Hulda lässt einen Käfer frei, und er summt dir so lange um den Kopf, bis du nicht mehr weißt, wo der Wald aufhört. 2 Waldkämpfe weniger.'), k: 'bad' });
         } else {
           if (p.charm > 0) p.charm -= 1;
-          lines.push({ t: t('„Gut gemacht, meine Schätzchen!“ Das Kätzchen springt dich an und hinterlässt einen hässlichen Kratzer im Gesicht. (−1 Charme)'), k: 'bad' });
+          lines.push({ t: t('„Meine Runde!“ Ein Käfer verheddert sich in deinen Haaren, und als du ihn endlich draußen hast, siehst du aus wie ein Vogelnest. (−1 Charme)'), k: 'bad' });
         }
         return lines;
       } },
-      { id: 'weg', label: t('Vor Hulda davonlaufen'), key: 'w', run: () => [{ t: t('Du rennst, sehr schnell, weg von dieser verrückten Frau.'), k: 'info' }] },
+      { id: 'weg', label: t('Freundlich ablehnen'), key: 'w', run: () => [{ t: t('Du winkst ab und gehst weiter. Hinter dir kichert Hulda und klopft an ihre Gläser.'), k: 'info' }] },
     ] },
 
-  // Foilwench: Für einen Edelstein wird man besser in seiner Fähigkeit.
+  // Gerlinde: Für einen Edelstein wird man besser in seiner Fähigkeit.
   { id: 'lehrmeisterin', weight: 4,
-    prompt: (p) => [{ t: t`In einer schiefen Hütte sitzt eine alte, narbige Kriegerin. „Ich bin Gerlinde, Meisterin aller Künste. Ich bringe dir mehr ${SPECIALTIES[p.specialty].name} bei. Unter zwei Bedingungen.“ „Zwei Bedingungen?“, fragst du. „Erstens: ein Edelstein. Zweitens: Hör auf, alles als Frage zu wiederholen!“`, k: 'warn' }],
+    prompt: (p) => [{ t: t`Vor einer Hütte aus Treibholz sitzt eine Frau mit Augenklappe und schärft drei Klingen gleichzeitig. „Gerlinde“, sagt sie, ohne aufzusehen. „Ich lehre ${SPECIALTIES[p.specialty].name}. Für einen Edelstein zeige ich dir etwas, das in keinem Buch steht.“`, k: 'warn' }],
     choices: [
       { id: 'geben', label: t('Ihr einen Edelstein geben'), key: 'e', hint: () => t('1 Edelstein'), available: (p) => p.gems > 0, run: (p) => {
         p.gems -= 1;
         p.skill += 1;
-        const lines: LogLine[] = [{ t: t`Gerlinde gibt dir ein Stück Pergament mit Anweisungen. Du lernst es auswendig und isst es dann auf, damit es niemand findet. „Das hättest du nicht essen müssen …“ ${SPECIALTIES[p.specialty].name} steigt auf Stufe ${p.skill}.`, k: 'good' }];
+        const lines: LogLine[] = [{ t: t`Gerlinde zeigt dir einen Kniff, auf den du nie selbst gekommen wärst, und lässt ihn dich hundertmal wiederholen. Beim hundertsten Mal sitzt er. ${SPECIALTIES[p.specialty].name} steigt auf Stufe ${p.skill}.`, k: 'good' }];
         if (p.skill % 3 === 0) { p.specialUses += 1; lines.push({ t: t('Du bekommst einen Fähigkeitspunkt mehr pro Tag!'), k: 'gold' }); }
         return lines;
       } },
-      { id: 'nein', label: t('Keinen Edelstein geben'), key: 'k', run: () => [{ t: t('„Wenn du reich werden willst, musst du das schon selbst schaffen“, sagst du und stapfst davon.'), k: 'info' }] },
+      { id: 'nein', label: t('Keinen Edelstein geben'), key: 'k', run: () => [{ t: t('„Billiger lernt man es nur durch Schmerzen“, ruft Gerlinde dir nach. Du gehst trotzdem.'), k: 'info' }] },
     ] },
 
-  // Dark Horse Tavern: ein verstecktes Wirtshaus im Nebel, ein alter Mann will würfeln.
+  // Zur Nassen Socke: eine Schenke auf Stelzen im Moor, die nur im Nebel auftaucht. Ein Troll will würfeln.
   { id: 'dunklesross', weight: 3,
-    prompt: (p) => [{ t: t`Eine Baumgruppe kommt dir bekannt vor. Nebel kriecht heran, dein Kopf summt${p.mount ? t(', aber dein Reittier scheint den Weg zu kennen') : ''}. Als er sich lichtet, steht vor dir eine Blockhütte mit rauchendem Schornstein. Über der Tür: „Zum Dunklen Ross“. Drinnen ist es still. In der Ecke spielt ein alter Mann mit Würfeln. „Ein Abenteurer hat mir fast mein ganzes Geld abgenommen“, seufzt er. „Gibst du mir eine Chance, etwas zurückzugewinnen?“`, k: 'warn' }],
+    prompt: (p) => [{ t: t`Nebel steigt auf, so dicht, dass du deine eigenen Stiefel nicht mehr siehst${p.mount ? t(', aber dein Reittier trottet unbeirrt weiter') : ''}. Als er aufreißt, stehst du vor einer windschiefen Schenke auf Stelzen, mitten im Moor. Über der Tür baumelt ein Schild: „Zur Nassen Socke“. Drinnen sitzt ein einzelner Troll vor einem Würfelbecher und grinst dich an. „Eine Runde? Wer mehr Augen hat, gewinnt.“`, k: 'warn' }],
     choices: [
-      { id: 'wuerfeln', label: t('Mit dem Alten würfeln'), key: 'w', hint: (p) => t`${p.level * 10} Gold Einsatz`, available: (p) => p.gold >= p.level * 10, run: (p) => {
+      { id: 'wuerfeln', label: t('Mit dem Troll würfeln'), key: 'w', hint: (p) => t`${p.level * 10} Gold Einsatz`, available: (p) => p.gold >= p.level * 10, run: (p) => {
         const bet = p.level * 10;
         const me = roll(1, 6) + roll(1, 6);
         const him = roll(1, 6) + roll(1, 6);
-        if (me > him) { p.gold += bet; return [{ t: t`Du würfelst ${me}, der Alte ${him}. Er schiebt dir brummend ${bet} Gold hin.`, k: 'gold' }]; }
-        if (me < him) { p.gold -= bet; return [{ t: t`Du würfelst ${me}, der Alte ${him}. Er kichert und steckt deine ${bet} Gold ein. „Danke, Kindchen.“`, k: 'bad' }]; }
-        return [{ t: t`Ihr würfelt beide ${me}. „Unentschieden“, murmelt der Alte. „Das zählt nicht.“`, k: 'info' }];
+        if (me > him) { p.gold += bet; return [{ t: t`Du würfelst ${me}, der Troll ${him}. Er grunzt beleidigt und schiebt dir ${bet} Gold hin.`, k: 'gold' }]; }
+        if (me < him) { p.gold -= bet; return [{ t: t`Du würfelst ${me}, der Troll ${him}. Er lacht, dass die Stelzen wackeln, und steckt deine ${bet} Gold ein.`, k: 'bad' }]; }
+        return [{ t: t`Ihr würfelt beide ${me}. Der Troll kratzt sich am Kopf. „Gleich? Das ist zu viel Rechnen für heute.“`, k: 'info' }];
       } },
-      { id: 'schnaps', label: t('Beim Wirt einen Kräuterschnaps trinken'), key: 's', hint: (p) => t`${p.level * 5} Gold`, available: (p) => p.gold >= p.level * 5, run: (p) => {
+      { id: 'schnaps', label: t('Bei der Moorwirtin einen Kräutersud trinken'), key: 's', hint: (p) => t`${p.level * 5} Gold`, available: (p) => p.gold >= p.level * 5, run: (p) => {
         p.gold -= p.level * 5;
         const h = mend(p, 0.5);
-        return [{ t: t`Der Wirt, ein Hänfling von einem alten Mann, schenkt dir etwas Grünes ein. Es brennt bis in die Zehen. ${h ? t`+${h} Lebenspunkte.` : t('Gesund warst du schon vorher, aber gut war er trotzdem.')}`, k: 'good' }];
+        return [{ t: t`Die Moorwirtin stellt dir einen dampfenden Becher hin. Es riecht nach Sumpf und schmeckt nach Minze. ${h ? t`+${h} Lebenspunkte.` : t('Gesund warst du schon vorher, aber jetzt ist dir auch noch warm.')}`, k: 'good' }];
       } },
-      { id: 'weg', label: t('Den Ort verlassen'), key: 'v', run: () => [{ t: t('Der Nebel kommt zurück. Als er sich lichtet, stehst du wieder dort, wo alles anfing. Wie du hingekommen bist, weißt du nicht mehr.'), k: 'info' }] },
+      { id: 'weg', label: t('Den Ort verlassen'), key: 'v', run: () => [{ t: t('Du trittst vor die Tür, der Nebel verschluckt dich, und als er sich lichtet, ist von der Schenke keine Spur mehr. Nur deine Stiefel sind nass.'), k: 'info' }] },
     ] },
 
   // Stonehenge: Wer in den Steinkreis tritt, erlebt eine Überraschung.
@@ -435,38 +434,25 @@ export const FOREST_EVENTS: ForestEvent[] = [
       return [{ t: FESTE_TEXT.found, k: 'gold' }, { t: t('Ab jetzt findest du den Weg zur versunkenen Feste im Wald wieder.'), k: 'good' }];
     } },
 
-  // Die Plumpsklos im Wald (Original: Outhouse). Danach: Hände waschen oder nicht?
-  { id: 'klo', weight: 3,
-    prompt: (p) => [{ t: t`Ein strenger Geruch kündigt sie an: Moosgrund hält seine Plumpsklos hier draußen im Wald, weil der Gestank die Monster fernhält. Es gibt ein feines Häuschen mit Herz in der Tür (${p.level * 5} Gold, ein Klogeist kassiert) und ein öffentliches Loch hinter einem Busch.`, k: 'warn' }],
+  // Die Badestube des Köhlers: heißes Bad gegen Gold oder kalter Teich umsonst.
+  { id: 'badestube', weight: 3,
+    prompt: (p) => [{ t: t`Zwischen den Bäumen steigt Dampf auf. Der alte Köhler hat neben seinem Meiler eine Badestube gezimmert. Ein heißes Bad kostet ${p.level * 5} Gold. Gleich daneben liegt ein Teich, kalt, grün und umsonst.`, k: 'warn' }],
     choices: [
-      { id: 'fein', label: t('Das feine Häuschen'), key: 'f', hint: (p) => t`${p.level * 5} Gold`, available: (p) => p.gold >= p.level * 5, run: (p, ctx) => {
+      { id: 'bad', label: t('Ein heißes Bad nehmen'), key: 'b', hint: (p) => t`${p.level * 5} Gold`, available: (p) => p.gold >= p.level * 5, run: (p) => {
         p.gold -= p.level * 5;
-        ctx.s.pendingEvent = { id: 'klo2', lines: [{ t: t('Du zahlst den Klogeist, und er dreht sich höflich um. Das sauberste Plumpsklo im ganzen Land! Es gibt sogar weiches Moos statt Blättern. Neben der Tür steht ein Waschtrog.'), k: 'info' }], data: 1 };
-        return [];
-      } },
-      { id: 'loch', label: t('Das öffentliche Loch'), key: 'o', run: (_p, ctx) => {
-        ctx.s.pendingEvent = { id: 'klo2', lines: [{ t: t('Der Gestank ist so stark, dass dir die Augen tränen und die Nasenhaare sich kräuseln. Du hockst dich über das Loch und rutschst beinahe hinein. So schnell wie möglich bist du fertig. Neben dem Busch steht ein Waschtrog.'), k: 'info' }], data: 0 };
-        return [];
-      } },
-      { id: 'weiter', label: t('Einhalten und weitergehen'), key: 'w', run: () => [{ t: t('Du hältst die Luft an und gehst schnell weiter. Es geht auch so.'), k: 'info' }] },
-    ] },
-  { id: 'klo2', weight: 0, when: () => false,
-    neutral: true,
-    choices: [
-      { id: 'waschen', label: t('Hände waschen'), key: 'h', run: (p, ctx) => {
-        const lines: LogLine[] = [{ t: t('Hände waschen ist immer gut. Du richtest dich im Spiegelbild des Wassers her und gehst weiter.'), k: 'info' }];
-        if (chance(0.6)) { const g = p.level * (ctx.data ? 4 : 2); p.gold += g; lines.push({ t: t`Die Waschtrog-Fee segnet dich! Für so viel Sauberkeit bekommst du ${g} Gold.`, k: 'gold' }); }
-        if (chance(0.25)) { p.gems += 1; lines.push({ t: t('Und an der Türschwelle liegt ein Edelstein. Glückspilz!'), k: 'gold' }); }
+        p.hp = Math.max(p.hp, maxHp(p));
+        const lines: LogLine[] = [{ t: t('Du lässt dich ins dampfende Wasser sinken, bis nur noch die Nase herausschaut. Der Köhler reicht dir einen Becher Tee. Alle Wunden sind vergessen.'), k: 'good' }];
+        if (chance(0.4)) { p.charm += 1; lines.push({ t: t('Frisch geschrubbt und duftend wie eine Wiese gehst du weiter. (+1 Charme)'), k: 'good' }); }
         return lines;
       } },
-      { id: 'nicht', label: t('Ach was, einfach weiter'), key: 'w', run: (p) => {
-        if (chance(0.5) && p.gold > 0) {
-          const g = Math.min(p.gold, p.level * 3);
-          p.gold -= g;
-          return [{ t: t`Deine Hände stinken fürchterlich. Hat dir deine Mutter nichts beigebracht? Der Klogeist wirft dich auf den schmierigen Boden und nimmt dir zur Strafe ${g} Gold ab. Wenigstens steht das nicht in den Neuigkeiten.`, k: 'bad' }];
-        }
-        return [{ t: t('Du wischst dir die Hände an der Hose ab und gehst weiter. Niemand hat es gesehen. Hoffentlich.'), k: 'info' }];
+      { id: 'teich', label: t('In den Teich springen'), key: 't', run: (p) => {
+        const r = roll(1, 10);
+        if (r <= 5) { p.charm += 1; return [{ t: t('Das Wasser ist so kalt, dass du laut quiekst. Aber danach glühst du rosig und wach. (+1 Charme)'), k: 'good' }]; }
+        if (r <= 8) return [{ t: t('Du planschst eine Weile herum. Ein Frosch sieht dir dabei sehr kritisch zu.'), k: 'info' }];
+        const d = hurt(p, 0.1);
+        return [{ t: t`Als du herauskletterst, hängen drei Blutegel an deinen Waden. Bis du sie los bist, hast du ${d} Lebenspunkte weniger.`, k: 'bad' }];
       } },
+      { id: 'weiter', label: t('Weitergehen'), key: 'w', run: () => [{ t: t('Baden kannst du auch nach dem Drachen noch. Du gehst weiter.'), k: 'info' }] },
     ] },
 
   { id: 'turm', weight: 4,

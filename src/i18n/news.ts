@@ -24,12 +24,12 @@ export const NEWS = {
   festeTreasureFirstM: '{0} hat heute als Erster den Hüter der versunkenen Feste besiegt und ihren Schatz gehoben!',
   festeTreasureFirstF: '{0} hat heute als Erste den Hüter der versunkenen Feste besiegt und ihren Schatz gehoben!',
   festeTreasure: '{0} hat den Hüter der versunkenen Feste besiegt und ihren Schatz gehoben!',
-  stairsFrieda: '{0} und Wirtin Frieda wurden zusammen auf der Treppe zu den Gästezimmern gesehen.',
+  stairsFrieda: '{0} und Wirtin Frieda kamen erst im Morgengrauen Hand in Hand aus dem Wald zurück.',
   weddingFrieda: '{0} und Wirtin Frieda haben heute geheiratet! Im Schlafenden Wurm gab es Freibier. Fast.',
-  leftFrieda: 'Frieda hat {0} verlassen, um „anderen Interessen“ nachzugehen.',
-  stairsFlorian: '{0} und Barde Florian wurden zusammen auf der Treppe zu den Gästezimmern gesehen.',
+  leftFrieda: 'Frieda hat sich von {0} getrennt. Am Stammtisch wird schon gewettet, wer der Nächste ist.',
+  stairsFlorian: '{0} und Barde Florian kamen erst im Morgengrauen von einem Mondscheinspaziergang zurück.',
   weddingFlorian: '{0} und Barde Florian haben heute geheiratet! Florian hat seine eigene Hochzeit selbst besungen.',
-  leftFlorian: 'Florian hat {0} verlassen, um „anderen Interessen“ nachzugehen.',
+  leftFlorian: 'Florian hat sich von {0} getrennt und ist mit seiner Laute weitergezogen.',
 } as const;
 export type NewsId = keyof typeof NEWS;
 // Alte Neuigkeiten aus der Zeit vor dem Code stehen als deutscher Klartext in der Datenbank.

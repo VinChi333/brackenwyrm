@@ -1,4 +1,4 @@
--- Brackenwyrm: Prüfung, ob Teil 1 bis 5 vollständig eingespielt sind.
+-- Brackenwyrm: Prüfung, ob Teil 1 bis 6 vollständig eingespielt sind.
 -- Im Supabase SQL-Editor ausführen. Jede Zeile sollte bei "ok" ein Häkchen (true) haben.
 select pruefung, ok from (values
   ('Teil 1: Spielstände und Kämpfer',          to_regclass('public.saves') is not null and to_regclass('public.fighters') is not null),
@@ -15,5 +15,7 @@ select pruefung, ok from (values
   ('Teil 5: Fünf Sechser',                     to_regclass('public.jackpot') is not null and exists (select 1 from pg_proc where proname = 'fivesix_roll')),
   ('Teil 5: Aushang',                          to_regclass('public.aushang') is not null),
   ('Teil 5: Ranglisten',                       exists (select 1 from pg_proc where proname = 'hall_of_fame')),
-  ('Teil 5: Schutz für Ranglisten',            exists (select 1 from pg_trigger where tgname = 'fighters_guard5'))
+  ('Teil 5: Schutz für Ranglisten',            exists (select 1 from pg_trigger where tgname = 'fighters_guard5')),
+  ('Teil 6: zwei Spieltage pro Tag',           exists (select 1 from pg_proc where proname = 'bw_gameday')),
+  ('Teil 6: nach Teil 5 ausgeführt',           exists (select 1 from pg_proc where proname = 'fivesix_roll' and prosrc like '%bw_gameday%'))
 ) as t(pruefung, ok);

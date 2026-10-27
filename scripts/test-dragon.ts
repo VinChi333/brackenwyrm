@@ -18,11 +18,11 @@ function killedDragon(dk: number, flawless = false) {
 }
 
 t('Titelleiter mit weiblichen Formen', () => {
-  assert.equal(titleFor(0, 'm'), 'Bauernjunge');
-  assert.equal(titleFor(0, 'f'), 'Bauernmädchen');
-  assert.equal(titleFor(6, 'f'), 'Dame');
-  assert.equal(titleFor(31, 'm'), 'Gott');
-  assert.equal(titleFor(50, 'f'), 'Göttin');
+  assert.equal(titleFor(0, 'm'), 'Grünschnabel');
+  assert.equal(titleFor(0, 'f'), 'Grünschnabel');
+  assert.equal(titleFor(6, 'f'), 'Wurzelhüterin');
+  assert.equal(titleFor(31, 'm'), 'Unsterblicher');
+  assert.equal(titleFor(50, 'f'), 'Unsterbliche');
 });
 t('erster Drachenkill: alles auf Anfang, Edelsteine bleiben, Kontor ist leer', () => {
   const s = killedDragon(1);
@@ -39,9 +39,9 @@ t('erster Drachenkill: alles auf Anfang, Edelsteine bleiben, Kontor ist leer', (
   assert.deepEqual(p.dragonPoints, ['ff']);
   assert.equal(s.day, day + 1);
   assert.equal(s.pendingDragonBonus, false);
-  assert.equal(r.title, 'Pagin');
-  assert.ok(s.news.some((x) => x.includes('Pagin Hilda')));
-  assert.ok(s.outbox.some((x) => showNews(x).includes('Pagin')));
+  assert.equal(r.title, 'Reisigsammlerin');
+  assert.ok(s.news.some((x) => x.includes('Reisigsammlerin Hilda')));
+  assert.ok(s.outbox.some((x) => showNews(x).includes('Reisigsammlerin')));
 });
 t('Startgold wächst bis 300, Edelsteine ab dem 8. Drachen', () => {
   const a = killedDragon(9); chooseDragonBonus(a, 'atk');

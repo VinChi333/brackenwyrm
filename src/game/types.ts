@@ -1,6 +1,6 @@
 // Gemeinsame Typen der Spiellogik. Keine Darstellung, kein DOM.
 
-/** Fähigkeiten wie im Original: Dunkle Künste, Mystische Kräfte, Diebeskünste. */
+/** Die drei Fähigkeiten: dunkel = Totenbeschwörung, mystik = Wildmagie, dieb = Schurkenkunst. */
 export type SpecialtyId = 'dunkel' | 'mystik' | 'dieb';
 
 /** Rassen wie im Original. */
@@ -198,7 +198,7 @@ export interface Stats {
   bestHit: { dmg: number; foe: string; day: number };
   shades: number;         // besiegte Seelen im Schattenreich
   resurrections: number;  // Rückkehr mit Morwens Hilfe
-  realDays: number;       // an wie vielen echten Kalendertagen gespielt wurde
+  realDays: number;       // an wie vielen Spieltagen gespielt wurde (zwei pro echtem Tag)
   firstPlayed: string;    // erster Spieltag (YYYY-MM-DD)
 }
 
@@ -247,7 +247,7 @@ export interface GameState {
   savedAt?: number;        // Zeitpunkt des letzten Speicherns (ms), für den Abgleich mit dem Server
   player: Player;
   day: number;             // Spieltag-Zähler
-  lastRealDate: string;    // YYYY-MM-DD, löst den echten neuen Tag aus
+  lastRealDate: string;    // Spieltag (z. B. 2026-10-27a), löst den neuen Tag aus (game/clock.ts)
   fight: Fight | null;
   pendingDragonBonus: boolean;
   flawlessDragon?: boolean; // letzter Drachensieg ohne einen einzigen Treffer einzustecken

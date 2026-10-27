@@ -15,6 +15,7 @@
 --   5. Konto löschen: Spieler können ihr Konto samt allen Daten selbst löschen.
 --   6. Das Denkmal im Dorf kommt jetzt vom Server (der zuletzt geprüfte Drachentöter).
 --   7. Neue Orte: Wyrmstein und Rosengarten, Erbstücke aus der versunkenen Feste.
+-- Hinweis: Wer diesen Teil erneut ausführt, führt danach auch Teil 6 (supabase-6-spieltage.sql) erneut aus.
 
 -- =============================================================================================
 -- 1. Wortfilter

@@ -31,7 +31,7 @@ export function feedbackMessage(s: GameState, version: string, kinds: FeedbackKi
     '',
     t('— Spielstand —'),
     t`${p.name}, Stufe ${p.level}, ${SPECIALTIES[p.specialty].name}`,
-    t`Spieltag ${s.day}, an ${st.realDays} echten Tagen gespielt (seit ${st.firstPlayed || 'unbekannt'})`,
+    t`Spieltag ${s.day}, ${st.realDays} Spieltage gespielt (seit ${st.firstPlayed || 'unbekannt'})`,
     t`Drachenkills ${p.dragonKills}, Siege ${st.kills}, Tode ${st.deaths}, Meister ${st.masters}`,
     t`Bestiarium ${found}/45, Waffe Stufe ${p.weaponTier}, Rüstung Stufe ${p.armorTier}`,
     t`Bildschirm: ${screen}, Gerät: ${device}`,

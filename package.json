@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "simulate": "tsx scripts/simulate.ts",
     "build:artifact": "tsc --noEmit && vite build --mode artifact --outDir dist-artifact && node scripts/artifact.mjs",
-    "test": "tsx scripts/test-sync.ts && tsx scripts/test-dragon.ts && tsx scripts/test-lovers.ts && tsx scripts/test-skills.ts && tsx scripts/test-stable.ts && tsx scripts/test-events.ts && tsx scripts/test-haunt.ts && tsx scripts/test-village.ts && tsx scripts/test-shops.ts && tsx scripts/test-feste.ts && tsx scripts/test-dorfleben.ts && tsx scripts/test-guide.ts && tsx scripts/i18n-check.ts --strict",
+    "test": "tsx scripts/test-sync.ts && tsx scripts/test-dragon.ts && tsx scripts/test-lovers.ts && tsx scripts/test-skills.ts && tsx scripts/test-stable.ts && tsx scripts/test-events.ts && tsx scripts/test-haunt.ts && tsx scripts/test-village.ts && tsx scripts/test-shops.ts && tsx scripts/test-feste.ts && tsx scripts/test-dorfleben.ts && tsx scripts/test-guide.ts && tsx scripts/test-clock.ts && tsx scripts/i18n-check.ts --strict",
     "test:sql": "tsx scripts/test-sql.mjs"
   },
   "devDependencies": {

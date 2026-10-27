@@ -24,6 +24,8 @@ await db.exec(readFileSync(new URL('../server/supabase-4-schutz.sql', import.met
 await db.exec(readFileSync(new URL('../server/supabase-5-dorfleben.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-4-schutz.sql', import.meta.url), 'utf8')); // Teil 4 nach Teil 5 darf nichts kaputt machen
 await db.exec(readFileSync(new URL('../server/supabase-5-dorfleben.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-6-spieltage.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-6-spieltage.sql', import.meta.url), 'utf8')); // wiederholbar
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c', N = '00000000-0000-0000-0000-00000000000d';
 await db.exec(`insert into auth.users values ('${A}','a@x'),('${B}','b@x'),('${C}','c@x'),('${N}','n@x')`);
 async function as(uid, sql, params) {
@@ -87,7 +89,7 @@ await db.exec(`update public.fighters set alive = true where user_id in ('${A}',
 try { await as(A, `select public.pvp_attack('${B}', 'felder')`); } catch (e) { err = e.message; }
 ok(/gerade erst angegriffen/.test(err), 'Opfer ist danach 10 Minuten sicher: ' + err);
 // Tageslimit
-await db.exec(`update public.fighters set pvp_flag = null, alive = true where user_id = '${B}'; update public.fighters set pvp_used = 3, pvp_day = current_date where user_id = '${A}'`);
+await db.exec(`update public.fighters set pvp_flag = null, alive = true where user_id = '${B}'; update public.fighters set pvp_used = 3, pvp_day = public.bw_gameday() where user_id = '${A}'`);
 err = '';
 try { await as(A, `select public.pvp_attack('${B}', 'felder')`); } catch (e) { err = e.message; }
 ok(/3 Spielerkämpfe/.test(err), 'nach 3 Kämpfen ist Schluss: ' + err);
@@ -99,7 +101,7 @@ await as(A, `insert into public.commentary (section, body) values ('dorfplatz', 
 r = await db.query(`select name, body from public.commentary`);
 ok(/^[A-ZÄÖÜ][\wäöü ]+ Angreifer$/.test(r.rows[0].name) && r.rows[0].body === 'Hallo Moosgrund!', 'Spruch mit Titel und Namen vom Server, Leerzeichen entfernt: ' + r.rows[0].name);
 r = await db.query(`select public.f_title(0, 'm') a, public.f_title(11, 'f') b, public.f_title(99, 'f') c`);
-ok(r.rows[0].a === 'Bauernjunge' && r.rows[0].b === 'Gräfin' && r.rows[0].c === 'Göttin', 'Titelleiter wie im Spiel: ' + Object.values(r.rows[0]).join(', '));
+ok(r.rows[0].a === 'Grünschnabel' && r.rows[0].b === 'Eichenherrin' && r.rows[0].c === 'Unsterbliche', 'Titelleiter wie im Spiel: ' + Object.values(r.rows[0]).join(', '));
 err = '';
 try { await as(A, `insert into public.commentary (section, body) values ('dorfplatz', 'Nochmal')`); } catch (e) { err = e.message; }
 ok(/Nicht so schnell/.test(err), 'zu schnelles Schreiben wird gebremst');
@@ -257,7 +259,7 @@ const g = r.rows[0];
 ok(g.gold === 30000 && g.exp === 3 * g.need + 1000 && g.weapon_tier === 10 && g.bonus_atk === 7 && g.bonus_def === 0 && g.base_max_hp === 285, `Gold, Erfahrung, Waffe, Drachenpunkte gekappt (${g.gold}, ${g.exp}, ${g.weapon_tier}, ${g.bonus_atk}/${g.bonus_def}, ${g.base_max_hp})`);
 await as(A, `update public.fighters set days_played = 900 where user_id = '${A}'`);
 r = await db.query(`select days_played from public.fighters where user_id = '${A}'`);
-ok(r.rows[0].days_played <= 12, 'Spieltage können nicht springen: ' + r.rows[0].days_played);
+ok(r.rows[0].days_played <= 13, 'Spieltage können nicht springen (2 pro Tag): ' + r.rows[0].days_played);
 r = await db.query(`select count(*)::int n from public.cheat_log where user_id = '${A}'`);
 ok(r.rows[0].n >= 6, `Auffälliges wird festgehalten (${r.rows[0].n} Einträge)`);
 let logRead = false; try { await as(A, `select * from public.cheat_log`); } catch { logRead = true; }
@@ -469,6 +471,23 @@ await db.exec(`update public.fighters set banned = true where user_id = '${A}'`)
 r = await asAnon(`select name from public.hall_of_fame('charme', 5)`);
 ok(!r.rows.some((x) => x.name === 'Angreifer'), 'Gesperrte erscheinen in keiner Rangliste');
 await db.exec(`update public.fighters set banned = false where user_id = '${A}'`);
+
+// Teil 6: zwei Spieltage pro echtem Tag, um 6 und 18 Uhr Wiener Zeit (Sommer- und Winterzeit)
+{
+  const g = async (ts) => (await db.query(`select public.bw_gameday('${ts}'::timestamptz)::text as d`)).rows[0].d;
+  ok(await g('2026-10-27 04:59+00') === await g('2026-10-26 17:00+00'), 'Winter: 5:59 Uhr gehört noch zum Abend davor');
+  ok(await g('2026-10-27 05:00+00') !== await g('2026-10-27 04:59+00'), 'Winter: um 6:00 beginnt ein neuer Spieltag');
+  ok(await g('2026-10-27 16:59+00') === await g('2026-10-27 05:00+00'), 'Winter: bis 17:59 derselbe Spieltag');
+  ok(await g('2026-10-27 17:00+00') !== await g('2026-10-27 16:59+00'), 'Winter: um 18:00 beginnt ein neuer Spieltag');
+  ok(await g('2026-07-01 04:00+00') !== await g('2026-07-01 03:59+00'), 'Sommer: um 6:00 (MESZ) beginnt ein neuer Spieltag');
+  ok(await g('2026-07-01 16:00+00') !== await g('2026-07-01 15:59+00'), 'Sommer: um 18:00 (MESZ) beginnt ein neuer Spieltag');
+  const days = new Set();
+  for (let h = 0; h < 48; h++) days.add(await g(new Date(Date.UTC(2026, 9, 27, 0) + h * 3600e3).toISOString()));
+  ok(days.size === 5, 'in 48 Stunden gibt es 4 Wechsel (5 Spieltage angeschnitten): ' + days.size);
+  await db.exec(`update public.fighters set pvp_used = 3, pvp_day = public.bw_gameday() - 1 where user_id = '${A}'`);
+  r = await as(A, `select public.pvp_status() as s`);
+  ok(r.rows[0].s.fights_left === 3, 'neuer Spieltag: wieder 3 Spielerkämpfe');
+}
 
 // Aktualisierung einer Datenbank mit dem alten Teil 2 (ohne Rassen)
 {

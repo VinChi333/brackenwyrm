@@ -40,7 +40,7 @@ t('Treppe hinauf: kostet 2 Waldkämpfe und landet in den Neuigkeiten', () => {
   s.player.charm = 20; s.player.forestFights = 10;
   flirt(s, 5, announce);
   assert.equal(s.player.forestFights, 8); assert.equal(s.player.charm, 21);
-  assert.ok(s.outbox.some((x) => showNews(x).includes('Treppe')));
+  assert.ok(s.outbox.some((x) => showNews(x).includes('Morgengrauen')));
 });
 t('grober Fehlversuch kostet Charme', () => {
   let lost = false;
@@ -74,7 +74,7 @@ t('Verheiratete verlieren täglich Charme und werden bei 0 verlassen', () => {
   startNewDay(s);
   assert.equal(s.player.marriedTo, ''); assert.equal(s.player.charm, 0);
   assert.ok(s.news.some((x) => x.includes('Zettel')));
-  assert.ok(s.outbox.some((x) => showNews(x).includes('anderen Interessen')));
+  assert.ok(s.outbox.some((x) => showNews(x).includes('getrennt')));
 });
 t('Zeit mit dem Ehepartner: meist Schutz und Charme, einmal pro Tag', () => {
   const s = newGame('Hagen', 'dunkel');
@@ -86,7 +86,7 @@ t('Zeit mit dem Ehepartner: meist Schutz und Charme, einmal pro Tag', () => {
 t('Aussehen erfragen nennt den Freund und eine Einschätzung', () => {
   const s = newGame('Hagen', 'dunkel');
   s.player.charm = 20;
-  assert.match(askLooks(s.player), /^Florian mustert dich/);
+  assert.match(askLooks(s.player), /^Florian legt den Kopf schief/);
 });
 t('Ehe und Charme bleiben nach dem Drachen, alte Stände bekommen die Felder', () => {
   const s = newGame('Alt', 'dunkel') as any;

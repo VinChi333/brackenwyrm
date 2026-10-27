@@ -5,10 +5,11 @@ import { eventById } from '../content/events';
 import { FEEDBACK_KINDS, feedbackMessage } from '../content/feedback';
 import type { FeedbackKind } from '../content/feedback';
 import { fameTable } from '../content/fame';
-import { titleFor } from '../content/titles';
+import { TITLE_KEYS, titleFor } from '../content/titles';
 import { PARTNERS } from '../content/lovers';
 import { MERTEN, MOUNTS, MOUNT_ORDER, mountRepay } from '../content/mounts';
 import { buyMount, feedMount, feedPrice, sellMount, tradeCost } from '../game/stable';
+import { gameDayKey, untilNextDay, dayStartsLocal } from '../game/clock';
 import { askLooks, flirt, friendOf, partnerOf, visitSpouse } from '../game/lovers';
 import { forestFightsPerDay, restartGems, restartGold, FLAWLESS_GOLD } from '../game/balance';
 import { FRIEDA_TALKS_PER_DAY, regularsSay } from '../content/inn';
@@ -20,7 +21,7 @@ import { SPECIALTIES, SPECIALTY_ORDER } from '../content/specialties';
 import { RACES, RACE_ORDER, raceName } from '../content/races';
 import { MAX_LEVEL, healCostPerHp } from '../game/balance';
 import {
-  announce, todayKey, applyHaunt, HAUNT_FAVOR, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
+  announce, applyHaunt, HAUNT_FAVOR, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
   CHRONICLE_SIZE, closeFight, defense, bankBorrow, LOAN_PER_LEVEL, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
   graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost,
   newGame, rentRoom, roomCost, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
@@ -115,6 +116,7 @@ interface Ui {
   sayText: string;
   acctEmail: string;        // Spielerkonto: eingegebene Adresse
   acctMsg: string;
+  resetStep: '' | 'email' | 'code';   // Passwort vergessen: Adresse eingeben, dann Code und neues Passwort
   conflict: RemoteSave | null;  // Server-Stand, wenn beide Geräte weitergespielt haben
   fame: FameRow[] | null;       // echte Spieler aus der Online-Ruhmeshalle
   guideToast: string[];         // Einstieg: gerade geschaffte Schritte / neue Orte
@@ -126,7 +128,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
 };
 let root: HTMLElement;
 
@@ -310,7 +312,7 @@ function guideCardHtml(s: GameState): string {
   let label = st.goLabel;
   if (st.id === 'meister' && target === 'go:training') { text = t('Dein Erfahrungsbalken ist voll! Dein Meister wartet auf dem Trainingsplatz. Besiege ihn, dann steigst du eine Stufe auf.'); label = t('Zum Trainingsplatz'); }
   let tip = '';
-  if (target === 'go:forest' && p.forestFights <= 0) tip = t('Für heute sind deine Waldkämpfe aufgebraucht. Um Mitternacht gibt es neue. Bis dahin kannst du im Dorf einkaufen, dich heilen lassen oder ins Gasthaus gehen.');
+  if (target === 'go:forest' && p.forestFights <= 0) tip = t`Für diesen Spieltag sind deine Waldkämpfe aufgebraucht. Der nächste beginnt in ${waitText()}. Bis dahin kannst du im Dorf einkaufen, dich heilen lassen oder ins Gasthaus gehen.`;
   else if (target === 'go:forest' && p.hp < maxHp(p) * 0.35) tip = t('Du bist ziemlich angeschlagen. Lass dich besser erst bei Mirla heilen.');
   const dots = GUIDE_STEPS.map((_, i) => `<i class="${i < g.step ? 'on' : i === g.step ? 'now' : ''}"></i>`).join('');
   return `<section class="guide-card" aria-label="${t`Erste Schritte`}">
@@ -451,13 +453,14 @@ function villageScreen(s: GameState): string {
     <p class="lead">${t`Du stehst auf dem Dorfplatz von <span class="place">Moosgrund</span>. Rauch steigt aus den Kaminen, aus dem Gasthaus <span class="place">Zum Schlafenden Wurm</span> klingt Gelächter. Im Norden rauscht der <span class="place">Brackenwald</span>, und irgendwo dahinter schläft der Wyrm.`}</p>
     ${prefs.welcomed ? '' : `<section class="welcome">
       <h2>${t`Danke, dass du testest!`}</h2>
-      <p>${t`Brackenwyrm ist ein Nachfolger der Browserspiele von damals und noch in Arbeit. Spiel einfach so, wie du früher gespielt hast: <strong>jeden Tag ein bisschen</strong>. Um Mitternacht gibt es neue Waldkämpfe.`}</p>
+      <p>${t`Brackenwyrm ist noch in Arbeit. Am meisten Spaß macht es, wenn du <strong>jeden Tag ein bisschen</strong> spielst. Zweimal am Tag, um ${dayStarts()[0]} und um ${dayStarts()[1]} Uhr, beginnt ein neuer Spieltag mit frischen Waldkämpfen.`}</p>
       <p>${t`Wenn dir etwas auffällt, ob Fehler, Langeweile, zu schwer oder eine Idee, drück auf <strong>Rückmeldung geben</strong>. Dein Spielstand wird automatisch mitgeschickt, du musst nichts erklären.`}</p>
       <p class="muted">${t`Der Spielstand liegt in diesem Browser. Nicht im privaten Fenster spielen, sonst ist er weg.`}</p>
       <button type="button" class="btn" data-act="welcome">${t`Los geht’s`}</button>
     </section>`}
     ${guideCardHtml(s)}
     <p class="statue">${statueText(s)}</p>
+    <p class="clock"><span aria-hidden="true">🕰</span> ${t`Die Dorfuhr: Der nächste Spieltag beginnt in ${waitText()}.`}</p>
     ${(() => { const a = ui.aushang?.[0]; return a && a.id > (prefs.aushangSeen ?? 0) ? `<section class="notice new"><h2>${t`Neu am Rathaus: ${esc(a.title)}`}</h2><p>${esc(a.body).replace(/\n/g, '<br>')}</p><div class="row"><button type="button" class="tbtn" data-act="aushangseen:${a.id}">${t`Gelesen`}</button><button type="button" class="tbtn ghost" data-act="go:aushang">${t`Alle Aushänge`}</button></div></section>` : ''; })()}
     ${flashHtml()}
     ${s.news.length ? `<section class="news"><h2>${t`Neuigkeiten`}</h2>${s.news.slice(-4).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}
@@ -528,7 +531,7 @@ function forestScreen(s: GameState): string {
       { act: 'forest:easy', label: t('Leichte Beute suchen'), key: 'l', hint: t('schwächer, weniger Lohn'), disabled: none },
       { act: 'forest:hard', label: t('Nervenkitzel suchen'), key: 'n', hint: t('stärker, mehr Lohn'), disabled: none },
       ...(p.level >= MAX_LEVEL ? [{ act: 'dragon', label: t('Den Brackenwyrm suchen'), key: 'b', hint: t('Endkampf'), disabled: !canSeekDragon(p) }] : []),
-      ...(p.festeFound ? [{ act: 'go:feste', label: t('Zur versunkenen Feste'), key: 'f', hint: p.level < FESTE_MIN_LEVEL ? t`ab Stufe ${FESTE_MIN_LEVEL}` : p.festeDay === todayKey() ? (s.feste && !s.feste.over ? t('du bist drin') : t('heute schon')) : t`${FESTE_COST} Waldkämpfe` }] : []),
+      ...(p.festeFound ? [{ act: 'go:feste', label: t('Zur versunkenen Feste'), key: 'f', hint: p.level < FESTE_MIN_LEVEL ? t`ab Stufe ${FESTE_MIN_LEVEL}` : p.festeDay === gameDayKey() ? (s.feste && !s.feste.over ? t('du bist drin') : t('heute schon')) : t`${FESTE_COST} Waldkämpfe` }] : []),
     ] },
     { title: t('Zurück'), items: [back] },
   ]);
@@ -743,7 +746,7 @@ function innScreen(s: GameState): string {
       { act: 'go:tresen', label: t('Am Tresen bestellen'), key: 't', hint: (p.drunk ?? 0) > 0 ? drunkWord(p.drunk ?? 0) : t`Harzbier ${harzbierCost(p.level)} Gold` },
       ...(cloud.enabled ? [
         { act: 'go:dag', label: t('Veit Galgenstrick'), key: 'k', hint: !cloud.signedIn ? t('nur mit Spielerkonto') : t('Kopfgeld'), disabled: !cloud.signedIn },
-        { act: 'go:fivesix', label: t('Würfelecke: Fünf Sechser'), key: 'w', hint: !cloud.signedIn ? t('nur mit Spielerkonto') : t('Jackpot'), disabled: !cloud.signedIn },
+        { act: 'go:fivesix', label: t('Würfelecke: Sechserjagd'), key: 'w', hint: !cloud.signedIn ? t('nur mit Spielerkonto') : t('Jackpot'), disabled: !cloud.signedIn },
       ] : []),
       { act: 'inn:song', label: t('Lied wünschen'), key: 'l', hint: p.songToday ? t('heute schon') : t('1 Edelstein'), disabled: p.songToday },
       { act: 'go:flirt', label: p.marriedTo ? t`Zu ${PARTNERS[p.marriedTo].name} gehen` : t`${PARTNERS[partnerOf(p)].name} umwerben`, key: 'u', hint: p.seenLover ? t('heute schon') : p.marriedTo ? t('dein Schatz') : '' },
@@ -804,7 +807,7 @@ function fivesixScreen(s: GameState): string {
   const d = ui.dice;
   const info = d.info;
   const last = d.last;
-  const main = `<h1>${t`Fünf Sechser`}</h1>
+  const main = `<h1>${t`Sechserjagd`}</h1>
     <p class="lead">${t`Am Ecktisch klappert ein alter Würfelbecher. „Fünf Würfel“, erklärt der Wirt vom Dienst, „fünf Sechser, und der ganze Topf gehört dir. Vier Sechser: ein Zehntel. Drei: ein Zwanzigstel. Jeder Wurf kommt in den Topf.“`}</p>
     ${flashHtml()}${d.err ? `<p class="warn-box">${esc(d.err)}</p>` : ''}
     <div class="jackpot">${t`<span>Im Topf</span><strong>${info ? info.pot : '…'} Gold</strong>`}</div>
@@ -1011,7 +1014,7 @@ function chronicleScreen(s: GameState): string {
 const SCREEN_NAMES: Partial<Record<Screen, string>> = {
   village: t('Dorfplatz'), forest: t('Wald'), fight: t('Kampf'), training: t('Trainingsplatz'), healer: t('Kräuterhütte'), smith: t('Schmiede'),
   bank: t('Kontor'), inn: t('Gasthaus'), bestiary: t('Bestiarium'), fame: t('Ruhmeshalle'), chronicle: t('Kampfchronik'), settings: t('Einstellungen'),
-  shadows: t('Schattenreich'), dragonBonus: t('Drachenkill'), quirin: t('Quirins Tränke'), tresen: t('Tresen'), lager: t('Söldnerlager'), dag: t('Veit Galgenstrick'), fivesix: t('Fünf Sechser'), aushang: t('Aushang'), feste: t('Versunkene Feste'), heirlooms: t('Erbstücke'), seer: t('Seherin'), felsen: t('Wyrmstein'), garten: t('Rosengarten'),
+  shadows: t('Schattenreich'), dragonBonus: t('Drachenkill'), quirin: t('Quirins Tränke'), tresen: t('Tresen'), lager: t('Söldnerlager'), dag: t('Veit Galgenstrick'), fivesix: t('Sechserjagd'), aushang: t('Aushang'), feste: t('Versunkene Feste'), heirlooms: t('Erbstücke'), seer: t('Seherin'), felsen: t('Wyrmstein'), garten: t('Rosengarten'),
   stable: t('Pferdestall'), ambros: t('Ambros'), warriors: t('Kriegerliste'), mail: t('Briefe'), bio: t('Steckbrief'),
 };
 
@@ -1046,6 +1049,21 @@ function accountHtml(): string {
       <p>${t`Angemeldet als <strong>${esc(cloud.email)}</strong>. Dein Spielstand wird automatisch online gesichert, damit du auf Handy und Computer weiterspielen kannst.`}</p>
       <div class="row"><button type="button" class="tbtn" data-act="acct:sync">${t`Jetzt abgleichen`}</button><button type="button" class="tbtn" data-act="acct:out">${t`Abmelden`}</button></div>${msg}`;
   }
+  if (ui.resetStep === 'email') {
+    return `<h2>${t`Passwort vergessen`}</h2>
+      <p class="muted">${t`Gib die E-Mail-Adresse deines Spielerkontos ein. Wir schicken dir einen Code, mit dem du ein neues Passwort festlegst.`}</p>
+      <div class="acct-form"><label class="field">${t`E-Mail`}<input type="email" id="acct-email" autocomplete="email" placeholder="${t`deine@mail.at`}" value="${esc(ui.acctEmail)}"></label></div>
+      <div class="row"><button type="button" class="btn" data-act="acct:resetsend">${t`Code schicken`}</button><button type="button" class="btn ghost" data-act="acct:resetcancel">${t`Zurück zur Anmeldung`}</button></div>${msg}`;
+  }
+  if (ui.resetStep === 'code') {
+    return `<h2>${t`Neues Passwort`}</h2>
+      <p class="muted">${t`Wir haben einen Code an <strong>${esc(ui.acctEmail)}</strong> geschickt. Er kann ein paar Minuten brauchen. Schau auch im Spam-Ordner nach.`}</p>
+      <div class="acct-form">
+        <label class="field">${t`Code aus der E-Mail`}<input type="text" id="acct-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10"></label>
+        <label class="field">${t`Neues Passwort`}<input type="password" id="acct-newpass" autocomplete="new-password" placeholder="${t`mindestens 6 Zeichen`}"></label>
+      </div>
+      <div class="row"><button type="button" class="btn" data-act="acct:resetsave">${t`Neues Passwort speichern`}</button><button type="button" class="btn ghost" data-act="acct:resetsend">${t`Code nochmal schicken`}</button><button type="button" class="btn ghost" data-act="acct:resetcancel">${t`Abbrechen`}</button></div>${msg}`;
+  }
   return `<h2>${t`Spielerkonto`}</h2>
     <p class="muted">${t`Mit einem Konto wird dein Spielstand online gesichert, und du spielst auf Handy und Computer mit demselben Helden.`}</p>
     <div class="acct-form">
@@ -1053,7 +1071,20 @@ function accountHtml(): string {
       <label class="field">${t`Passwort`}<input type="password" id="acct-pass" autocomplete="current-password" placeholder="${t`mindestens 6 Zeichen`}"></label>
     </div>
     <div class="row"><button type="button" class="btn" data-act="acct:in">${t`Anmelden`}</button><button type="button" class="btn ghost" data-act="acct:up">${t`Neues Konto anlegen`}</button></div>
+    <p class="fine"><button type="button" class="linkish" data-act="acct:reset">${t`Passwort vergessen?`}</button></p>
     <p class="fine">${t`Mit einem neuen Konto gilt die`} <button type="button" class="linkish" data-act="legal:datenschutz">${t`Datenschutzerklärung`}</button>${t`. Ein Konto ab 14 Jahren, jünger nur mit Einverständnis der Eltern.`}</p>${msg}`;
+}
+
+/** Nach dem Anmelden (Passwort oder Code): abgleichen und weiter ins Dorf oder Hinweis zeigen. */
+async function afterLogin(done: (m: string) => void, note = ''): Promise<void> {
+  prefs.lastSyncedAt = 0; savePrefs(prefs);
+  const m = await syncNow();
+  if (ui.screen === 'login') {
+    if (state) { const newDay = checkRealDay(state); saveGame(state, !newDay); if (note) say(note, 'good'); go('village'); return; }
+    done([note, t('Angemeldet. Für dieses Konto gibt es noch keinen Spielstand. Beginne ein neues Spiel, es wird dann automatisch gesichert.')].filter(Boolean).join(' '));
+    return;
+  }
+  done(note || m || t('Angemeldet.'));
 }
 
 function summary(st: GameState): string {
@@ -1137,15 +1168,33 @@ const CHAT: Record<ChatSection, { title: string; empty: string; screens: Screen[
   garten: { title: t('Im Rosengarten'), empty: t('Nur die Bienen summen. Setz dich auf eine Bank und sag etwas.'), screens: ['garten'], place: t('Rosengarten'), hint: t('Flüstere etwas zwischen den Rosen …') },
 };
 
+/** Vom Server kommen Namen mit deutschem Titel ("Moosritterin Hilda"). In anderen Sprachen den Titel übersetzen. */
+function titledLocal(name: string): string {
+  if (lang === 'de') return name;
+  const k = TITLE_KEYS.find((x) => name.startsWith(x + ' '));
+  return k ? t(k) + name.slice(k.length) : name;
+}
+
+/** Gesten wie im Original: "/me lacht", ":lacht" oder "::lacht" wird zu "Name lacht". Sonst null. */
+export function emoteOf(body: string): string | null {
+  const m = body.match(/^\s*(?:\/me\b|::?)\s*(\S[\s\S]*)$/i);
+  return m ? m[1].trim() : null;
+}
+
 /** Gespräche wie im Original: Dorfplatz, Gasthaus und Schattenreich haben jeweils ihre eigene Runde. */
 function squareHtml(section: ChatSection = 'dorfplatz'): string {
   const sq = ui.squares[section];
   const c = CHAT[section];
   const list = sq.comments === null ? '<p class="muted">…</p>'
-    : sq.comments.length ? sq.comments.filter((x) => !(x.user_id && ui.blocked.has(x.user_id))).reverse().map((x) => `<p class="say"><span class="npc">${esc(x.name)}</span> <span class="muted">${when(x.created_at)}</span>${reportBtn('chat', x.id, x.user_id)}<br>${esc(x.body)}</p>`).join('')
+    : sq.comments.length ? sq.comments.filter((x) => !(x.user_id && ui.blocked.has(x.user_id))).reverse().map((x) => {
+        const act = emoteOf(x.body);
+        return act !== null
+          ? `<p class="say emote"><span class="muted">${when(x.created_at)}</span>${reportBtn('chat', x.id, x.user_id)}<br><em><span class="npc">${esc(titledLocal(x.name))}</span> ${esc(act)}</em></p>`
+          : `<p class="say"><span class="npc">${esc(titledLocal(x.name))}</span> <span class="muted">${when(x.created_at)}</span>${reportBtn('chat', x.id, x.user_id)}<br>${esc(x.body)}</p>`;
+      }).join('')
     : `<p class="muted">${c.empty}</p>`;
   const input = cloud.signedIn
-    ? `<div class="row say-row"><input type="text" id="say" data-section="${section}" maxlength="200" placeholder="${c.hint ?? (section === 'schattenreich' ? t('Flüstere etwas …') : t('Sag etwas …'))}" value="${esc(ui.sayText)}" aria-label="${t`Spruch für ${c.place}`}"><button type="button" class="tbtn" data-act="say:${section}">${section === 'schattenreich' ? t('Flüstern') : t('Sagen')}</button></div>`
+    ? `<div class="row say-row"><input type="text" id="say" data-section="${section}" maxlength="200" placeholder="${c.hint ?? (section === 'schattenreich' ? t('Flüstere etwas …') : t('Sag etwas …'))}" value="${esc(ui.sayText)}" aria-label="${t`Spruch für ${c.place}`}"><button type="button" class="tbtn" data-act="say:${section}">${section === 'schattenreich' ? t('Flüstern') : t('Sagen')}</button></div><p class="fine">${t`Tipp: Mit <code>/me winkt</code> oder <code>:winkt</code> beschreibst du, was dein Held tut.`}</p>`
     : `<p class="muted">${t`Mit einem Spielerkonto kannst du hier mitreden (Einstellungen).`}</p>`;
   return `<section class="square ${section}"><h2>${c.title}</h2>${list}${sq.error ? `<p class="warn">${esc(sq.error)}</p>` : ''}${input}</section>`;
 }
@@ -1308,18 +1357,18 @@ function festeTreasureNews(s: GameState): void {
   const post = (first: boolean) => { announce(s, treasureNews(p, first)); saveGame(s); scheduleSync(500); };
   if (!cloud.enabled) { post(false); return; }
   cloud.newsAbout('§festeTreasure', 20).then((rows) => {
-    const today = todayKey();
-    post(!rows.some((r) => todayKey(new Date(r.created_at)) === today));
+    const today = gameDayKey();
+    post(!rows.some((r) => gameDayKey(new Date(r.created_at)) === today));
   }, () => post(false));
 }
 
 function festeScreen(s: GameState): string {
   const p = s.player;
-  const run = s.feste && s.feste.day === todayKey() ? s.feste : null;
+  const run = s.feste && s.feste.day === gameDayKey() ? s.feste : null;
   const entranceArt = festeArt('eingang');
   const treasureArt = festeArt('schatzkammer');
   if (!run || run.over) {
-    const why = canEnterFeste(s, todayKey());
+    const why = canEnterFeste(s, gameDayKey());
     const summary = run && run.over
       ? `<section class="event-box log">${run.log.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}
           ${run.heirloom && festeArt(`erbstueck-${run.heirloom}`) ? `<figure class="heir-found"><img src="${festeArt(`erbstueck-${run.heirloom}`)}" alt="${esc(heirloom(run.heirloom)?.name ?? '')}"><figcaption>${esc(heirloom(run.heirloom)?.name ?? '')}</figcaption></figure>` : ''}
@@ -1473,7 +1522,7 @@ function hauntScreen(s: GameState): string {
         <button type="button" class="tbtn" data-act="haunt:${w.userId}" ${p.favor < HAUNT_FAVOR || ui.pvp.busy ? 'disabled' : ''}>${t`Heimsuchen`}</button>
       </li>`).join('')}</ul>`;
   const main = `<h1 class="shadow-title">${t`Heimsuchen`}</h1>
-    <p class="lead">${t`Morwen ist von deinem Eifer beeindruckt und gibt dir die Macht, einen Lebenden heimzusuchen. Gelingt es, wacht dein Opfer morgen müde auf und verliert Waldkämpfe. Je höher deine Stufe im Vergleich zu deinem Opfer, desto eher klappt es.`}</p>
+    <p class="lead">${t`Morwen stakt ihr Boot ans Ufer und reicht dir eine Laterne mit kaltem, blauem Licht. „Damit findest du den Weg in die Träume der Lebenden.“ Gelingt es, wacht dein Opfer morgen müde auf und verliert Waldkämpfe. Je höher deine Stufe im Vergleich zu deinem Opfer, desto eher klappt es.`}</p>
     ${flashHtml()}
     ${ui.listErr ? `<p class="warn-box">${esc(ui.listErr)}</p>` : ''}
     <p class="muted">${t`Deine Gunst: ${p.favor}. Jeder Versuch kostet ${HAUNT_FAVOR} Gunst, ob er gelingt oder nicht.`}</p>
@@ -1523,7 +1572,7 @@ function mailScreen(s: GameState): string {
         const open = ui.mailOpen === m.id;
         return `<li class="mail ${m.seen ? '' : 'unread'} ${open ? 'open' : ''}">
           <button type="button" class="mail-head" data-act="mailopen:${m.id}" aria-expanded="${open}">
-            <span class="mail-from">${esc(m.from_name || t('Unbekannt'))}</span><span class="muted">${when(m.created_at)}</span>
+            <span class="mail-from">${esc(m.from_name ? titledLocal(m.from_name) : t('Unbekannt'))}</span><span class="muted">${when(m.created_at)}</span>
             <span class="mail-subj">${esc((m.from_user ? m.subject : serverText(m.subject)) || t('(ohne Betreff)'))}</span></button>
           ${open ? `<div class="mail-body"><p>${esc(m.from_user ? m.body : serverText(m.body)).replace(/\n/g, '<br>')}</p>
             <div class="row">${m.from_user ? `<button type="button" class="tbtn" data-act="reply:${m.id}">${t`Antworten`}</button>` : ''}
@@ -1588,7 +1637,7 @@ function settingsScreen(s: GameState): string {
     <div class="row"><button type="button" class="tbtn" data-act="importcode">${t`Spielstand laden`}</button><span class="muted">${esc(ui.importMsg)}</span></div>`;
   return layout(s, main, [
     { title: t('Spielstand'), items: [
-      ...(prefs.dev ? [{ act: 'testday', label: t('Neuer Tag (Testmodus)'), key: 'n', hint: t('sonst um Mitternacht') }] : []),
+      ...(prefs.dev ? [{ act: 'testday', label: t('Neuer Tag (Testmodus)'), key: 'n', hint: t`sonst in ${waitText()}` }] : []),
       { act: 'feedback', label: t('Rückmeldung geben'), key: 'm' },
       ...(s.guide && !guideFinished(s.guide) ? [{ act: 'guide:skip', label: ui.confirmGuide ? t('Wirklich? Nochmal drücken.') : t('Einführung beenden'), key: 'f', hint: t('alle Orte sofort zeigen') }] : []),
       { act: 'delete', label: ui.confirmDelete ? t('Wirklich löschen? Nochmal drücken.') : t('Spielstand löschen'), key: 'x', hint: t('nur auf diesem Gerät') },
@@ -1744,7 +1793,7 @@ function dragonBonusScreen(s: GameState): string {
         <strong>${d.name}</strong><span>${d.text}</span>${counts(d.id) ? `${t`<small>Bisher ${counts(d.id)}× gewählt</small>`}` : ''}</button>`).join('')}
     </div>
     <h2>${t`2. Wer wirst du in deinem neuen Leben?`}</h2>
-    <p class="muted">${t`Wie im Original wählst du Rasse und Fähigkeit neu. Du kannst auch alles so lassen.`}</p>
+    <p class="muted">${t`Mit dem neuen Leben darfst du Rasse und Fähigkeit neu wählen. Du kannst auch alles so lassen.`}</p>
     ${raceChoices(race, spec, p.gender, 'dkrace')}
     <h2>${t`3. Was hast du als Kind gemacht?`}</h2>
     ${specChoices(spec, 'dkspec')}
@@ -1983,7 +2032,7 @@ function handle(act: string, el: HTMLElement): void {
     case 'reloadlist': loadWarriors(); return;
     case 'festeEnter': {
       if (!s) return;
-      if (!enterFeste(s, todayKey())) { say(t('Heute kommst du nicht hinein.'), 'warn'); render(); return; }
+      if (!enterFeste(s, gameDayKey())) { say(t('Heute kommst du nicht hinein.'), 'warn'); render(); return; }
       ui.flash = []; saveGame(s); scheduleSync(); render(); window.scrollTo(0, 0);
       return;
     }
@@ -2224,15 +2273,31 @@ function handle(act: string, el: HTMLElement): void {
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { done(t('Bitte eine gültige E-Mail-Adresse eingeben.')); return; }
         if (pass.length < 6) { done(t('Das Passwort braucht mindestens 6 Zeichen.')); return; }
         done(a === 'up' ? t('Lege Konto an …') : t('Melde an …'));
-        (a === 'up' ? cloud.signUp(email, pass) : cloud.signIn(email, pass)).then(async () => {
-          prefs.lastSyncedAt = 0; savePrefs(prefs);
-          const m = await syncNow();
-          if (ui.screen === 'login') {
-            if (state) { const newDay = checkRealDay(state); saveGame(state, !newDay); go('village'); return; }
-            done(t('Angemeldet. Für dieses Konto gibt es noch keinen Spielstand. Beginne ein neues Spiel, es wird dann automatisch gesichert.'));
-            return;
-          }
-          done(m || t('Angemeldet.'));
+        (a === 'up' ? cloud.signUp(email, pass) : cloud.signIn(email, pass)).then(() => afterLogin(done), (e) => done(e instanceof CloudError ? e.message : t('Das hat nicht geklappt.')));
+      } else if (a === 'reset') {
+        const email = ((document.getElementById('acct-email') as HTMLInputElement | null)?.value ?? '').trim();
+        if (email) ui.acctEmail = email;
+        ui.resetStep = 'email'; done('');
+      } else if (a === 'resetcancel') {
+        ui.resetStep = ''; done('');
+      } else if (a === 'resetsend') {
+        const field = document.getElementById('acct-email') as HTMLInputElement | null;
+        const email = (field ? field.value : ui.acctEmail).trim();
+        ui.acctEmail = email;
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { done(t('Bitte eine gültige E-Mail-Adresse eingeben.')); return; }
+        done(t('Schicke Code …'));
+        cloud.requestReset(email).then(() => { ui.resetStep = 'code'; done(t('Code ist unterwegs.')); }, (e) => done(e instanceof CloudError ? e.message : t('Das hat nicht geklappt.')));
+      } else if (a === 'resetsave') {
+        const code = ((document.getElementById('acct-code') as HTMLInputElement | null)?.value ?? '').replace(/\s/g, '');
+        const pass = (document.getElementById('acct-newpass') as HTMLInputElement | null)?.value ?? '';
+        if (!/^\d{4,10}$/.test(code)) { done(t('Bitte den Code aus der E-Mail eingeben (nur Ziffern).')); return; }
+        if (pass.length < 6) { done(t('Das Passwort braucht mindestens 6 Zeichen.')); return; }
+        done(t('Prüfe den Code …'));
+        cloud.verifyCode(ui.acctEmail, code).then(async () => {
+          ui.resetStep = '';
+          let note = t('Neues Passwort gespeichert. Du bist angemeldet.');
+          try { await cloud.setPassword(pass); } catch (e) { note = t`Du bist angemeldet, aber das Passwort wurde nicht geändert: ${e instanceof CloudError ? e.message : t('unbekannter Fehler')}`; }
+          await afterLogin(done, note);
         }, (e) => done(e instanceof CloudError ? e.message : t('Das hat nicht geklappt.')));
       } else if (a === 'sync') {
         done(t('Gleiche ab …'));
@@ -2305,7 +2370,9 @@ function handle(act: string, el: HTMLElement): void {
       const text = (inp?.value ?? '').trim();
       if (!text) return;
       ui.sayText = text;
-      const drunkText = s && (s.player.drunk ?? 0) > 0 ? slur(text, s.player.drunk ?? 0) : text;
+      // Lallen nur im Text, nicht im Gestenzeichen (/me, :)
+      const lead = text.match(/^\s*(?:\/me\b|::?)\s*/i)?.[0] ?? '';
+      const drunkText = s && (s.player.drunk ?? 0) > 0 ? (lead + slur(text.slice(lead.length), s.player.drunk ?? 0)).slice(0, 200) : text;
       cloud.postComment(drunkText, section).then(() => { ui.sayText = ''; ui.squares[section].error = ''; loadSquare(section, true); },
         (e) => { ui.squares[section].error = e instanceof CloudError ? e.message : t('Das hat nicht geklappt.'); render(); });
       return;
@@ -2601,6 +2668,8 @@ function onKey(e: KeyboardEvent): void {
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) {
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'name') handle('create', t);
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'acct-pass') handle('acct:in', t);
+    if (e.key === 'Enter' && (t as HTMLInputElement).id === 'acct-newpass') handle('acct:resetsave', t);
+    if (e.key === 'Enter' && (t as HTMLInputElement).id === 'acct-email' && ui.resetStep === 'email') handle('acct:resetsend', t);
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'say') handle('say', t);
     if (e.key === 'Enter' && (t as HTMLInputElement).id === 'guess') handle('guess', t);
     return;
@@ -2617,11 +2686,22 @@ function onKey(e: KeyboardEvent): void {
   if (btn) { e.preventDefault(); btn.click(); }
 }
 
+/** Beginn der beiden Spieltage in der Uhrzeit des Geräts, z. B. ["06:00", "18:00"]. */
+function dayStarts(): [string, string] {
+  return dayStartsLocal(new Date(), lang === 'de' ? 'de-DE' : undefined); // i18n-ignore
+}
+
+/** Restzeit bis zum nächsten Spieltag, z. B. "3 Std. 12 Min." */
+function waitText(): string {
+  const { h, m } = untilNextDay();
+  return h > 0 ? t`${h} Std. ${m} Min.` : t`${m} Min.`;
+}
+
 function checkDayTick(): void {
   if (!state || state.fight) return;
   if (checkRealDay(state)) {
     saveGame(state);
-    say(t('Die Sonne geht auf. Ein neuer Tag in Moosgrund!'), 'good');
+    say(gameDayKey().endsWith('a') ? t('Die Sonne geht auf. Ein neuer Tag in Moosgrund!') : t('Die Dorfuhr schlägt sechs Mal. Der Abend bricht an, ein neuer Spieltag in Moosgrund!'), 'good');
     if (ui.screen !== 'title' && ui.screen !== 'create') ui.screen = 'village';
     render();
   }

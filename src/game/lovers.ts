@@ -114,7 +114,7 @@ export function flirt(s: GameState, move: number, announce: (s: GameState, t: st
 export function askLooks(p: Player): string {
   const friend = PARTNERS[friendOf(p)];
   const c = p.charm + roll(-1, 1);
-  return t`${friend.name} mustert dich lange und sehr ernst. Nur ein Freund ist wirklich ehrlich, deshalb hast du gefragt. Schließlich sagt ${friend.pron}: „${looksVerdict(c, p.gender === 'f')}“`;
+  return t`${friend.name} legt den Kopf schief und betrachtet dich von oben bis unten. „Du willst die Wahrheit? Na gut: ${looksVerdict(c, p.gender === 'f')}“`;
 }
 
 /** Beim neuen Tag: Verheiratete lassen sich etwas gehen. Gibt Meldungen für die Neuigkeiten zurück. */
@@ -126,7 +126,7 @@ export function loverNewDay(s: GameState, announce: (s: GameState, t: string) =>
   const dk = Math.max(1, Math.round(0.85 * Math.sqrt(p.dragonKills)));
   const loss = roll(1, dk);
   p.charm -= loss;
-  const out = [t`Du bist verheiratet, also musst du nicht mehr so auf dein Äußeres achten. Du lässt dich ein bisschen gehen (−${loss} Charme).`];
+  const out = [t`Seit der Hochzeit kämmst du dich seltener. Wozu auch? (−${loss} Charme)`];
   if (p.charm <= 0) {
     out.push(pt.leftLetter(p.name, p.gender === 'f'));
     announce(s, pt.leftNews(p.name));

@@ -590,6 +590,9 @@ textarea#mail-body { width: 100%; font: inherit; color: var(--text); background:
 .slider input[type=range] { width: 100%; accent-color: var(--gold); }
 
 /* Denkmal, Steckbrief, Ambros (0.32) */
+.say.emote em { font-style: italic; }
+.say.emote em .npc { font-style: normal; }
+.clock { color: var(--muted); font-size: 0.95em; margin: 4px 0 0; }
 .statue { font-style: italic; color: var(--muted); border-left: 3px solid var(--line); padding: 2px 0 2px 12px; }
 .w-link { background: none; border: 0; padding: 0; margin: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .w-link:hover strong, .w-link:focus-visible strong { color: var(--gold-hi); text-decoration: underline; text-underline-offset: 3px; }

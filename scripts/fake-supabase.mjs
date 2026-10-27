@@ -16,7 +16,7 @@ await db.exec(`
   grant usage on schema auth to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
 `);
-for (const f of ['supabase.sql', 'supabase-2-dorf.sql', 'supabase-3-briefe.sql', 'supabase-4-schutz.sql', 'supabase-5-dorfleben.sql']) await db.exec(readFileSync(new URL(`../server/${f}`, import.meta.url), 'utf8'));
+for (const f of ['supabase.sql', 'supabase-2-dorf.sql', 'supabase-3-briefe.sql', 'supabase-4-schutz.sql', 'supabase-5-dorfleben.sql', 'supabase-6-spieltage.sql']) await db.exec(readFileSync(new URL(`../server/${f}`, import.meta.url), 'utf8'));
 
 let queue = Promise.resolve();
 /** Führt SQL als angemeldeter Spieler (oder anon) aus. Nacheinander, weil PGlite nur eine Verbindung hat. */
@@ -53,6 +53,7 @@ function filters(params) {
   return { where: where.length ? 'where ' + where.join(' and ') : '', vals };
 }
 
+const otpSent = new Map();
 const server = createServer(async (req, res) => {
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
   if (req.method === 'OPTIONS') { res.writeHead(204, cors); return res.end(); }
@@ -73,6 +74,30 @@ const server = createServer(async (req, res) => {
       const u = (await admin('select id from auth.users where email = $1 and password = $2', [data.email, data.password])).rows[0];
       if (!u) return send(400, { error: 'invalid_grant', error_description: 'Invalid login credentials' });
       return send(200, { access_token: u.id, refresh_token: u.id, expires_in: 3600, user: { id: u.id, email: data.email } });
+    }
+    // Code per E-Mail (Passwort vergessen). Der Code steht in der Ausgabe ("CODE <email> <code>") und ist zum Testen immer 123456.
+    if (url.pathname === '/auth/v1/otp') {
+      const u = (await admin('select id from auth.users where email = $1', [data.email])).rows[0];
+      if (!u && data.create_user === false) return send(422, { code: 422, error_code: 'otp_disabled', msg: 'Signups not allowed for otp' });
+      const last = otpSent.get(data.email) ?? 0;
+      if (Date.now() - last < 3000) return send(429, { code: 429, error_code: 'over_email_send_rate_limit', msg: 'For security purposes, you can only request this after 60 seconds.' });
+      otpSent.set(data.email, Date.now());
+      console.log(`CODE ${data.email} 123456`);
+      return send(200, {});
+    }
+    if (url.pathname === '/auth/v1/verify') {
+      const u = (await admin('select id from auth.users where email = $1', [data.email])).rows[0];
+      if (!u || String(data.token) !== '123456') return send(403, { code: 403, error_code: 'otp_expired', msg: 'Token has expired or is invalid' });
+      return send(200, { access_token: u.id, refresh_token: u.id, expires_in: 3600, user: { id: u.id, email: data.email } });
+    }
+    if (url.pathname === '/auth/v1/user' && req.method === 'PUT') {
+      if (!uid) return send(401, { msg: 'no session' });
+      if (!data?.password || data.password.length < 6) return send(422, { code: 422, error_code: 'weak_password', msg: 'Password should be at least 6 characters.' });
+      const same = (await admin('select 1 from auth.users where id = $1 and password = $2', [uid, data.password])).rows[0];
+      if (same) return send(422, { code: 422, error_code: 'same_password', msg: 'New password should be different from the old password.' });
+      await admin('update auth.users set password = $2 where id = $1', [uid, data.password]);
+      const e = (await admin('select email from auth.users where id = $1', [uid])).rows[0];
+      return send(200, { id: uid, email: e?.email });
     }
     const m = url.pathname.match(/^\/rest\/v1\/(rpc\/)?(\w+)$/);
     if (!m) return send(404, { message: 'not found' });

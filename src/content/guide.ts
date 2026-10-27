@@ -41,7 +41,7 @@ export const GUIDE_STEPS: GuideStep[] = [
 
 export const GUIDE_END = {
   title: t('Du bist bereit'),
-  text: t('Das war das Wichtigste. Jeden Tag bekommst du neue Waldkämpfe, um Mitternacht gibt es frische. Steig Stufe um Stufe auf, besiege alle Meister bis Stufe 15, und dann wartet in der Farnschlucht der Wyrm. Mit Stufe 2 und 3 öffnen sich weitere Orte in Moosgrund.'),
+  text: t('Das war das Wichtigste. Zweimal am Tag, früh am Morgen und am Abend, beginnt ein neuer Spieltag mit frischen Waldkämpfen. Wann genau, zeigt die Dorfuhr auf dem Dorfplatz. Steig Stufe um Stufe auf, besiege alle Meister bis Stufe 15, und dann wartet in der Farnschlucht der Wyrm. Mit Stufe 2 und 3 öffnen sich weitere Orte in Moosgrund.'),
 };
 
 /** Ab welcher Stufe ein Ort im Menü auftaucht (nur für Neulinge, nur bis Stufe 3). Nicht genannte Orte sind sofort da. */

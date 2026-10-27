@@ -43,7 +43,7 @@ export interface ModCheat { created_at: string; user_id: string; name: string; f
 export interface ModBanned { user_id: string; name: string; level: number; dragon_kills: number }
 
 export class CloudError extends Error {
-  constructor(public code: 'offline' | 'auth' | 'server' | 'bad_code' | 'bad_login' | 'exists' | 'weak' | 'confirm' | 'rule', message: string) { super(message); }
+  constructor(public code: 'offline' | 'auth' | 'server' | 'bad_code' | 'bad_login' | 'exists' | 'weak' | 'confirm' | 'rule' | 'rate' | 'nouser' | 'mail' | 'same', message: string) { super(message); }
 }
 
 type Fetch = typeof fetch;
@@ -72,11 +72,13 @@ export class Cloud {
   }
 
   /** Auth-Anfrage mit verständlichen Fehlermeldungen. */
-  private async authCall(path: string, body: unknown): Promise<any> {
+  private async authCall(path: string, body: unknown, method = 'POST', withSession = false): Promise<any> {
     if (!this.enabled) throw new CloudError('server', t('Online-Spielstand ist nicht eingerichtet.'));
     let res: Response;
+    const headers: Record<string, string> = { apikey: this.key, 'Content-Type': 'application/json' };
+    if (withSession && this.session) headers.Authorization = `Bearer ${this.session.accessToken}`;
     try {
-      res = await this.http(this.url + path, { method: 'POST', headers: { apikey: this.key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      res = await this.http(this.url + path, { method, headers, body: JSON.stringify(body) });
     } catch {
       throw new CloudError('offline', t('Keine Verbindung zum Server.'));
     }
@@ -85,11 +87,26 @@ export class Cloud {
     if (res.ok) return data;
     const code = String(data?.error_code ?? data?.code ?? data?.error ?? '');
     const msg = String(data?.msg ?? data?.message ?? data?.error_description ?? '');
+    if (res.status === 429 || /rate_limit|security purposes/i.test(code + msg)) throw new CloudError('rate', t('Bitte warte eine Minute, bevor du einen neuen Code anforderst.'));
+    if (/otp_disabled|signups? not allowed|user_not_found|not found/i.test(code + msg)) throw new CloudError('nouser', t('Für diese E-Mail-Adresse gibt es kein Spielerkonto.'));
+    if (/not authorized|email_address_not_authorized|smtp|sending/i.test(code + msg)) throw new CloudError('mail', t('Das Spiel kann gerade keine E-Mails verschicken. Bitte gib uns über „Rückmeldung geben“ Bescheid.'));
+    if (/same_password|different from the old/i.test(code + msg)) throw new CloudError('same', t('Das neue Passwort muss sich vom alten unterscheiden.'));
     if (/already|exists|registered/i.test(code + msg)) throw new CloudError('exists', t('Für diese E-Mail gibt es schon ein Konto. Bitte anmelden.'));
     if (/weak|password.*(short|least|characters)/i.test(code + msg)) throw new CloudError('weak', t('Das Passwort ist zu kurz oder zu einfach (mindestens 6 Zeichen).'));
     if (/invalid.*(credential|grant)|invalid login/i.test(code + msg)) throw new CloudError('bad_login', t('E-Mail oder Passwort stimmt nicht.'));
     if (/not.*confirmed/i.test(code + msg)) throw new CloudError('confirm', t('Die E-Mail-Adresse ist noch nicht bestätigt.'));
     throw new CloudError('server', t`Anmeldung fehlgeschlagen (${res.status}).`);
+  }
+
+  /** Passwort vergessen: schickt einen Code an die E-Mail-Adresse eines bestehenden Kontos. */
+  async requestReset(email: string): Promise<void> {
+    await this.authCall('/auth/v1/otp', { email, create_user: false });
+  }
+
+  /** Setzt ein neues Passwort (nur angemeldet, z. B. direkt nach dem Code aus der E-Mail). */
+  async setPassword(password: string): Promise<void> {
+    await this.ensureSession();
+    await this.authCall('/auth/v1/user', { password }, 'PUT', true);
   }
 
   /** Schickt einen Anmeldecode an die E-Mail-Adresse (legt das Konto bei Bedarf an). */
@@ -452,11 +469,11 @@ export class Cloud {
   }
 
   jackpot(): Promise<JackpotInfo> {
-    return this.rpc5('fivesix_info', {}, t('Fünf Sechser'));
+    return this.rpc5('fivesix_info', {}, t('Sechserjagd'));
   }
 
   rollFiveSix(): Promise<DiceResult> {
-    return this.rpc5('fivesix_roll', {}, t('Fünf Sechser'));
+    return this.rpc5('fivesix_roll', {}, t('Sechserjagd'));
   }
 
   async aushang(limit = 10): Promise<AushangRow[]> {
