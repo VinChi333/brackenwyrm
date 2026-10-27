@@ -37,6 +37,38 @@ Im SQL Editor den Inhalt von `supabase-3-briefe.sql` einfügen und auf **Run** k
 
 Zum Testen ohne Supabase: `node scripts/fake-supabase.mjs` startet einen Nachbau mit echtem Postgres auf Port 54321.
 
+## Teil 4 bis 6
+
+Danach in dieser Reihenfolge `supabase-4-schutz.sql`, `supabase-5-dorfleben.sql` und `supabase-6-spieltage.sql` ausführen.
+Teil 6 (ab Testversion 0.44) stellt auf zwei Spieltage pro echtem Tag um (6 und 18 Uhr Wiener Zeit) und bringt die
+eigenen Titel. **Wer Teil 2 bis 5 erneut ausführt, führt danach immer auch Teil 6 erneut aus.**
+Ob alles da ist, zeigt `supabase-pruefung.sql` (jede Zeile muss `true` sein).
+
+## E-Mails: Passwort vergessen (ab 0.44)
+
+„Passwort vergessen?“ schickt einen Code per E-Mail. Der eingebaute Mailversand von Supabase schickt nur an
+Mitglieder des eigenen Supabase-Teams (höchstens 2 Mails pro Stunde), für Spieler braucht es einen eigenen Versand:
+
+1. Eine eigene Domain (z. B. bei einem österreichischen Anbieter) und ein kostenloses Konto bei Brevo.
+2. In Brevo unter **Senders, Domains & Dedicated IPs** die Domain hinzufügen und die angezeigten DNS-Einträge
+   (SPF, DKIM) beim Domain-Anbieter eintragen. Einen Absender anlegen, z. B. `no-reply@deine-domain.at`.
+3. In Brevo unter **Settings → SMTP & API → SMTP** einen SMTP-Schlüssel erzeugen (kein API-Schlüssel).
+4. In Supabase unter **Authentication → Emails → SMTP Settings** „Enable custom SMTP“ einschalten:
+   Host `smtp-relay.brevo.com`, Port `587`, Benutzername = Brevo-Anmelde-E-Mail, Passwort = SMTP-Schlüssel,
+   Absender = der Brevo-Absender von oben, Absendername `Brackenwyrm`.
+5. In Supabase unter **Authentication → Emails → Templates → Magic Link** den Text so ändern, dass der Code
+   drinsteht, zum Beispiel:
+
+   ```
+   <h2>Dein Code für Brackenwyrm</h2>
+   <p>Gib diesen Code im Spiel ein, um ein neues Passwort festzulegen:</p>
+   <p style="font-size:28px;letter-spacing:4px"><strong>{{ .Token }}</strong></p>
+   <p>Der Code gilt eine Stunde. Wenn du das nicht warst, kannst du diese E-Mail ignorieren.</p>
+   ```
+
+   Betreff zum Beispiel: `Dein Code für Brackenwyrm`.
+6. Testen: Im Spiel unter Einstellungen „Passwort vergessen?“ mit der eigenen Adresse ausprobieren.
+
 ## Wie der Abgleich funktioniert
 
 - Jeder Spielstand trägt den Zeitpunkt, an dem er gespeichert wurde.

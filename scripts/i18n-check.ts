@@ -69,7 +69,7 @@ function looksLikeText(raw: string): boolean {
   return words.some((w) => /^[A-ZÄÖÜ]/.test(w)) || words.length >= 2;
 }
 
-const TR_FUNCS = new Set(['t', 'tr', 'tk']);
+const TR_FUNCS = new Set(['t', 'tr', 'tk', 'tkey']);
 
 for (const file of walk(SRC)) {
   if (SKIP_FILES.some((r) => r.test(file))) continue;

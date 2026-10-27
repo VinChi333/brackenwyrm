@@ -1,43 +1,44 @@
 import type { Gender } from '../game/types';
 
-import { t } from '../i18n';
+import { tkey, tr } from '../i18n';
 
 // Titel nach Drachenkills: vom Grünschnabel aus dem Wald bis zur unsterblichen Legende.
 // Index = Zahl der Drachenkills (ab 31 bleibt es beim höchsten Titel). Der Server kennt dieselbe Liste (Teil 6, f_title).
-const LADDER: [string, string][] = [
-  [t('Grünschnabel'), t('Grünschnabel')],
-  [t('Reisigsammler'), t('Reisigsammlerin')],
-  [t('Fährtenleser'), t('Fährtenleserin')],
-  [t('Farnläufer'), t('Farnläuferin')],
-  [t('Wegwächter'), t('Wegwächterin')],
-  [t('Moosritter'), t('Moosritterin')],
-  [t('Wurzelhüter'), t('Wurzelhüterin')],
-  [t('Bannerträger'), t('Bannerträgerin')],
-  [t('Wyrmspäher'), t('Wyrmspäherin')],
-  [t('Schuppenbrecher'), t('Schuppenbrecherin')],
-  [t('Klingenmeister'), t('Klingenmeisterin')],
-  [t('Eichenherr'), t('Eichenherrin')],
-  [t('Hainhüter'), t('Hainhüterin')],
-  [t('Wyrmjäger'), t('Wyrmjägerin')],
-  [t('Wyrmbezwinger'), t('Wyrmbezwingerin')],
-  [t('Recke'), t('Reckin')],
-  [t('Schutzherr'), t('Schutzherrin')],
-  [t('Waldfürst'), t('Waldfürstin')],
-  [t('Sturmreiter'), t('Sturmreiterin')],
-  [t('Nebelwandler'), t('Nebelwandlerin')],
-  [t('Sternenwächter'), t('Sternenwächterin')],
-  [t('Glutherz'), t('Glutherz')],
-  [t('Flammenbändiger'), t('Flammenbändigerin')],
-  [t('Wyrmschreck'), t('Wyrmschreck')],
-  [t('Legende'), t('Legende')],
-  [t('Sagengestalt'), t('Sagengestalt')],
-  [t('Mythos'), t('Mythos')],
-  [t('Waldgeist'), t('Waldgeist')],
-  [t('Weltenhüter'), t('Weltenhüterin')],
-  [t('Wyrmkönig'), t('Wyrmkönigin')],
-  [t('Ewiger'), t('Ewige')],
-  [t('Unsterblicher'), t('Unsterbliche')],
+const LADDER_DE: [string, string][] = [
+  [tkey('Grünschnabel'), tkey('Grünschnabel')],
+  [tkey('Reisigsammler'), tkey('Reisigsammlerin')],
+  [tkey('Fährtenleser'), tkey('Fährtenleserin')],
+  [tkey('Farnläufer'), tkey('Farnläuferin')],
+  [tkey('Wegwächter'), tkey('Wegwächterin')],
+  [tkey('Moosritter'), tkey('Moosritterin')],
+  [tkey('Wurzelhüter'), tkey('Wurzelhüterin')],
+  [tkey('Bannerträger'), tkey('Bannerträgerin')],
+  [tkey('Wyrmspäher'), tkey('Wyrmspäherin')],
+  [tkey('Schuppenbrecher'), tkey('Schuppenbrecherin')],
+  [tkey('Klingenmeister'), tkey('Klingenmeisterin')],
+  [tkey('Eichenherr'), tkey('Eichenherrin')],
+  [tkey('Hainhüter'), tkey('Hainhüterin')],
+  [tkey('Wyrmjäger'), tkey('Wyrmjägerin')],
+  [tkey('Wyrmbezwinger'), tkey('Wyrmbezwingerin')],
+  [tkey('Recke'), tkey('Reckin')],
+  [tkey('Schutzherr'), tkey('Schutzherrin')],
+  [tkey('Waldfürst'), tkey('Waldfürstin')],
+  [tkey('Sturmreiter'), tkey('Sturmreiterin')],
+  [tkey('Nebelwandler'), tkey('Nebelwandlerin')],
+  [tkey('Sternenwächter'), tkey('Sternenwächterin')],
+  [tkey('Glutherz'), tkey('Glutherz')],
+  [tkey('Flammenbändiger'), tkey('Flammenbändigerin')],
+  [tkey('Wyrmschreck'), tkey('Wyrmschreck')],
+  [tkey('Legende'), tkey('Legende')],
+  [tkey('Sagengestalt'), tkey('Sagengestalt')],
+  [tkey('Mythos'), tkey('Mythos')],
+  [tkey('Waldgeist'), tkey('Waldgeist')],
+  [tkey('Weltenhüter'), tkey('Weltenhüterin')],
+  [tkey('Wyrmkönig'), tkey('Wyrmkönigin')],
+  [tkey('Ewiger'), tkey('Ewige')],
+  [tkey('Unsterblicher'), tkey('Unsterbliche')],
 ];
+const LADDER: [string, string][] = LADDER_DE.map(([m, f]) => [tr(m), tr(f)]);
 
 export function titleFor(dragonKills: number, gender: Gender = 'm'): string {
   const row = LADDER[Math.max(0, Math.min(LADDER.length - 1, dragonKills))];
@@ -50,4 +51,4 @@ export function titledName(name: string, dragonKills: number, gender: Gender): s
 }
 
 /** Alle Titel (deutsch), längste zuerst. Damit lassen sich Namen wie "Moosritterin Hilda" vom Server übersetzen. */
-export const TITLE_KEYS: string[] = [...new Set(LADDER.flat())].sort((x, y) => y.length - x.length);
+export const TITLE_KEYS: string[] = [...new Set(LADDER_DE.flat())].sort((x, y) => y.length - x.length);

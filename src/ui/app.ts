@@ -523,7 +523,7 @@ function forestScreen(s: GameState): string {
     <p class="lead">${t`Zwischen den Stämmen ist es still. Farne reichen dir bis zur Hüfte, und irgendwo knackt ein Ast.`}</p>
     ${flashHtml()}
     ${low ? `<p class="warn-box">${t`Du bist angeschlagen (${p.hp} von ${maxHp(p)} Lebenspunkten). Mirla in der Kräuterhütte könnte helfen.`}</p>` : ''}
-    ${p.forestFights <= 0 ? `<p class="warn-box">${t`Du bist zu müde für weitere Abenteuer. Morgen ist auch noch ein Tag.`}</p>` : ''}`;
+    ${p.forestFights <= 0 ? `<p class="warn-box">${t`Du bist zu müde für weitere Abenteuer. Der nächste Spieltag beginnt in ${waitText()}.`}</p>` : ''}`;
   const none = p.forestFights <= 0;
   return layout(s, main, [
     { title: t('Wald'), items: [

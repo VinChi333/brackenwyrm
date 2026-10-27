@@ -2230,4 +2230,5 @@ export const EN: Record<string, string> = {
   "Du zwinkerst Florian zu. Er zählt gerade halblaut Silben für ein neues Lied ab und merkt nichts.": "You wink at Florian. He’s busy counting syllables for a new song under his breath and doesn’t notice.",
   "Mit dem neuen Leben darfst du Rasse und Fähigkeit neu wählen. Du kannst auch alles so lassen.": "With your new life you may choose your race and skill again. You can also leave everything as it is.",
   "Brackenwyrm ist noch in Arbeit. Am meisten Spaß macht es, wenn du <strong>jeden Tag ein bisschen</strong> spielst. Zweimal am Tag, um {0} und um {1} Uhr, beginnt ein neuer Spieltag mit frischen Waldkämpfen.": "Brackenwyrm is still a work in progress. It’s most fun if you play <strong>a little bit every day</strong>. Twice a day, at {0} and {1}, a new game day begins with fresh forest fights.",
+  "Du bist zu müde für weitere Abenteuer. Der nächste Spieltag beginnt in {0}.": "You’re too tired for any more adventures. The next game day starts in {0}.",
 };

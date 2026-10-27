@@ -21,6 +21,8 @@ npx tsx scripts/i18n-check.ts --export /tmp/tr   # fehlende Texte als Arbeitslis
 npx tsx scripts/i18n-import.ts /tmp/tr        # in en.ts übernehmen
 ```
 
+Listen, die erst später übersetzt werden, markieren ihre deutschen Texte mit `tkey('…')` (der Prüfer findet sie) und übersetzen sie mit `tr()`.
+
 Kein Spieltext ohne `t()`. Technische Zeichenketten (Pfade, Aktionen, CSS) bleiben ohne; im Zweifel `// i18n-ignore` ans Zeilenende.
 
 Die Sprache wird beim Start festgelegt (gespeichert oder Gerätesprache) und beim Wechsel in den Einstellungen wird neu geladen.

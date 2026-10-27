@@ -59,5 +59,8 @@ export function t(strings: TemplateStringsArray | string, ...vals: unknown[]): s
   return tr(keyOf(strings), vals);
 }
 
+/** Markiert einen deutschen Schlüssel, ohne ihn schon zu übersetzen (z. B. für Listen, die später mit tr() übersetzt werden). */
+export function tkey(key: string): string { return key; }
+
 /** Text, der erst beim Lesen übersetzt wird (z. B. in Neuigkeiten für Spieler mit anderer Sprache). */
 export function tk(key: string): string { return '~' + key; }
