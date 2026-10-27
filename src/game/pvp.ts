@@ -85,7 +85,7 @@ export function applyPvpResult(s: GameState, res: PvpResult, place: 'felder' | '
     log.push({ t: `Du nimmst ${res.gold} Gold an dich und lernst ${res.exp_win} Erfahrung aus dem Kampf.`, k: 'gold', r });
     if (res.bounty && res.bounty > 0) {
       p.gold += res.bounty;
-      log.push({ t: `Dag Durnick tritt aus dem Schatten und drückt dir einen Beutel in die Hand: das Kopfgeld auf ${foe.name}, ${res.bounty} Gold!`, k: 'gold', r });
+      log.push({ t: `Veit Galgenstrick tritt aus dem Schatten und drückt dir einen Beutel in die Hand: das Kopfgeld auf ${foe.name}, ${res.bounty} Gold!`, k: 'gold', r });
     }
   } else {
     const lostGold = p.gold;

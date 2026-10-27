@@ -1,7 +1,7 @@
 -- Brackenwyrm, Teil 5: Dorfleben wie im Original.
 -- Nach Teil 1 bis 4 einmal im SQL Editor ausführen. Kann gefahrlos erneut ausgeführt werden.
 --
---   1. Kopfgeld bei Dag Durnick (Original: dag.php): Gold auf einen Helden aussetzen, wer ihn im Spielerkampf besiegt, kassiert.
+--   1. Kopfgeld bei Veit Galgenstrick (Original: dag.php): Gold auf einen Helden aussetzen, wer ihn im Spielerkampf besiegt, kassiert.
 --   2. Kontor: Gold an andere Helden überweisen (Original: bank.php, gleiche Grenzen).
 --   3. Fünf Sechser (Original: game_fivesix): Würfelspiel mit gemeinsamem Jackpot.
 --   4. Aushang am Rathaus (Original: Nachricht des Tages): Ankündigungen der Wache an alle.
@@ -40,8 +40,8 @@ drop trigger if exists fighters_guard5 on public.fighters;
 create trigger fighters_guard5 before insert or update on public.fighters for each row execute function public.fighters_guard5();
 
 -- =============================================================================================
--- 1. Kopfgeld bei Dag Durnick
---    Wie im Original: 50 bis 200 Gold je Stufe des Ziels, Ziel ab Stufe 3, Dag behält 10 %, höchstens 5 am Tag.
+-- 1. Kopfgeld bei Veit Galgenstrick
+--    Wie im Original: 50 bis 200 Gold je Stufe des Ziels, Ziel ab Stufe 3, Veit behält 10 %, höchstens 5 am Tag.
 --    Wer das Ziel im Spielerkampf besiegt, bekommt alle offenen Kopfgelder (außer die eigenen).
 -- =============================================================================================
 create table if not exists public.bounties (
@@ -65,22 +65,22 @@ declare
   fee int;
 begin
   select * into me from public.fighters f where f.user_id = auth.uid() for update;
-  if me.user_id is null then raise exception 'Dag kennt dich nicht.' using errcode = 'P0001'; end if;
+  if me.user_id is null then raise exception 'Veit kennt dich nicht.' using errcode = 'P0001'; end if;
   if me.banned then raise exception 'Dein Konto ist gesperrt.' using errcode = 'P0001'; end if;
   select * into t from public.fighters f where f.user_id = set_bounty.target;
-  if t.user_id is null or t.banned then raise exception 'Diesen Helden kennt Dag nicht.' using errcode = 'P0001'; end if;
-  if t.user_id = me.user_id then raise exception 'Dag lacht dreckig. „Auf dich selbst? Nein.“' using errcode = 'P0001'; end if;
-  if t.level < 3 then raise exception 'Dag winkt ab. „Der ist noch grün hinter den Ohren. Ab Stufe 3.“' using errcode = 'P0001'; end if;
+  if t.user_id is null or t.banned then raise exception 'Diesen Helden kennt Veit nicht.' using errcode = 'P0001'; end if;
+  if t.user_id = me.user_id then raise exception 'Veit lacht dreckig. „Auf dich selbst? Nein.“' using errcode = 'P0001'; end if;
+  if t.level < 3 then raise exception 'Veit winkt ab. „Der ist noch grün hinter den Ohren. Ab Stufe 3.“' using errcode = 'P0001'; end if;
   if amount < 50 * t.level or amount > 200 * t.level then
-    raise exception 'Für % nimmt Dag zwischen % und % Gold.', t.name, 50 * t.level, 200 * t.level using errcode = 'P0001';
+    raise exception 'Für % nimmt Veit zwischen % und % Gold.', t.name, 50 * t.level, 200 * t.level using errcode = 'P0001';
   end if;
   if me.bounty_day is distinct from current_date then me.bounties_today := 0; end if;
-  if me.bounties_today >= 5 then raise exception 'Dag schüttelt den Kopf. „Fünf am Tag. Mehr Feinde kann keiner haben.“' using errcode = 'P0001'; end if;
+  if me.bounties_today >= 5 then raise exception 'Veit schüttelt den Kopf. „Fünf am Tag. Mehr Feinde kann keiner haben.“' using errcode = 'P0001'; end if;
   fee := ceil(amount * 0.10);
-  if me.gold < amount + fee then raise exception 'Das kostet % Gold (mit Dags Anteil). So viel hast du nicht dabei.', amount + fee using errcode = 'P0001'; end if;
+  if me.gold < amount + fee then raise exception 'Das kostet % Gold (mit Veits Anteil). So viel hast du nicht dabei.', amount + fee using errcode = 'P0001'; end if;
   update public.fighters set gold = gold - amount - fee, bounties_today = me.bounties_today + 1, bounty_day = current_date where user_id = me.user_id;
   insert into public.bounties (setter, target, amount) values (me.user_id, t.user_id, amount);
-  insert into public.news (user_id, body) values (null, format('Dag Durnick nimmt einen neuen Auftrag an: Kopfgeld auf %s.', t.name));
+  insert into public.news (user_id, body) values (null, format('Veit Galgenstrick nimmt einen neuen Auftrag an: Kopfgeld auf %s.', t.name));
   return jsonb_build_object('paid', amount + fee, 'name', t.name,
     'total', (select coalesce(sum(b.amount), 0) from public.bounties b where b.target = t.user_id and b.claimed_at is null));
 end $$;

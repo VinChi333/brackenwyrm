@@ -334,7 +334,7 @@ export const FOREST_EVENTS: ForestEvent[] = [
       { id: 'weg', label: 'Zurück in den Wald', key: 'w', run: () => [{ t: 'Für so eine mühsame Art, reich zu werden, hast du keine Zeit. Du lässt den Stollen hinter dir.', k: 'info' }] },
     ] },
 
-  // Crazy Audrey: drei Körbe, drei Kätzchen. Gleiche Farben bringen Salbe (Waldkämpfe).
+  // Die verrückte Hulda (Original: Crazy Audrey): drei Körbe, drei Kätzchen. Gleiche Farben bringen Salbe (Waldkämpfe).
   { id: 'hulda', weight: 4,
     prompt: () => [
       { t: 'Auf einer stillen Lichtung stehen drei fest verschlossene Körbe. Aus einem hörst du ein leises Miauen. Kaum greifst du nach dem Deckel, springt die verrückte Hulda aus dem Gebüsch und reißt die Körbe an sich.', k: 'warn' },
@@ -431,34 +431,6 @@ export const FOREST_EVENTS: ForestEvent[] = [
       p.festeFound = true;
       return [{ t: FESTE_TEXT.found, k: 'gold' }, { t: 'Ab jetzt findest du den Weg zur versunkenen Feste im Wald wieder.', k: 'good' }];
     } },
-
-  // Die verrückte Audrey und ihre Kätzchen (Original: Crazy Audrey). Zwei gleiche: +2 Waldkämpfe, drei gleiche: +5, keine: -2.
-  { id: 'audrey', weight: 3,
-    prompt: () => [
-      { t: 'Auf einer seltsam stillen Lichtung stehen drei fest verschnürte Weidenkörbe. Aus einem kommt ein leises Miauen. Gerade als du nach dem ersten Deckel greifst, stürzt eine zerzauste Frau aus dem Gebüsch und reißt die Körbe an sich. Die verrückte Audrey!', k: 'warn' },
-      { t: '„Vier Farben gibt’s von Kätzchen hier, in jedem Korb, das glaube mir. Kommen zwei gleiche aus dem Korb heraus, gibt’s Salbe für die Füße, und du läufst wie nie zuvor. Kommt keines gleich, so sag ich dir: Du gehst heut früher schlafen, glaub es mir.“ Sie kichert. „Spielst du?“', k: 'info' },
-    ],
-    choices: [
-      { id: 'spielen', label: 'Audreys Spiel spielen', key: 's', run: (p) => {
-        const colors = ['getigert', 'rot', 'schwarz', 'weiß'];
-        const c = [0, 1, 2].map(() => colors[roll(0, 3)]);
-        const lines: LogLine[] = [{ t: `Audrey klopft auf den ersten Korb, ein ${c[0]}es Kätzchen schaut heraus. Dann auf den zweiten: ein ${c[1]}es. Und auf den dritten: ein ${c[2]}es Kätzchen hüpft ihr auf die Schulter.`, k: 'info' }];
-        const same = new Set(c).size;
-        if (same === 1) {
-          p.forestFights += 5;
-          lines.push({ t: 'Drei gleiche! Audrey kreischt vor Freude und lässt einen ganzen Beutel Salbe fallen. Du reibst sie dir zwischen die Zehen und fühlst dich, als könntest du bis Sonnenuntergang laufen. (+5 Waldkämpfe)', k: 'gold' });
-        } else if (same === 2) {
-          p.forestFights += 2;
-          lines.push({ t: 'Zwei gleiche! Audrey krault das Kätzchen auf ihrer Schulter und reicht dir ein Döschen Salbe. Du reibst sie dir zwischen die Zehen. (+2 Waldkämpfe)', k: 'good' });
-        } else {
-          const lost = Math.min(2, p.forestFights);
-          p.forestFights -= lost;
-          lines.push({ t: `Keine zwei gleich. Audrey starrt dich an, bis dir ganz schummrig wird. Du fühlst dich auf einmal schrecklich müde.${lost ? ` (−${lost} Waldkämpfe)` : ''}`, k: 'bad' });
-        }
-        return lines;
-      } },
-      { id: 'weg', label: 'Ganz schnell wegrennen', key: 'w', run: () => [{ t: 'Du rennst, so schnell du kannst, weg von dieser verrückten Frau. Hinter dir miaut es empört.', k: 'info' }] },
-    ] },
 
   // Die Plumpsklos im Wald (Original: Outhouse). Danach: Hände waschen oder nicht?
   { id: 'klo', weight: 3,

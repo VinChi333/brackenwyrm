@@ -57,7 +57,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = 'Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.';
-const VERSION = 'Testversion 0.41';
+const VERSION = 'Testversion 0.42';
 
 interface Ui {
   screen: Screen;
@@ -712,7 +712,7 @@ function innScreen(s: GameState): string {
       { act: 'talk', label: 'Mit Frieda reden', key: 'f', hint: talksLeft > 0 ? `${talksLeft}× heute` : 'hat zu tun' },
       { act: 'go:tresen', label: 'Am Tresen bestellen', key: 't', hint: (p.drunk ?? 0) > 0 ? drunkWord(p.drunk ?? 0) : `Harzbier ${harzbierCost(p.level)} Gold` },
       ...(cloud.enabled ? [
-        { act: 'go:dag', label: 'Dag Durnick', key: 'k', hint: !cloud.signedIn ? 'nur mit Spielerkonto' : 'Kopfgeld', disabled: !cloud.signedIn },
+        { act: 'go:dag', label: 'Veit Galgenstrick', key: 'k', hint: !cloud.signedIn ? 'nur mit Spielerkonto' : 'Kopfgeld', disabled: !cloud.signedIn },
         { act: 'go:fivesix', label: 'Würfelecke: Fünf Sechser', key: 'w', hint: !cloud.signedIn ? 'nur mit Spielerkonto' : 'Jackpot', disabled: !cloud.signedIn },
       ] : []),
       { act: 'inn:song', label: 'Lied wünschen', key: 'l', hint: p.songToday ? 'heute schon' : '1 Edelstein', disabled: p.songToday },
@@ -750,12 +750,12 @@ function dagScreen(s: GameState): string {
   const list = ui.bounties;
   const onMe = list?.find((b) => b.target === cloud.userId);
   const others = (ui.warriors ?? []).filter((w) => w.userId !== cloud.userId && w.level >= 3);
-  const main = `<h1>Dag Durnick</h1>
-    <p class="lead">In der dunkelsten Ecke des Gasthauses sitzt Dag Durnick, Kopfgeldjäger, und raucht eine Pfeife, die nach nassem Hund riecht. „Du willst, dass jemandem etwas zustößt?“, brummt er. „Gegen Gold lässt sich das einrichten. Wer den Kopf bringt, kassiert. Ich behalte zehn Prozent.“</p>
+  const main = `<h1>Veit Galgenstrick</h1>
+    <p class="lead">In der dunkelsten Ecke des Gasthauses sitzt Veit Galgenstrick, Kopfgeldjäger, und raucht eine Pfeife, die nach nassem Hund riecht. „Du willst, dass jemandem etwas zustößt?“, brummt er. „Gegen Gold lässt sich das einrichten. Wer den Kopf bringt, kassiert. Ich behalte zehn Prozent.“</p>
     ${flashHtml()}
-    ${onMe ? `<p class="warn-box">Dag mustert dich. „Auf deinen Kopf sind übrigens ${onMe.total} Gold ausgesetzt. Schlaf lieber im Gasthaus.“</p>` : ''}
+    ${onMe ? `<p class="warn-box">Veit mustert dich. „Auf deinen Kopf sind übrigens ${onMe.total} Gold ausgesetzt. Schlaf lieber im Gasthaus.“</p>` : ''}
     <h2>Offene Kopfgelder</h2>
-    ${list === null ? '<p class="muted">Dag blättert in seinem fleckigen Büchlein …</p>' : list.length
+    ${list === null ? '<p class="muted">Veit blättert in seinem fleckigen Büchlein …</p>' : list.length
       ? `<table class="fame"><thead><tr><th>Held</th><th class="num">Stufe</th><th class="num">Kopfgeld</th></tr></thead><tbody>${list.map((b) => `<tr class="${b.target === cloud.userId ? 'me' : ''}"><td><strong>${esc(b.name)}</strong><small>${esc(titleFor(b.dragon_kills, b.gender))}</small></td><td class="num">${b.level}</td><td class="num gold">${b.total}</td></tr>`).join('')}</tbody></table>`
       : '<p class="muted">Gerade hat niemand einen Preis auf dem Kopf. Langweilige Zeiten.</p>'}
     <h2>Kopfgeld aussetzen</h2>
@@ -763,8 +763,8 @@ function dagScreen(s: GameState): string {
       <select id="bounty-to" aria-label="Auf wen">${others.map((w) => `<option value="${w.userId}">${esc(w.name)} (Stufe ${w.level}: ${50 * w.level} bis ${200 * w.level} Gold)</option>`).join('')}</select>
       <input type="number" id="bounty-amount" min="1" inputmode="numeric" placeholder="Betrag" aria-label="Betrag">
       <button type="button" class="tbtn" data-act="bounty">Aussetzen</button></div>
-      <p class="muted">Dazu kommen 10 % für Dag. Höchstens fünf Aufträge am Tag. Ziele ab Stufe 3. Du hast ${p.gold} Gold dabei.</p>`
-      : '<p class="muted">Niemand ab Stufe 3 da, auf den Dag ansetzen könnte.</p>'}`;
+      <p class="muted">Dazu kommen 10 % für Veit. Höchstens fünf Aufträge am Tag. Ziele ab Stufe 3. Du hast ${p.gold} Gold dabei.</p>`
+      : '<p class="muted">Niemand ab Stufe 3 da, auf den man Veit ansetzen könnte.</p>'}`;
   return layout(s, main, [{ title: 'Zurück', items: [{ act: 'go:inn', label: 'Zurück in die Gaststube', key: 'g' }, back] }]);
 }
 
@@ -982,7 +982,7 @@ function chronicleScreen(s: GameState): string {
 const SCREEN_NAMES: Partial<Record<Screen, string>> = {
   village: 'Dorfplatz', forest: 'Wald', fight: 'Kampf', training: 'Trainingsplatz', healer: 'Kräuterhütte', smith: 'Schmiede',
   bank: 'Kontor', inn: 'Gasthaus', bestiary: 'Bestiarium', fame: 'Ruhmeshalle', chronicle: 'Kampfchronik', settings: 'Einstellungen',
-  shadows: 'Schattenreich', dragonBonus: 'Drachenkill', quirin: 'Quirins Tränke', tresen: 'Tresen', lager: 'Söldnerlager', dag: 'Dag Durnick', fivesix: 'Fünf Sechser', aushang: 'Aushang', feste: 'Versunkene Feste', heirlooms: 'Erbstücke', seer: 'Seherin', felsen: 'Wyrmstein', garten: 'Rosengarten',
+  shadows: 'Schattenreich', dragonBonus: 'Drachenkill', quirin: 'Quirins Tränke', tresen: 'Tresen', lager: 'Söldnerlager', dag: 'Veit Galgenstrick', fivesix: 'Fünf Sechser', aushang: 'Aushang', feste: 'Versunkene Feste', heirlooms: 'Erbstücke', seer: 'Seherin', felsen: 'Wyrmstein', garten: 'Rosengarten',
   stable: 'Pferdestall', ambros: 'Ambros', warriors: 'Kriegerliste', mail: 'Briefe', bio: 'Steckbrief',
 };
 
@@ -2152,7 +2152,7 @@ function handle(act: string, el: HTMLElement): void {
       if (a === 'deleteAccount') ui.delMsg = '';
       if (a === 'felsen' && cloud.enabled) cloud.hallOfFame(40).then((rows) => { ui.fame = rows; if (ui.screen === 'felsen') render(); }, () => {});
       if (a === 'tresen') ui.flash = [];
-      if (a === 'dag' && cloud.signedIn) { ui.bounties = null; go('dag'); loadWarriors(); cloud.bounties().then((b) => { ui.bounties = b; }, (e) => { ui.bounties = []; say(e instanceof CloudError ? e.message : 'Dag schweigt.', 'warn'); }).finally(render); return; }
+      if (a === 'dag' && cloud.signedIn) { ui.bounties = null; go('dag'); loadWarriors(); cloud.bounties().then((b) => { ui.bounties = b; }, (e) => { ui.bounties = []; say(e instanceof CloudError ? e.message : 'Veit schweigt.', 'warn'); }).finally(render); return; }
       if (a === 'fivesix' && cloud.signedIn) { ui.dice = { info: null, last: null, err: '', busy: false }; go('fivesix'); cloud.jackpot().then((i) => { ui.dice.info = i; }, (e) => { ui.dice.err = e instanceof CloudError ? e.message : 'Der Tisch ist leer.'; }).finally(render); return; }
       if (a === 'aushang' && cloud.enabled) { ui.aushang = null; go('aushang'); loadAushang(); return; }
       if (a === 'fame' && cloud.enabled) loadFameCat();
@@ -2435,15 +2435,15 @@ function handle(act: string, el: HTMLElement): void {
     case 'bounty': {
       const to = (document.getElementById('bounty-to') as HTMLSelectElement | null)?.value ?? '';
       const amount = Math.floor(Number((document.getElementById('bounty-amount') as HTMLInputElement | null)?.value));
-      if (!to || !(amount > 0)) { say('„Auf wen, und wie viel?“, brummt Dag.', 'warn'); render(); return; }
+      if (!to || !(amount > 0)) { say('„Auf wen, und wie viel?“, brummt Veit.', 'warn'); render(); return; }
       const fee = Math.ceil(amount * 0.1);
-      if (s.player.gold < amount + fee) { say(`Das kostet ${amount + fee} Gold mit Dags Anteil. So viel hast du nicht dabei.`, 'warn'); render(); return; }
+      if (s.player.gold < amount + fee) { say(`Das kostet ${amount + fee} Gold mit Veits Anteil. So viel hast du nicht dabei.`, 'warn'); render(); return; }
       pushFirst(s).then(() => cloud.setBounty(to, amount)).then((r) => {
         s.player.gold -= r.paid;
         saveGame(s); scheduleSync(500);
-        say(`Dag steckt ${r.paid} Gold ein und nickt. „Auf ${r.name} sind jetzt ${r.total} Gold ausgesetzt.“`, 'good');
+        say(`Veit steckt ${r.paid} Gold ein und nickt. „Auf ${r.name} sind jetzt ${r.total} Gold ausgesetzt.“`, 'good');
         cloud.bounties().then((b) => { ui.bounties = b; }, () => {}).finally(render);
-      }, (e) => { say(e instanceof CloudError ? e.message : 'Dag hat dich nicht verstanden.', 'warn'); render(); });
+      }, (e) => { say(e instanceof CloudError ? e.message : 'Veit hat dich nicht verstanden.', 'warn'); render(); });
       return;
     }
     case 'roll': {

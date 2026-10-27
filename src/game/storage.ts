@@ -3,6 +3,7 @@
 
 import { normalizeSpecialty } from '../content/specialties';
 import { sanitizeGuide } from './guide';
+import { eventById } from '../content/events';
 import { normalizeRace } from '../content/races';
 import type { GameState, Stats } from './types';
 
@@ -90,7 +91,7 @@ export function validate(x: unknown): GameState | null {
   s.guide = sanitizeGuide(s.guide);
   s.outbox = Array.isArray(s.outbox) ? s.outbox.slice(-20) : [];
   s.stats = Object.assign(newStats(1), s.stats ?? {});
-  s.pendingEvent = s.pendingEvent ?? null;
+  s.pendingEvent = s.pendingEvent && eventById(s.pendingEvent.id) ? s.pendingEvent : null;  // entfernte Ereignisse fallen weg
   s.chronicle = Array.isArray(s.chronicle) ? s.chronicle : [];
   // Spielstände aus Versionen ohne Zeitstempel gelten als vorhanden, aber älter als alles andere.
   if (typeof s.savedAt !== 'number' || !(s.savedAt > 0)) s.savedAt = 1;

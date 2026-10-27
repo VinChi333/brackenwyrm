@@ -54,7 +54,7 @@ export const PLACE_NAMES: Record<string, string> = {
   'go:stable': 'Mertens Pferdestall', 'go:quirin': 'Quirins Tränke', 'go:ambros': 'der alte Ambros', 'go:news': 'die Tagesneuigkeiten',
   'go:aushang': 'der Aushang am Rathaus', 'go:warriors': 'die Kriegerliste', 'go:mail': 'die Briefe', 'go:chronicle': 'die Kampfchronik',
   'go:fields': 'die Felder vor dem Tor', 'go:lager': 'das Söldnerlager', 'go:seer': 'das Zelt der Seherin', 'go:garten': 'der Rosengarten',
-  'go:felsen': 'der Wyrmstein', 'go:dag': 'Dag Durnick im Gasthaus', 'go:fivesix': 'die Würfelecke im Gasthaus',
+  'go:felsen': 'der Wyrmstein', 'go:dag': 'Veit Galgenstrick im Gasthaus', 'go:fivesix': 'die Würfelecke im Gasthaus',
 };
 
 /** Kurzer Hinweis beim ersten Besuch eines Ortes. */
@@ -73,7 +73,7 @@ export const SCREEN_HINTS: Record<string, string> = {
   lager: 'Ein Söldner kämpft im Wald und in der Feste an deiner Seite.',
   ambros: 'Ein kleines Ratespiel um Gold. Ambros schläft schnell ein, also nur ein paar Runden am Tag.',
   tresen: 'Getränke geben dir Kraft für ein paar Kampfrunden. Wer zu viel trinkt, hat morgen einen Kater.',
-  dag: 'Gegen Gold setzt Dag ein Kopfgeld auf andere Helden aus. Wer sie besiegt, kassiert.',
+  dag: 'Gegen Gold setzt Veit ein Kopfgeld auf andere Helden aus. Wer sie besiegt, kassiert.',
   fivesix: 'Jeder Wurf füllt den gemeinsamen Topf. Fünf Sechser knacken ihn.',
   feste: 'Die versunkene Feste ist jeden Tag ein anderes Labyrinth. Pass auf dein Licht auf, und ganz hinten wartet der Hüter.',
   warriors: 'Alle Helden aus Moosgrund. Du kannst ihre Steckbriefe lesen und ihnen Briefe schreiben.',

@@ -380,7 +380,7 @@ await db.exec(`update public.fighters set level = 6, gold = 5000, banned = false
 let bad5 = ''; try { await as(A, `select public.set_bounty('${B}', 100)`); } catch (e) { bad5 = e.message; }
 ok(/zwischen 300 und 1200/.test(bad5), 'Kopfgeld: Betrag muss 50 bis 200 je Stufe sein: ' + bad5);
 r = await as(A, `select public.set_bounty('${B}', 500) j`);
-ok(r.rows[0].j.paid === 550 && r.rows[0].j.total === 500, 'Kopfgeld gesetzt, Dag behält 10 %');
+ok(r.rows[0].j.paid === 550 && r.rows[0].j.total === 500, 'Kopfgeld gesetzt, Veit behält 10 %');
 r = await db.query(`select gold from public.fighters where user_id = '${A}'`);
 ok(r.rows[0].gold === 4450, 'Gold für Kopfgeld abgezogen');
 let selfB = false; try { await as(A, `select public.set_bounty('${A}', 400)`); } catch (e) { selfB = /selbst/.test(e.message); }
