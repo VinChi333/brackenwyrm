@@ -61,7 +61,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = t('Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.');
-const VERSION = t('Testversion {0}', '0.42');
+const VERSION = t('Testversion {0}', '0.43');
 
 interface Ui {
   screen: Screen;
@@ -159,18 +159,22 @@ function localKeys(groups: Group[]): Group[] {
   if (lang === 'de') return groups;
   const used = new Set<string>();
   const items = groups.flatMap((g) => g.items);
-  const keep = (it: Item) => !it.key || /^\d$/.test(it.key) || it.label.toLowerCase().includes(it.key.toLowerCase());
-  for (const it of items) if (it.key && keep(it)) used.add(it.key.toLowerCase());
   const pick = new Map<Item, string>();
-  for (const it of items) {
-    if (!it.key || keep(it)) continue;
-    const letters = it.label.toLowerCase().replace(/[^a-z]/g, '');
-    const words = it.label.toLowerCase().split(/[^a-z]+/).filter(Boolean);
-    const cand = [...words.map((w) => w[0]), ...letters];
-    const k = cand.find((c) => !used.has(c));
-    if (k) { used.add(k); pick.set(it, k); }
+  for (const it of items) if (it.key && /^\d$/.test(it.key)) { used.add(it.key); pick.set(it, it.key); }
+  // Drei Runden: erst Anfangsbuchstaben der Wörter, dann irgendein Buchstabe aus dem Wort, dann irgendeiner
+  const rounds: ((it: Item) => string[])[] = [
+    (it) => it.label.toLowerCase().split(/[^a-z]+/).filter(Boolean).map((w) => w[0]),
+    (it) => [...it.label.toLowerCase().replace(/[^a-z]/g, '')],
+    () => [...'abcdefghijklmnopqrstuvwxyz'],
+  ];
+  for (const cands of rounds) {
+    for (const it of items) {
+      if (!it.key || pick.has(it)) continue;
+      const k = cands(it).find((c) => !used.has(c));
+      if (k) { used.add(k); pick.set(it, k); }
+    }
   }
-  return groups.map((g) => ({ ...g, items: g.items.map((it) => (pick.has(it) ? { ...it, key: pick.get(it) } : it)) }));
+  return groups.map((g) => ({ ...g, items: g.items.map((it) => (it.key ? { ...it, key: pick.get(it) } : it)) }));
 }
 
 function navHtml(groups: Group[]): string {
@@ -273,7 +277,7 @@ function guideGroups(s: GameState, groups: Group[]): Group[] {
   return groups
     .map((gr) => ({ ...gr, items: gr.items.filter((i) => placeOpen(s, i.act)).map((i) => ({
       ...i,
-      badge: g.fresh.includes(i.act) ? 'neu' : i.badge,
+      badge: g.fresh.includes(i.act) ? t('neu') : i.badge,
       guided: !!target && i.act === target && !i.disabled,
     })) }))
     .filter((gr) => gr.items.length);
@@ -487,7 +491,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:fame', label: t('Ruhmeshalle'), key: 'r' },
       ...(cloud.enabled ? [
         { act: 'go:warriors', label: t('Kriegerliste'), key: 'l', hint: cloud.signedIn ? '' : t('nur mit Spielerkonto'), disabled: !cloud.signedIn },
-        { act: 'go:mail', label: t('Briefe'), key: 'i', hint: !cloud.signedIn ? t('nur mit Spielerkonto') : ui.unread ? `${ui.unread} neu` : '', disabled: !cloud.signedIn },
+        { act: 'go:mail', label: t('Briefe'), key: 'i', hint: !cloud.signedIn ? t('nur mit Spielerkonto') : ui.unread ? t`${ui.unread} neu` : '', disabled: !cloud.signedIn },
       ] : []),
       { act: 'go:chronicle', label: t('Kampfchronik'), key: 'c', hint: s.chronicle.length ? t`${s.chronicle.length} Kämpfe` : '' },
       { act: 'go:settings', label: t('Einstellungen'), key: 'e' },
@@ -631,7 +635,7 @@ function trainingScreen(s: GameState): string {
       ${st === 'notReady' ? `<p class="muted">${t`Dir fehlen noch ${need - p.exp} Erfahrungspunkte.`}</p>` : ''}</div></div>`;
   }
   return layout(s, `<h1>${t`Der Trainingsplatz`}</h1>${flashHtml()}${text}`, [
-    { title: t('Training'), items: m && st !== 'max' ? [{ act: 'master', label: `${m.name} herausfordern`, key: 'm', disabled: st !== 'ok', hint: st === 'seen' ? t('morgen wieder') : st === 'ok' ? t`Aufstieg auf Stufe ${p.level + 1}` : t('noch nicht bereit') }] : [] },
+    { title: t('Training'), items: m && st !== 'max' ? [{ act: 'master', label: t`${m.name} herausfordern`, key: 'm', disabled: st !== 'ok', hint: st === 'seen' ? t('morgen wieder') : st === 'ok' ? t`Aufstieg auf Stufe ${p.level + 1}` : t('noch nicht bereit') }] : [] },
     { title: t('Zurück'), items: [back] },
   ]);
 }
@@ -742,7 +746,7 @@ function innScreen(s: GameState): string {
         { act: 'go:fivesix', label: t('Würfelecke: Fünf Sechser'), key: 'w', hint: !cloud.signedIn ? t('nur mit Spielerkonto') : t('Jackpot'), disabled: !cloud.signedIn },
       ] : []),
       { act: 'inn:song', label: t('Lied wünschen'), key: 'l', hint: p.songToday ? t('heute schon') : t('1 Edelstein'), disabled: p.songToday },
-      { act: 'go:flirt', label: p.marriedTo ? t`Zu ${PARTNERS[p.marriedTo].name} gehen` : `${PARTNERS[partnerOf(p)].name} umwerben`, key: 'u', hint: p.seenLover ? t('heute schon') : p.marriedTo ? t('dein Schatz') : '' },
+      { act: 'go:flirt', label: p.marriedTo ? t`Zu ${PARTNERS[p.marriedTo].name} gehen` : t`${PARTNERS[partnerOf(p)].name} umwerben`, key: 'u', hint: p.seenLover ? t('heute schon') : p.marriedTo ? t('dein Schatz') : '' },
       { act: 'looks', label: t`${PARTNERS[friendOf(p)].name} fragen, wie du aussiehst`, key: 'a' },
       ...(cloud.enabled ? [
         { act: 'room', label: t('Zimmer mieten'), key: 'z', hint: p.innRoom ? t('gemietet') : t`${roomCost(p.level)} Gold`, disabled: p.innRoom },
@@ -760,7 +764,7 @@ function tresenScreen(s: GameState): string {
     <p class="lead">${t`Frieda wischt den Tresen ab und schaut dich über den Rand ihres Glases an. „Was darf’s sein?“`}</p>
     ${flashHtml()}
     <div class="drunk-meter">${t`<span>Du bist ${drunkWord(drunk)}</span>`}<div class="progress">${bar(drunk, 100, drunk >= MAX_DRUNK ? 'hp low' : 'favor')}</div></div>
-    <ul class="potions">${DRINKS.map((d) => `<li><strong>${d.name}</strong> <span class="gold">${d.costPerLevel ? t`${drinkCost(d, p.level)} Gold` : t('umsonst')}</span>${d.hard ? ' <span class="tag">hart</span>' : ''}<br><small class="muted">${d.blurb}</small></li>`).join('')}</ul>
+    <ul class="potions">${DRINKS.map((d) => `<li><strong>${d.name}</strong> <span class="gold">${d.costPerLevel ? t`${drinkCost(d, p.level)} Gold` : t('umsonst')}</span>${d.hard ? ` <span class="tag">${t('hart')}</span>` : ''}<br><small class="muted">${d.blurb}</small></li>`).join('')}</ul>
     <p class="muted">${t`Ab „sturzbetrunken“ schenkt Frieda nichts mehr aus, und wer so ins Bett geht, hat morgen einen Kater. Betrunken lallst du auch in den Gesprächen.`}</p>`;
   return layout(s, main, [
     { title: t('Bestellen'), items: DRINKS.map((d, i) => ({
@@ -848,7 +852,7 @@ function lagerScreen(s: GameState): string {
   const items: Item[] = cp ? [
     { act: 'merc:heal', label: t('Vom Feldscher heilen lassen'), key: 'h', hint: heal ? t`${heal} Gold` : t('nicht nötig'), disabled: !heal || p.gold < heal },
     { act: 'merc:dismiss', label: ui.confirmDelete ? t('Wirklich entlassen? Nochmal drücken.') : t('Entlassen'), key: 'e' },
-  ] : COMPANIONS.map((c, i) => ({ act: `merc:hire:${c.id}`, label: `${c.name} anheuern`, key: String(i + 1), hint: t`${companionCost(c.id, p.level)} Gold`, disabled: p.gold < companionCost(c.id, p.level) }));
+  ] : COMPANIONS.map((c, i) => ({ act: `merc:hire:${c.id}`, label: t`${c.name} anheuern`, key: String(i + 1), hint: t`${companionCost(c.id, p.level)} Gold`, disabled: p.gold < companionCost(c.id, p.level) }));
   return layout(s, main, [{ title: t('Lager'), items }, { title: t('Zurück'), items: [back] }]);
 }
 
@@ -873,7 +877,7 @@ function stableScreen(s: GameState): string {
   });
   const ownItems: Item[] = own ? [
     { act: 'mount:feed', label: t('Füttern'), key: 'f', hint: p.mountFed ? t('heute schon') : t`${feedPrice(p)} Gold`, disabled: p.mountFed || p.gold < feedPrice(p) || (!!ownBuff && ownBuff.rounds >= own.rounds) },
-    { act: 'mount:sell', label: ui.confirmDelete ? t(`Wirklich verkaufen? Nochmal drücken.`) : `${own.name} verkaufen`, key: 'v', hint: t`+${mountRepay(p.mount)} Edelsteine` },
+    { act: 'mount:sell', label: ui.confirmDelete ? t(`Wirklich verkaufen? Nochmal drücken.`) : t`${own.name} verkaufen`, key: 'v', hint: t`+${mountRepay(p.mount)} Edelsteine` },
   ] : [];
   return layout(s, main, [
     { title: t('Stall'), items: [...ownItems, ...buyItems] },
@@ -897,7 +901,7 @@ function flirtScreen(s: GameState): string {
       { title: t('Zurück'), items: [toInn, back] },
     ]);
   }
-  const main = `<h1>${esc(pt.name)} umwerben</h1>
+  const main = `<h1>${t`${esc(pt.name)} umwerben`}</h1>
     <p class="lead">${esc(pt.intro)}</p>
     ${flashHtml()}
     <p class="muted">${t`Je kühner der Versuch, desto mehr Charme brauchst du. Ein Versuch pro Tag. ${p.seenLover ? esc(pt.notToday) : ''}`}</p>`;
@@ -1491,7 +1495,7 @@ function warriorsScreen(s: GameState): string {
     ${ui.listErr ? `<p class="warn-box">${esc(ui.listErr)}</p>` : ''}
     ${rows}`;
   return layout(s, main, [
-    { title: t('Kriegerliste'), items: [{ act: `bio:${me}`, label: t('Mein Steckbrief'), key: 's', disabled: !list?.some((w) => w.userId === me) }, { act: 'reloadlist', label: t('Neu laden'), key: 'n' }, { act: 'go:mail', label: t('Briefe'), key: 'i', hint: ui.unread ? `${ui.unread} neu` : '' }] },
+    { title: t('Kriegerliste'), items: [{ act: `bio:${me}`, label: t('Mein Steckbrief'), key: 's', disabled: !list?.some((w) => w.userId === me) }, { act: 'reloadlist', label: t('Neu laden'), key: 'n' }, { act: 'go:mail', label: t('Briefe'), key: 'i', hint: ui.unread ? t`${ui.unread} neu` : '' }] },
     { title: t('Zurück'), items: [back] },
   ]);
 }
@@ -1662,7 +1666,7 @@ function wacheScreen(s: GameState): string {
   } else {
     body = w.cheats === null ? '<p class="muted">…</p>' : !w.cheats.length ? `<p class="muted">${t`Nichts Auffälliges.`}</p>`
       : `<p class="muted">${t`Hier landet, was der Server an Spielwerten korrigiert hat. Einzelne Einträge können von Offline-Spielen kommen; wiederholt hohe Werte deuten auf Schummeln.`}</p>
-        <table class="mod-table"><thead><tr><th>${t`Wann`}</th><th>${t`Held`}</th><th>${t`Wert`}</th><th>geschickt</th><th>behalten</th><th></th></tr></thead><tbody>
+        <table class="mod-table"><thead><tr><th>${t`Wann`}</th><th>${t`Held`}</th><th>${t`Wert`}</th><th>${t`geschickt`}</th><th>${t`behalten`}</th><th></th></tr></thead><tbody>
         ${w.cheats.map((c) => `<tr><td>${when(c.created_at)}</td><td>${esc(c.name)}</td><td>${esc(c.field)}</td><td>${esc(c.sent)}</td><td>${esc(c.kept)}</td>
           <td>${c.banned ? t('gesperrt') : `<button type="button" class="tbtn danger" data-act="modban:${c.user_id}:on">${t`Sperren`}</button>`}</td></tr>`).join('')}</tbody></table>`;
   }
