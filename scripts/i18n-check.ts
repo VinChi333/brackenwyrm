@@ -51,6 +51,11 @@ function templateKey(tpl: ts.TemplateLiteral): string {
 }
 
 function looksLikeText(raw: string): boolean {
+  // sichtbare Attribute (aria-label, title, placeholder, alt) zählen als Text, auch innerhalb von HTML-Tags
+  for (const m of raw.matchAll(/\b(?:aria-label|title|placeholder|alt)="([^"]*)"/g)) {
+    const v = m[1].replace(/\{\d+\}/g, ' ').trim();
+    if (v && /[A-Za-zÄÖÜäöüß]{3,}/.test(v) && looksLikeText(v)) return true;
+  }
   const s = raw.replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\{\d+\}/g, ' ').trim();
   if (!s) return false;
   if (NOT_TEXT.some((r) => r.test(s))) return false;
@@ -110,7 +115,10 @@ for (const file of walk(SRC)) {
     if (!inTr && ts.isTemplateExpression(node)) {
       const parts = [node.head.text, ...node.templateSpans.map((s) => s.literal.text)];
       const joined = parts.join(' {0} ');
-      if (!ignored() && looksLikeText(joined)) loose.push({ at: at(), text: parts.join('${…}') });
+      // auch einzelne kleingeschriebene Wörter neben Werten ("${n}× besiegt", "${name} wartet!")
+      const bare = parts.join(' ').replace(/<[^>]*>/g, ' ').trim();
+      const lonely = /^[\s!?.,:;×()]*[a-zäöüß]{4,}[\s!?.,;)]*$/.test(bare) && !/^(px|rem|auto|none|true|false|solid|hidden|block|flex)$/.test(bare.replace(/[^a-zäöüß]/g, ''));
+      if (!ignored() && (looksLikeText(joined) || lonely)) loose.push({ at: at(), text: parts.join('${…}') });
       node.templateSpans.forEach((sp) => visit(sp.expression, false));
       return;
     }

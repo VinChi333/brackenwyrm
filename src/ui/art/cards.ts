@@ -207,11 +207,11 @@ export function cardHtml(c: CardInfo, opts: { hp?: [number, number, number] | nu
   const shine = live && (c.tier === 'gold' || c.tier === 'legend') ? '<span class="card-shine" aria-hidden="true"></span>' : '';
   return `<figure class="card tier-${c.tier} ${live ? 'is-live' : ''} ${opts.fx ? 'has-fx' : ''} ${opts.cls ?? ''}" data-tilt>
     <div class="card-art">${c.art}${(live || shade) && opts.fx ? fxLayer(c, c.tier === 'legend' ? 16 : 10) : ''}${shine}${live || shade ? '' : `${t`<span class="card-tag">Illustration folgt</span>`}`}</div>
-    ${shade ? '<div class="card-level" title="Seele">✦</div>' : `<div class="card-level" title="${t`Stufe`}">${c.level}</div>`}
+    ${shade ? `<div class="card-level" title="${t`Seele`}">✦</div>` : `<div class="card-level" title="${t`Stufe`}">${c.level}</div>`}
     ${opts.isNew ? `<div class="card-new">${t`Neu`}</div>` : ''}
     <figcaption class="card-plate"><span class="card-name">${c.name}</span><span class="card-tier">${c.tierLabel ?? TIER_LABEL[c.tier]}</span></figcaption>
-    ${hp ? `<div class="card-hp" aria-label="Lebenspunkte ${hp[0]} von ${hp[1]}"><i style="--from:${hp[2]}%;--to:${Math.round((100 * hp[0]) / hp[1])}%;width:${Math.round((100 * hp[0]) / hp[1])}%"></i><span>${hp[0]} / ${hp[1]}</span></div>` : ''}
-    ${opts.count ? `<div class="card-count">${opts.count}× besiegt</div>` : ''}
+    ${hp ? `<div class="card-hp" aria-label="${t`Lebenspunkte ${hp[0]} von ${hp[1]}`}"><i style="--from:${hp[2]}%;--to:${Math.round((100 * hp[0]) / hp[1])}%;width:${Math.round((100 * hp[0]) / hp[1])}%"></i><span>${hp[0]} / ${hp[1]}</span></div>` : ''}
+    ${opts.count ? `<div class="card-count">${t`${opts.count}× besiegt`}</div>` : ''}
   </figure>`;
 }
 

@@ -468,7 +468,7 @@ function villageScreen(s: GameState): string {
       ...(cloud.enabled ? [{ act: 'go:fields', label: t('Felder vor dem Tor'), key: 'f', hint: cloud.signedIn ? t('schlafende Helden') : t('nur mit Spielerkonto'), disabled: !cloud.signedIn }] : []),
     ] },
     { title: t('Dorf'), items: [
-      { act: 'go:training', label: t('Trainingsplatz'), key: 't', hint: mstate === 'ok' ? `${m?.name} wartet!` : '' },
+      { act: 'go:training', label: t('Trainingsplatz'), key: 't', hint: mstate === 'ok' ? t`${m?.name ?? ''} wartet!` : '' },
       { act: 'go:healer', label: t('Mirlas Kräuterhütte'), key: 'h', hint: p.hp < maxHp(p) ? t`${maxHp(p) - p.hp} LP fehlen` : '' },
       { act: 'go:smith', label: t('Alriks Schmiede'), key: 's' },
       { act: 'go:inn', label: t('Gasthaus'), key: 'g' },
@@ -808,7 +808,7 @@ function fivesixScreen(s: GameState): string {
     <p class="lead">${t`Am Ecktisch klappert ein alter Würfelbecher. „Fünf Würfel“, erklärt der Wirt vom Dienst, „fünf Sechser, und der ganze Topf gehört dir. Vier Sechser: ein Zehntel. Drei: ein Zwanzigstel. Jeder Wurf kommt in den Topf.“`}</p>
     ${flashHtml()}${d.err ? `<p class="warn-box">${esc(d.err)}</p>` : ''}
     <div class="jackpot">${t`<span>Im Topf</span><strong>${info ? info.pot : '…'} Gold</strong>`}</div>
-    ${last ? `<div class="dice" aria-label="Gewürfelt: ${last.dice.join(', ')}">${last.dice.map((x) => `<span class="die ${x === 6 ? 'six' : ''}">${DIE[x - 1]}</span>`).join('')}</div>
+    ${last ? `<div class="dice" aria-label="${t`Gewürfelt: ${last.dice.join(', ')}`}">${last.dice.map((x) => `<span class="die ${x === 6 ? 'six' : ''}">${DIE[x - 1]}</span>`).join('')}</div>
       <p class="${last.win ? 'gold' : 'muted'}">${last.sixes === 5 ? t`FÜNF SECHSER! Der ganze Topf gehört dir: ${last.win} Gold!` : last.win ? t`${last.sixes} Sechser! Du bekommst ${last.win} Gold.` : t`${last.sixes === 1 ? t('Ein Sechser') : last.sixes ? t`${last.sixes} Sechser` : t('Kein einziger Sechser')}. Das reicht nicht.`}</p>` : ''}
     ${info ? `<p class="muted">${t`Ein Wurf kostet ${info.cost} Gold. Heute noch ${info.plays_left} Würfe.`}</p>
       <h2>${t`Zuletzt gewonnen`}</h2>
@@ -1145,7 +1145,7 @@ function squareHtml(section: ChatSection = 'dorfplatz'): string {
     : sq.comments.length ? sq.comments.filter((x) => !(x.user_id && ui.blocked.has(x.user_id))).reverse().map((x) => `<p class="say"><span class="npc">${esc(x.name)}</span> <span class="muted">${when(x.created_at)}</span>${reportBtn('chat', x.id, x.user_id)}<br>${esc(x.body)}</p>`).join('')
     : `<p class="muted">${c.empty}</p>`;
   const input = cloud.signedIn
-    ? `<div class="row say-row"><input type="text" id="say" data-section="${section}" maxlength="200" placeholder="${c.hint ?? (section === 'schattenreich' ? t('Flüstere etwas …') : t('Sag etwas …'))}" value="${esc(ui.sayText)}" aria-label="Spruch für ${c.place}"><button type="button" class="tbtn" data-act="say:${section}">${section === 'schattenreich' ? t('Flüstern') : t('Sagen')}</button></div>`
+    ? `<div class="row say-row"><input type="text" id="say" data-section="${section}" maxlength="200" placeholder="${c.hint ?? (section === 'schattenreich' ? t('Flüstere etwas …') : t('Sag etwas …'))}" value="${esc(ui.sayText)}" aria-label="${t`Spruch für ${c.place}`}"><button type="button" class="tbtn" data-act="say:${section}">${section === 'schattenreich' ? t('Flüstern') : t('Sagen')}</button></div>`
     : `<p class="muted">${t`Mit einem Spielerkonto kannst du hier mitreden (Einstellungen).`}</p>`;
   return `<section class="square ${section}"><h2>${c.title}</h2>${list}${sq.error ? `<p class="warn">${esc(sq.error)}</p>` : ''}${input}</section>`;
 }
@@ -1285,8 +1285,8 @@ function festeMap(s: GameState): string {
     const visited = done || here || c === m.start;
     let mark = '';
     if (here) mark = '<span class="me" aria-label="Du">●</span>';
-    else if (c === m.start) mark = '<span title="Ausgang">⌂</span>';
-    else if (c === m.boss && (visited || run.bossDown)) mark = '<span class="boss" title="Halle des Hüters">♜</span>';
+    else if (c === m.start) mark = `<span title="${t('Ausgang')}">⌂</span>`;
+    else if (c === m.boss && (visited || run.bossDown)) mark = `<span class="boss" title="${t('Halle des Hüters')}">♜</span>`;
     else if (done) mark = '<span class="done">·</span>';
     cells.push(`<div class="fc${walls}${here ? ' here' : ''}">${mark}</div>`);
   }
@@ -1295,7 +1295,10 @@ function festeMap(s: GameState): string {
 
 function festePad(s: GameState): string {
   const ex = exits(s);
-  const btn = (d: Dir, arrow: string) => `<button type="button" class="pad-btn pad-${d}" data-act="feste:${d}" data-hotkey="${lang === 'en' && d === 'o' ? 'e' : d}" ${ex.includes(d) ? '' : 'disabled'} aria-label="${DIR_NAME[d]}" title="${DIR_NAME[d]} (${d.toUpperCase()})">${arrow}<small>${d.toUpperCase()}</small></button>`;
+  const btn = (d: Dir, arrow: string) => {
+    const k = lang === 'en' && d === 'o' ? 'e' : d;
+    return `<button type="button" class="pad-btn pad-${d}" data-act="feste:${d}" data-hotkey="${k}" ${ex.includes(d) ? '' : 'disabled'} aria-label="${DIR_NAME[d]}" title="${DIR_NAME[d]} (${k.toUpperCase()})">${arrow}<small>${k.toUpperCase()}</small></button>`;
+  };
   return `<div class="feste-pad">${btn('n', '▲')}${btn('w', '◀')}${btn('o', '▶')}${btn('s', '▼')}</div>
     <p class="muted pad-hint">${t`Am Computer: Pfeiltasten oder N, O, S, W`}</p>`;
 }

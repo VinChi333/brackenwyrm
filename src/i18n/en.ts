@@ -2203,4 +2203,12 @@ export const EN: Record<string, string> = {
   "{0} verkaufen": "Sell {0}",
   "geschickt": "sent",
   "behalten": "kept",
+  "Spruch für {0}": "Message for {0}",
+  "Gewürfelt: {0}": "Rolled: {0}",
+  "Ausgang": "Exit",
+  "Halle des Hüters": "Guardian's hall",
+  "Seele": "Soul",
+  "Lebenspunkte {0} von {1}": "Hitpoints {0} of {1}",
+  "{0}× besiegt": "defeated {0}×",
+  "{0} wartet!": "{0} is waiting!",
 };
