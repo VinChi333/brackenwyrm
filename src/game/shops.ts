@@ -8,7 +8,7 @@ import { RACES, raceName } from '../content/races';
 import { SPECIALTIES } from '../content/specialties';
 import type { GameState, RaceId, SpecialtyId } from './types';
 
-import { t } from '../i18n';
+import { lang, t } from '../i18n';
 
 export type PotionId = 'charme' | 'leben' | 'heil' | 'vergessen' | 'verwandlung';
 
@@ -82,7 +82,7 @@ export function chooseNewRace(s: GameState, id: RaceId): string {
     wearOff: t('Die Übelkeit lässt nach. Endlich.'),
   }];
   const n = raceName(id, p.gender);
-  return t`Als das Würgen aufhört, bist du ${/(in|e)$/.test(n) ? 'eine' : 'ein'} ${n}. Dir ist noch ${SICKNESS_ROUNDS} Kampfrunden lang übel.`;
+  return t`Als das Würgen aufhört, bist du ${lang === 'en' ? (/^[aeiou]/i.test(n) ? 'an' : 'a') : /(in|e)$/.test(n) ? 'eine' : 'ein'} ${n}. Dir ist noch ${SICKNESS_ROUNDS} Kampfrunden lang übel.`;
 }
 
 // ---------- Die Seherin ----------

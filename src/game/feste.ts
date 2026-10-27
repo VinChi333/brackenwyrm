@@ -191,12 +191,13 @@ export function exits(s: GameState): Dir[] {
 
 function compass(from: number, to: number): string {
   const [x1, y1] = cellXY(from); const [x2, y2] = cellXY(to);
-  const ns = y2 < y1 ? t('Nord') : y2 > y1 ? t('Süd') : '';
-  const ow = x2 > x1 ? 'ost' : x2 < x1 ? 'west' : '';
-  if (!ns && !ow) return 'genau hier';
-  if (!ns) return `im ${ow === 'ost' ? t('Osten') : t('Westen')}`;
-  if (!ow) return `im ${ns}en`;
-  return `im ${ns}${ow}en`;
+  const ns = y2 < y1 ? 'n' : y2 > y1 ? 's' : '';
+  const ow = x2 > x1 ? 'o' : x2 < x1 ? 'w' : '';
+  const names: Record<string, string> = {
+    '': t('genau hier'), n: t('im Norden'), s: t('im Süden'), o: t('im Osten'), w: t('im Westen'),
+    no: t('im Nordosten'), nw: t('im Nordwesten'), so: t('im Südosten'), sw: t('im Südwesten'),
+  };
+  return names[ns + ow];
 }
 
 /** Feste-Kampf vorbereiten: kleine Gegner wie im Wald (etwas weniger Lohn), der Hüter wie ein starker Meister. */

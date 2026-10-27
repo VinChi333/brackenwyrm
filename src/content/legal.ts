@@ -5,13 +5,13 @@ import { t } from '../i18n';
 // BITTE AUSFÜLLEN: Angaben in eckigen Klammern. Solange etwas in [ ] steht, zeigt das Spiel einen Hinweis.
 
 export const OPERATOR = {
-  name: t('Christopher [Nachname]'),
-  street: t('[Straße und Hausnummer]'),
-  city: t('[PLZ] [Ort]'),
+  name: 'Christopher [Nachname]', // i18n-ignore
+  street: '[Straße und Hausnummer]', // i18n-ignore
+  city: '[PLZ] [Ort]', // i18n-ignore
   country: t('Österreich'),
-  email: t('[E-Mail-Adresse für Anfragen]'),
+  email: '[E-Mail-Adresse für Anfragen]', // i18n-ignore
   /** Region des Supabase-Projekts (steht im Supabase-Dashboard unter Project Settings → General). */
-  dbRegion: t('[Region, z. B. EU Central (Frankfurt)]'),
+  dbRegion: '[Region, z. B. EU Central (Frankfurt)]', // i18n-ignore
 };
 
 export const LEGAL_UPDATED = t('Oktober 2026');

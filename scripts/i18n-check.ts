@@ -21,7 +21,7 @@ function walk(dir: string): string[] {
 }
 
 // Dateien ohne Spieltext (oder mit eigener Behandlung).
-const SKIP_FILES = [/\/i18n\/en/, /\/content\/badwords\.ts$/, /\/main\.ts$/];
+const SKIP_FILES = [/\/i18n\/en/, /\/i18n\/index\.ts$/, /\/content\/badwords\.ts$/, /\/main\.ts$/];
 // Wörter/Muster, die keine Spieltexte sind.
 const NOT_TEXT = [
   /^[a-z0-9_:\-./#?=&%[\]]*$/,          // ids, Pfade, Aktionen
@@ -30,6 +30,7 @@ const NOT_TEXT = [
   /^https?:\/\//,
   /^[\s\d.,:;+\-–—×%°/()|·•…→←↑↓✓✗★☆♥]*$/,
   /\.(webp|png|jpg|mp3|svg|css|ts|js)$/,
+  /^(GET|POST|PATCH|DELETE|PUT)$/, /^[a-z]+:[a-zA-Z]+$/, /^mailto:/, /^ö$/, /^Re: ?$/, /^name,level/,
   /^\/(rest|auth)\//, /\?select=/, /=eq\./, /^Bearer/, /resolution=/, /^BW\d:/, /^\s*data-[a-z-]+="/, /^\[data-/, /^\.[a-z-]+ \./,
 ];
 
@@ -54,6 +55,7 @@ function looksLikeText(raw: string): boolean {
   if (!s) return false;
   if (NOT_TEXT.some((r) => r.test(s))) return false;
   if (/[äöüÄÖÜß„“]/.test(s)) return true;
+  if (/\b(du|dich|dir|dein|nicht|noch|ein|eine|einen|heute|morgen|schon|hat|ist|und|mit|nur|zu|bis|ab|für|der|die|das|den|dem|kein|keine)\b/i.test(s) && /\s/.test(s)) return true;
   const words = s.match(/[A-Za-z]{2,}/g) ?? [];
   if (!words.length) return false;
   // CSS-Klassen, Attribute, Code-Schnipsel ausschließen
@@ -129,6 +131,28 @@ const placeholderBad = [...keys.keys()].filter((k) => {
 
 if (args.has('--keys')) {
   console.log(JSON.stringify([...keys.keys()], null, 1));
+  process.exit(0);
+}
+// Arbeitslisten für die Übersetzung: pro Quelldatei "Nr<TAB>Text" (nur fehlende), dazu ids.json
+const exportDir = process.argv[process.argv.indexOf('--export') + 1];
+if (args.has('--export') && exportDir) {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  mkdirSync(exportDir, { recursive: true });
+  const ids: Record<number, string> = {};
+  const perFile = new Map<string, string[]>();
+  let n = 0;
+  for (const [k, locs] of keys) {
+    if (EN[k] !== undefined) continue;
+    n++;
+    ids[n] = k;
+    const f = locs[0].split(':')[0].replace(/^src\//, '').replace(/\//g, '_').replace(/\.ts$/, '');
+    const list = perFile.get(f) ?? [];
+    list.push(`${n}\t${k.replace(/\\/g, '\\\\').replace(/\n/g, '\\n')}`);
+    perFile.set(f, list);
+  }
+  writeFileSync(join(exportDir, 'ids.json'), JSON.stringify(ids));
+  for (const [f, list] of perFile) writeFileSync(join(exportDir, `${f}.de.tsv`), list.join('\n') + '\n');
+  console.log(`Exportiert: ${n} Texte in ${perFile.size} Dateien nach ${exportDir}`);
   process.exit(0);
 }
 

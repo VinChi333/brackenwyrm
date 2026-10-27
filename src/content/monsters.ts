@@ -147,7 +147,7 @@ export const MONSTERS: MonsterDef[] = [
     hits: t('schleudert dich mit einem Flügelschlag zu Boden'), falls: t('Der Sturmrabe verweht wie eine Gewitterwolke.') },
   { id: 'waldhexe', name: t('Waldhexe'), level: 13, shape: 'humanoid', prop: 'staff', scale: 1.0, eyes: '#c8e07a',
     intro: t('Eine Waldhexe kichert. „Du kommst mir gerade recht.“'),
-    hits: 'verflucht dich', falls: t('Die Waldhexe verwandelt sich in eine Kröte und hüpft davon.') },
+    hits: t('verflucht dich'), falls: t('Die Waldhexe verwandelt sich in eine Kröte und hüpft davon.') },
 
   // Stufe 14
   { id: 'eichenhueter', name: t('Eichenhüter'), level: 14, shape: 'treant', scale: 1.35, eyes: '#ffcf5a',

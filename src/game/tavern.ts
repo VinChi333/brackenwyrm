@@ -52,10 +52,10 @@ export function drinkCost(d: Drink, level: number): number {
 
 export function drunkWord(drunk: number): string {
   if (drunk <= 0) return t('nüchtern');
-  if (drunk < 20) return 'beschwipst';
-  if (drunk < 40) return 'angeheitert';
-  if (drunk < 60) return 'ordentlich betrunken';
-  return 'sturzbetrunken';
+  if (drunk < 20) return t('beschwipst');
+  if (drunk < 40) return t('angeheitert');
+  if (drunk < 60) return t('ordentlich betrunken');
+  return t('sturzbetrunken');
 }
 
 export function orderDrink(s: GameState, id: DrinkId): { ok: boolean; lines: string[] } {

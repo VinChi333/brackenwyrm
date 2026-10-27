@@ -45,10 +45,10 @@ export interface ForestEvent {
 /** Rätsel des alten Baums. right = Index der richtigen Antwort. */
 const RIDDLES: { q: string; a: [string, string, string]; right: number }[] = [
   { q: t('Je mehr du davon nimmst, desto mehr lässt du zurück. Was ist es?'), a: [t('Gold'), t('Schritte'), t('Zeit')], right: 1 },
-  { q: t('Es hat Wurzeln, die niemand sieht, ist höher als jeder Baum, wächst aber nie. Was ist es?'), a: [t('Ein Berg'), t('Ein Wyrm'), t('Der Himmel')], right: 0 },
+  { q: t('Ich habe ein Bett, aber schlafe nie, einen Mund, aber esse nie. Was bin ich?'), a: [t('Ein Wyrm'), t('Ein Fluss'), t('Ein Brunnen')], right: 1 },
   { q: t('Ich habe Städte, aber keine Häuser, Wälder, aber keine Bäume, Wasser, aber keine Fische. Was bin ich?'), a: [t('Ein Traum'), t('Eine Landkarte'), t('Ein Spiegel')], right: 1 },
   { q: t('Was wird nasser, je mehr es trocknet?'), a: [t('Ein Handtuch'), t('Moos'), t('Ein Schwamm im Regen')], right: 0 },
-  { q: t('Ohne Stimme schreit es, ohne Flügel flattert es, ohne Zähne beißt es, ohne Mund murmelt es. Was ist es?'), a: [t('Ein Geist'), t('Der Wind'), t('Feuer')], right: 1 },
+  { q: t('Je mehr davon da ist, desto weniger siehst du. Was ist es?'), a: [t('Moos'), t('Gold'), t('Dunkelheit')], right: 2 },
   { q: t('Was gehört dir, wird aber von anderen viel öfter benutzt als von dir?'), a: [t('Dein Gold'), t('Dein Pferd'), t('Dein Name')], right: 2 },
   { q: t('Ich bin immer vor dir, aber du kannst mich nie sehen. Was bin ich?'), a: [t('Die Zukunft'), t('Dein Schatten'), t('Der Wald')], right: 0 },
   { q: t('Was hat einen Hals, aber keinen Kopf?'), a: [t('Ein Schwert'), t('Eine Flasche'), t('Ein Wurm')], right: 1 },
@@ -345,7 +345,7 @@ export const FOREST_EVENTS: ForestEvent[] = [
     ],
     choices: [
       { id: 'spielen', label: t('Huldas Spiel spielen'), key: 's', run: (p) => {
-        const colors = ['getigertes', 'schwarzes', 'rotes', t('weißes')];
+        const colors = [t('getigertes'), t('schwarzes'), t('rotes'), t('weißes')];
         let c = [roll(0, 3), roll(0, 3), roll(0, 3)];
         const hedgehogs = roll(1, 20) === 1;
         if (hedgehogs) c = [4, 4, 4];

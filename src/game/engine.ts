@@ -401,9 +401,9 @@ function foeLabel(f: Fight): { n: string; a: string; N: string } {
 
 function foeHits(f: Fight): string {
   if (f.kind === 'dragon') return DRAGON.hits;
-  if (f.kind === 'grave') return shadeById(f.monsterId)?.hits ?? 'greift nach dir';
-  if (f.kind === 'master') return 'trifft dich';
-  return monsterById(f.monsterId)?.hits ?? 'trifft dich';
+  if (f.kind === 'grave') return shadeById(f.monsterId)?.hits ?? t('greift nach dir');
+  if (f.kind === 'master') return t('trifft dich');
+  return monsterById(f.monsterId)?.hits ?? t('trifft dich');
 }
 
 export type FightAction = 'attack' | 'flee' | `skill:${number}`;
