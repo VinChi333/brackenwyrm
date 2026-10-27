@@ -708,3 +708,31 @@ textarea#mail-body { width: 100%; font: inherit; color: var(--text); background:
 .companion-line { margin: 2px 0 8px; color: var(--green); font-size: .95rem; }
 .companion-line.off { color: var(--muted); }
 #tf-to, #bounty-to { max-width: 100%; min-width: 0; }
+
+/* 0.41: Einstieg für Neulinge */
+.guide-card { position: relative; border: 1px solid var(--gold); border-radius: 12px; padding: 14px 16px; margin: 12px 0; background: linear-gradient(160deg, #262036, #161a2d); box-shadow: 0 0 28px rgba(232, 184, 90, .10); display: flex; flex-direction: column; gap: 6px; }
+.guide-card h2 { margin: 2px 0 0; color: var(--gold-hi); font-size: 1.25rem; }
+.guide-card p { margin: 0; }
+.guide-card .row { margin-top: 6px; align-items: center; flex-wrap: wrap; gap: 10px 16px; }
+.guide-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
+.guide-dots { display: inline-flex; gap: 5px; }
+.guide-dots i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--gold); display: inline-block; }
+.guide-dots i.on { background: var(--gold); }
+.guide-dots i.now { background: var(--gold-hi); box-shadow: 0 0 0 3px rgba(232, 184, 90, .25); }
+.guide-tip { color: var(--cyan); font-size: .95rem; }
+.guide-card.done { border-color: var(--green); }
+.guide-toast { border: 1px solid var(--green); border-radius: 10px; background: rgba(116, 214, 142, .08); padding: 10px 14px; margin: 8px 0 12px; animation: toast-in .35s ease-out; }
+.guide-toast p { margin: 2px 0; color: var(--green); }
+@keyframes toast-in { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
+.first-hint { display: flex; gap: 10px; align-items: flex-start; border: 1px dashed var(--line); border-radius: 10px; background: var(--panel-2); padding: 10px 12px; margin: 8px 0 12px; }
+.first-hint p { margin: 0; flex: 1; font-size: .95rem; }
+.first-hint-icon { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--cyan); color: #10131f; font-weight: 700; font-size: .85rem; }
+.hint-x { flex: none; background: none; border: 0; color: var(--muted); font-size: 1.3rem; line-height: 1; cursor: pointer; padding: 0 4px; min-width: 32px; min-height: 32px; }
+.hint-x:hover { color: var(--text); }
+.badge { font-style: normal; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #10131f; background: var(--green); border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
+.nav-link.guided { box-shadow: inset 3px 0 0 var(--gold-hi); }
+.nav-link.guided > span:first-child::before, .dock-btn.guided:not(.primary) > span:first-child::before { content: '➜ '; color: var(--gold-hi); display: inline-block; animation: guide-pulse 1.6s ease-in-out infinite; }
+.dock-btn.guided:not(.primary) { border-color: var(--gold); }
+@keyframes guide-pulse { 0%, 100% { opacity: .45; transform: translateX(-2px); } 50% { opacity: 1; transform: translateX(1px); } }
+@media (prefers-reduced-motion: reduce) { .guide-toast, .nav-link.guided > span:first-child::before, .dock-btn.guided > span:first-child::before { animation: none; } }
+body.reduced .guide-toast, body.reduced .nav-link.guided > span:first-child::before, body.reduced .dock-btn.guided > span:first-child::before { animation: none; }

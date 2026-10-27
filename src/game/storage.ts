@@ -2,6 +2,7 @@
 // später zusätzlich auf dem Server, damit Handy und PC denselben Stand haben.
 
 import { normalizeSpecialty } from '../content/specialties';
+import { sanitizeGuide } from './guide';
 import { normalizeRace } from '../content/races';
 import type { GameState, Stats } from './types';
 
@@ -86,6 +87,7 @@ export function validate(x: unknown): GameState | null {
   const fr = s.feste;
   s.feste = fr && typeof fr === 'object' && typeof fr.day === 'string' && Number.isInteger(fr.pos) && Array.isArray(fr.seen) && Array.isArray(fr.done) && Array.isArray(fr.log) ? fr : null;
   if (s.player.loverPref !== 'frieda' && s.player.loverPref !== 'florian') delete s.player.loverPref;
+  s.guide = sanitizeGuide(s.guide);
   s.outbox = Array.isArray(s.outbox) ? s.outbox.slice(-20) : [];
   s.stats = Object.assign(newStats(1), s.stats ?? {});
   s.pendingEvent = s.pendingEvent ?? null;

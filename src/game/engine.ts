@@ -6,6 +6,7 @@ import { ARMORS, WEAPONS, tradeIn } from '../content/items';
 import { masterForLevel } from '../content/masters';
 import { DRAGON, MONSTERS, acc, datIndef, monsterById, monstersOfLevel, nom } from '../content/monsters';
 import { say, type Names } from '../content/fighttext';
+import { guideFlag, newGuide } from './guide';
 import { COMPANIONS, COMPANION_TEXT, companionDef, type CompanionId } from '../content/companions';
 import { shadeById, SHADES } from '../content/shades';
 import { SPECIALTIES } from '../content/specialties';
@@ -59,6 +60,7 @@ export function newGame(name: string, specialty: SpecialtyId, gender: Gender = '
     outbox: [],
     pendingEvent: null,
     settings: { retro: false, reducedMotion: false },
+    guide: newGuide(),
   };
 }
 
@@ -805,12 +807,13 @@ export function chooseDragonBonus(s: GameState, bonus: DragonBonus, specialty?: 
 export function heal(s: GameState, mode: 'full' | 'half'): string {
   const p = s.player;
   const missing = maxHp(p) - p.hp;
-  if (missing <= 0) return 'Du bist kerngesund. Mirla schickt dich weg.';
+  if (missing <= 0) { guideFlag(s, 'heal'); return 'Du bist kerngesund. Mirla schickt dich weg.'; }
   const amount = mode === 'full' ? missing : Math.ceil(missing / 2);
   const cost = healCost(p, amount);
   if (p.gold < cost) return `Das kostet ${cost} Gold. So viel hast du nicht dabei.`;
   p.gold -= cost;
   p.hp += amount;
+  guideFlag(s, 'heal');
   return mode === 'full'
     ? `Mirla reibt dir Arnikasalbe auf die Wunden. Du bist wieder ganz heil. (${cost} Gold)`
     : `Mirla verbindet das Gröbste. ${amount} Lebenspunkte geheilt. (${cost} Gold)`;
@@ -876,6 +879,7 @@ export function talkToFrieda(s: GameState): string {
   const p = s.player;
   if (p.innTalks >= FRIEDA_TALKS_PER_DAY) return 'Frieda hat gerade alle Hände voll zu tun. „Morgen wieder, Schätzchen.“';
   const t = friedaSays(s, p.innTalks);
+  guideFlag(s, 'talk');
   p.innTalks += 1;
   return t;
 }

@@ -35,6 +35,8 @@ import { DIR_NAME, FESTE_COST, FESTE_MIN_LEVEL, SIZE as FESTE_SIZE, afterFesteFi
 import { FESTE_FOES, FESTE_NAME, FESTE_TEXT, HEIRLOOMS, SCROLLS, heirloom } from '../content/feste';
 import { COMPANION_TEXT, companionDef, type CompanionId } from '../content/companions';
 import { COMPANIONS, companionCost, companionHealCost, companionMaxHp, dismissCompanion, healCompanion, hireCompanion } from '../game/engine';
+import { GUIDE_END, GUIDE_STEPS, SCREEN_HINTS, type GuideStep } from '../content/guide';
+import { closeGuide, currentStep, guideFinished, guideUpdate, guideVisit, placeOpen, skipGuide } from '../game/guide';
 import { DRINKS, MAX_DRUNK, drinkCost, drunkWord, orderDrink, slur, type DrinkId } from '../game/tavern';
 import { POTIONS, chooseNewRace, chooseNewSpecialty, drinkPotion, paySeer, seerCost, type PotionId } from '../game/shops';
 import { AMBROS_GAMES_PER_DAY, AMBROS_TRIES, ambrosBets, guessAmbros, startAmbros, type AmbrosGame } from '../game/ambros';
@@ -55,7 +57,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = 'Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.';
-const VERSION = 'Testversion 0.40';
+const VERSION = 'Testversion 0.41';
 
 interface Ui {
   screen: Screen;
@@ -111,13 +113,16 @@ interface Ui {
   acctMsg: string;
   conflict: RemoteSave | null;  // Server-Stand, wenn beide Geräte weitergespielt haben
   fame: FameRow[] | null;       // echte Spieler aus der Online-Ruhmeshalle
+  guideToast: string[];         // Einstieg: gerade geschaffte Schritte / neue Orte
+  hint: string;                 // Einstieg: Bildschirm, dessen Ersthinweis gerade gezeigt wird
+  confirmGuide: boolean;
 }
 
 let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
 };
 let root: HTMLElement;
 
@@ -131,7 +136,7 @@ function pct(a: number, b: number): number {
   return Math.max(0, Math.min(100, Math.round((100 * a) / Math.max(1, b))));
 }
 
-interface Item { act: string; label: string; key?: string; hint?: string; disabled?: boolean; primary?: boolean; mobileOnly?: boolean }
+interface Item { act: string; label: string; key?: string; hint?: string; disabled?: boolean; primary?: boolean; mobileOnly?: boolean; badge?: string; guided?: boolean }
 interface Group { title: string; items: Item[]; dock?: boolean }
 
 /** Tastenkürzel im Wort hervorheben, wie damals: "[W]ald" → W unterstrichen und farbig. */
@@ -144,8 +149,8 @@ function hotLabel(label: string, key?: string): string {
 
 function navHtml(groups: Group[]): string {
   return groups.map((g) => `<section class="nav-group"><h3>${esc(g.title)}</h3>
-    ${g.items.map((it) => `<button type="button" class="nav-link ${it.primary ? 'primary' : ''} ${it.mobileOnly ? 'mobile-only' : ''}" data-act="${it.act}" ${it.key ? `data-hotkey="${it.key}"` : ''} ${it.disabled ? 'disabled' : ''}>
-      <span>${hotLabel(it.label, it.key)}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}</button>`).join('')}
+    ${g.items.map((it) => `<button type="button" class="nav-link ${it.primary ? 'primary' : ''} ${it.mobileOnly ? 'mobile-only' : ''} ${it.guided ? 'guided' : ''}" data-act="${it.act}" ${it.key ? `data-hotkey="${it.key}"` : ''} ${it.disabled ? 'disabled' : ''}>
+      <span>${hotLabel(it.label, it.key)}${it.badge ? ` <em class="badge">${esc(it.badge)}</em>` : ''}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}</button>`).join('')}
   </section>`).join('');
 }
 
@@ -214,8 +219,8 @@ function dockItems(groups: Group[]): Item[] {
 }
 
 function dockHtml(items: Item[], needMenu: boolean): string {
-  const btn = (it: Item, primary: boolean) => `<button type="button" class="dock-btn ${primary ? 'primary' : ''}" data-act="${it.act}" ${it.disabled ? 'disabled' : ''}>
-      <span>${hotLabel(it.label, it.key)}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}</button>`;
+  const btn = (it: Item, primary: boolean) => `<button type="button" class="dock-btn ${primary ? 'primary' : ''} ${it.guided ? 'guided' : ''}" data-act="${it.act}" ${it.disabled ? 'disabled' : ''}>
+      <span>${hotLabel(it.label, it.key)}${it.badge ? ` <em class="badge">${esc(it.badge)}</em>` : ''}</span>${it.hint ? `<small>${esc(it.hint)}</small>` : ''}</button>`;
   const [main, ...rest] = items;
   const sec = rest.map((it) => btn(it, false));
   if (needMenu) sec.push(`<button type="button" class="dock-btn menu" data-act="menu" aria-expanded="${ui.menuOpen}">☰ Menü</button>`);
@@ -227,7 +232,71 @@ function dockHtml(items: Item[], needMenu: boolean): string {
   </div>`;
 }
 
+/** Einstieg: Ziel des aktuellen Schritts (wohin "Hinbringen" führt). */
+function stepTarget(s: GameState, st: GuideStep): string {
+  if (st.id === 'meister') return canChallengeMaster(s.player) === 'ok' ? 'go:training' : 'go:forest';
+  return st.go;
+}
+
+/** Einstieg: Orte nach Stufe ausblenden, neue Orte und das aktuelle Ziel markieren. */
+function guideGroups(s: GameState, groups: Group[]): Group[] {
+  const g = s.guide;
+  if (!g) return groups;
+  const st = currentStep(s);
+  const target = st && g.step >= 0 ? stepTarget(s, st) : '';
+  return groups
+    .map((gr) => ({ ...gr, items: gr.items.filter((i) => placeOpen(s, i.act)).map((i) => ({
+      ...i,
+      badge: g.fresh.includes(i.act) ? 'neu' : i.badge,
+      guided: !!target && i.act === target && !i.disabled,
+    })) }))
+    .filter((gr) => gr.items.length);
+}
+
+/** Einstieg: geschaffte Schritte und der Hinweis beim ersten Besuch, gleich unter der Überschrift. */
+function guideTop(): string {
+  const parts: string[] = [];
+  if (ui.guideToast.length) parts.push(`<div class="guide-toast" role="status">${ui.guideToast.map((t) => `<p>${esc(t)}</p>`).join('')}</div>`);
+  const scr = currentScreen();
+  const h = ui.hint === scr && !(scr === 'fight' && state?.fight?.over) ? SCREEN_HINTS[scr] : '';
+  if (h) parts.push(`<aside class="first-hint"><span class="first-hint-icon" aria-hidden="true">?</span><p>${esc(h)}</p><button type="button" class="hint-x" data-act="hintclose" aria-label="Hinweis schließen">×</button></aside>`);
+  return parts.join('');
+}
+
+function guideCardHtml(s: GameState): string {
+  const g = s.guide;
+  if (!g || guideFinished(g) || !prefs.welcomed) return '';
+  const n = GUIDE_STEPS.length;
+  if (g.step >= n) {
+    return `<section class="guide-card done" aria-label="Erste Schritte">
+      <div class="guide-head"><span>Erste Schritte</span><span>alle geschafft</span></div>
+      <h2>${GUIDE_END.title}</h2><p>${GUIDE_END.text}</p>
+      <div class="row"><button type="button" class="btn" data-act="guide:end">Auf geht’s</button></div></section>`;
+  }
+  const st = GUIDE_STEPS[g.step];
+  const p = s.player;
+  const target = stepTarget(s, st);
+  let text = st.text;
+  let label = st.goLabel;
+  if (st.id === 'meister' && target === 'go:training') { text = 'Dein Erfahrungsbalken ist voll! Dein Meister wartet auf dem Trainingsplatz. Besiege ihn, dann steigst du eine Stufe auf.'; label = 'Zum Trainingsplatz'; }
+  let tip = '';
+  if (target === 'go:forest' && p.forestFights <= 0) tip = 'Für heute sind deine Waldkämpfe aufgebraucht. Um Mitternacht gibt es neue. Bis dahin kannst du im Dorf einkaufen, dich heilen lassen oder ins Gasthaus gehen.';
+  else if (target === 'go:forest' && p.hp < maxHp(p) * 0.35) tip = 'Du bist ziemlich angeschlagen. Lass dich besser erst bei Mirla heilen.';
+  const dots = GUIDE_STEPS.map((_, i) => `<i class="${i < g.step ? 'on' : i === g.step ? 'now' : ''}"></i>`).join('');
+  return `<section class="guide-card" aria-label="Erste Schritte">
+    <div class="guide-head"><span>Erste Schritte · ${g.step + 1} von ${n}</span><span class="guide-dots" aria-hidden="true">${dots}</span></div>
+    <h2>${st.title}</h2>
+    <p>${text}</p>
+    ${tip ? `<p class="guide-tip">${tip}</p>` : ''}
+    <div class="row"><button type="button" class="tbtn" data-act="${target}">${label}</button>
+      <button type="button" class="linkish" data-act="guide:skip">${ui.confirmGuide ? 'Wirklich? Dann siehst du sofort alle Orte. Nochmal tippen.' : 'Einführung überspringen'}</button></div>
+  </section>`;
+}
+
 function layout(s: GameState, main: string, groups: Group[], cls = ''): string {
+  groups = guideGroups(s, groups);
+  const top = guideTop();
+  if (top) main = main.includes('</h1>') ? main.replace('</h1>', `</h1>${top}`) : top + main;
   const dock = dockItems(groups);
   const needMenu = groups.flatMap((g) => g.items).some((i) => !dock.includes(i));
   const n = dock.length + (needMenu ? 1 : 0);
@@ -336,6 +405,7 @@ function createScreen(): string {
     ${raceChoices(ui.createRace, ui.createSpec, ui.createGender, 'race')}
     <h2>Was hast du als Kind gemacht?</h2>
     ${specChoices(ui.createSpec, 'spec')}
+    <p class="guide-tip">Keine Sorge, hier kannst du nichts falsch machen. Rasse und Fähigkeit lassen sich später noch ändern.</p>
     <p class="muted">Jeden Tag hast du einen Punkt für deine Fähigkeit. Mit jedem Meister, den du besiegst, wirst du besser darin, und jede dritte Stufe bringt einen Punkt mehr pro Tag.</p>
     <div class="row"><button type="button" class="btn" data-act="create">Nach Moosgrund aufbrechen</button>
       <button type="button" class="btn ghost" data-act="go:title">Zurück</button></div>
@@ -356,6 +426,7 @@ function villageScreen(s: GameState): string {
       <p class="muted">Der Spielstand liegt in diesem Browser. Nicht im privaten Fenster spielen, sonst ist er weg.</p>
       <button type="button" class="btn" data-act="welcome">Los geht’s</button>
     </section>`}
+    ${guideCardHtml(s)}
     <p class="statue">${statueText(s)}</p>
     ${(() => { const a = ui.aushang?.[0]; return a && a.id > (prefs.aushangSeen ?? 0) ? `<section class="notice new"><h2>Neu am Rathaus: ${esc(a.title)}</h2><p>${esc(a.body).replace(/\n/g, '<br>')}</p><div class="row"><button type="button" class="tbtn" data-act="aushangseen:${a.id}">Gelesen</button><button type="button" class="tbtn ghost" data-act="go:aushang">Alle Aushänge</button></div></section>` : ''; })()}
     ${flashHtml()}
@@ -376,7 +447,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:quirin', label: 'Quirins Tränke', key: 'q', hint: p.pendingChoice ? 'du musst dich entscheiden' : p.gems ? `${p.gems} Edelstein${p.gems === 1 ? '' : 'e'}` : '' },
     ] },
     { title: 'Am Dorfrand', items: [
-      { act: 'go:lager', label: 'Söldnerlager', key: 'd', hint: p.companion ? `${companionDef(p.companion.id)?.name ?? ''}${p.companion.hp <= 0 ? ' (k. o.)' : ''}` : 'Begleiter anheuern' },
+      { act: 'go:lager', label: 'Söldnerlager', key: 'ö', hint: p.companion ? `${companionDef(p.companion.id)?.name ?? ''}${p.companion.hp <= 0 ? ' (k. o.)' : ''}` : 'Begleiter anheuern' },
       ...(cloud.enabled ? [{ act: 'go:seer', label: 'Das Zelt der Seherin', key: 'z', hint: p.seerPaid ? 'bezahlt' : 'mit den Toten reden' }] : []),
       { act: 'go:ambros', label: 'Der alte Ambros', key: 'a', hint: (p.ambrosGames ?? 0) >= AMBROS_GAMES_PER_DAY ? 'schläft' : 'Zahlenraten' },
       ...(cloud.enabled ? [
@@ -513,7 +584,7 @@ function fightScreen(s: GameState): string {
           return `<p class="companion-line ${cp.hp <= 0 || !on ? 'off' : ''}">${esc(cd.name)} (${cd.role}): ${!on ? 'wartet draußen' : cp.hp <= 0 ? 'k. o.' : `${cp.hp} / ${cp.maxHp} LP`}</p>`; })()}
         <div class="log fight-log ${ui.fullLog ? 'open' : ''}" aria-live="polite">${fightLogHtml(f.log)}</div>
         ${f.round > 2 ? `<button type="button" class="log-toggle" data-act="fulllog">${ui.fullLog ? 'Bericht einklappen' : `Ganzen Kampf anzeigen (${f.round} Runden)`}</button>` : ''}
-        ${prefs.fightHint ? '' : '<p class="hint-desk">Deine Befehle stehen links, wie früher. Taste <b class="hk">A</b> greift an, <b class="hk">K</b> kämpft bis zum Ende.</p>'}
+        ${prefs.fightHint || s.guide ? '' : '<p class="hint-desk">Deine Befehle stehen links, wie früher. Taste <b class="hk">A</b> greift an, <b class="hk">K</b> kämpft bis zum Ende.</p>'}
       </div>
     </div>`;
   return layout(s, main, groups, 'in-fight');
@@ -1497,6 +1568,7 @@ function settingsScreen(s: GameState): string {
     { title: 'Spielstand', items: [
       ...(prefs.dev ? [{ act: 'testday', label: 'Neuer Tag (Testmodus)', key: 'n', hint: 'sonst um Mitternacht' }] : []),
       { act: 'feedback', label: 'Rückmeldung geben', key: 'm' },
+      ...(s.guide && !guideFinished(s.guide) ? [{ act: 'guide:skip', label: ui.confirmGuide ? 'Wirklich? Nochmal drücken.' : 'Einführung beenden', key: 'f', hint: 'alle Orte sofort zeigen' }] : []),
       { act: 'delete', label: ui.confirmDelete ? 'Wirklich löschen? Nochmal drücken.' : 'Spielstand löschen', key: 'x', hint: 'nur auf diesem Gerät' },
     ] },
     ...(cloud.signedIn ? [{ title: 'Spielerkonto', items: [
@@ -1685,6 +1757,13 @@ export function render(): void {
   const s = state;
   document.body.classList.toggle('reduced', prefs.reducedMotion);
   const scr = currentScreen();
+  if (s?.guide && !['title', 'create', 'login', 'impressum', 'datenschutz'].includes(scr)) {
+    const msgs = guideUpdate(s);
+    let dirty = msgs.length > 0;
+    if (msgs.length) { ui.guideToast.push(...msgs); if (msgs.some((m) => m.startsWith('✓'))) sound.play('coins'); }
+    if (SCREEN_HINTS[scr] && !s.guide.seen.includes(scr)) { s.guide.seen.push(scr); ui.hint = scr; dirty = true; }
+    if (dirty) { saveGame(s); scheduleSync(); }
+  }
   const views: Record<Screen, () => string> = {
     title: titleScreen, create: createScreen, login: loginScreen,
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
@@ -1862,8 +1941,21 @@ function localSaveWithoutTouch(st: GameState): void {
 function handle(act: string, el: HTMLElement): void {
   const [cmd, a, b] = act.split(':');
   const s = state;
+  if (cmd !== 'menu' && cmd !== 'hintclose') ui.guideToast = [];
+  if (cmd !== 'guide') ui.confirmGuide = false;
+  if (s && cmd === 'go') guideVisit(s, act);
   switch (cmd) {
     case 'menu': ui.menuOpen = !ui.menuOpen; render(); return;
+    case 'hintclose': ui.hint = ''; render(); return;
+    case 'guide': {
+      if (!s) return;
+      if (a === 'end') { closeGuide(s); commit(); return; }
+      if (a === 'skip') {
+        if (!ui.confirmGuide) { ui.confirmGuide = true; render(); return; }
+        ui.confirmGuide = false; skipGuide(s); say('Alles klar. Ab jetzt siehst du alle Orte. Die kurzen Hinweise beim ersten Besuch bleiben.', 'info'); commit();
+      }
+      return;
+    }
     case 'skills': ui.skillMenu = !ui.skillMenu; render(); return;
     case 'reloadlist': loadWarriors(); return;
     case 'festeEnter': {

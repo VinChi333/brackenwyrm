@@ -211,6 +211,16 @@ export interface PendingEvent {
 
 /** Ein Ausflug in die versunkene Feste (Regeln in game/feste.ts). */
 /** Ein Begleiter aus dem Söldnerlager (Original: mercenarycamp / companions). */
+/** Einstieg für Neulinge: erste Schritte, Hinweise beim ersten Besuch, Orte nach Stufe. */
+export interface Guide {
+  step: number;        // nächster Schritt; = Anzahl Schritte: alle geschafft; größer: abgeschlossen oder übersprungen
+  flags: string[];     // erledigte Handgriffe ('heal', 'talk')
+  seen: string[];      // Bildschirme, deren Hinweis schon gezeigt wurde
+  open: boolean;       // alle Orte sichtbar (Stufe 3 erreicht oder übersprungen)
+  lvl: number;         // zuletzt geprüfte Stufe (für "neu in Moosgrund")
+  fresh: string[];     // neu freigeschaltete Orte, bis zum ersten Besuch markiert
+}
+
 export interface Companion {
   id: string;              // welcher Söldner (content/companions.ts)
   hp: number;
@@ -248,5 +258,6 @@ export interface GameState {
   outbox: string[];             // Tagesneuigkeiten, die noch an den Server gehen
   pendingEvent: PendingEvent | null;
   feste?: FesteRun | null;      // laufender Ausflug in die versunkene Feste
+  guide?: Guide | null;         // Einstieg für Neulinge (nur bei neu angelegten Helden)
   settings: { retro: boolean; reducedMotion: boolean };
 }
