@@ -6,6 +6,7 @@ import { FEEDBACK_KINDS, feedbackMessage } from '../content/feedback';
 import type { FeedbackKind } from '../content/feedback';
 import { fameTable } from '../content/fame';
 import { TITLE_KEYS, titleFor } from '../content/titles';
+import { FULL_TEXT, SHOP, priceText } from '../content/shop';
 import { PARTNERS } from '../content/lovers';
 import { MERTEN, MOUNTS, MOUNT_ORDER, mountRepay } from '../content/mounts';
 import { buyMount, feedMount, feedPrice, sellMount, tradeCost } from '../game/stable';
@@ -29,7 +30,7 @@ import {
 import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
-import type { AushangRow, BountyRow, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
+import type { AushangRow, BountyRow, CodeRow, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
 import { censor, isClean } from '../content/badwords';
 import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
 import { DIR_NAME, FESTE_COST, FESTE_MIN_LEVEL, SIZE as FESTE_SIZE, afterFesteFight, canEnterFeste, enterFeste, festeLight, exits, heirloomNames, leaveFeste, mazeFor, moveFeste, treasureNews, type Dir } from '../game/feste';
@@ -57,7 +58,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros'
   | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount'
   | 'quirin' | 'seer' | 'felsen' | 'garten' | 'feste' | 'heirlooms'
-  | 'tresen' | 'dag' | 'fivesix' | 'aushang' | 'lager' | 'gilde';
+  | 'tresen' | 'dag' | 'fivesix' | 'aushang' | 'lager' | 'gilde' | 'vollversion';
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
@@ -95,7 +96,9 @@ interface Ui {
   aushang: AushangRow[] | null;
   fameCat: FameCat;
   fameRows: FameCatRow[] | null | undefined;
-  wache: { tab: 'reports' | 'banned' | 'cheats' | 'aushang'; reports: ModReport[] | null; banned: ModBanned[] | null; cheats: ModCheat[] | null; err: string };
+  wache: { tab: 'reports' | 'banned' | 'cheats' | 'aushang' | 'vollversion'; reports: ModReport[] | null; banned: ModBanned[] | null; cheats: ModCheat[] | null; err: string; codes: CodeRow[] | null; newCodes: string[] };
+  full: boolean | null;     // Vollversion: true/false, null = noch nicht geprüft
+  fullMsg: string;
   unreadAt: number;            // Handy: Fähigkeiten statt Kampfbefehlen in der Leiste
   dkPoint: DragonPoint | null;   // Auswahl nach dem Drachenkill
   dkSpec: SpecialtyId | null;
@@ -129,7 +132,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' }, gilde: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', guild: { mine: undefined, list: null, err: '', confirmLeave: false, tags: new Map() }, conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '', codes: null, newCodes: [] }, full: null, fullMsg: '', dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' }, gilde: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', guild: { mine: undefined, list: null, err: '', confirmLeave: false, tags: new Map() }, conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
 };
 let root: HTMLElement;
 
@@ -1153,6 +1156,7 @@ function accountHtml(): string {
 /** Nach dem Anmelden (Passwort oder Code): abgleichen und weiter ins Dorf oder Hinweis zeigen. */
 async function afterLogin(done: (m: string) => void, note = ''): Promise<void> {
   prefs.lastSyncedAt = 0; savePrefs(prefs);
+  ui.full = null; loadFull();
   const m = await syncNow();
   if (ui.screen === 'login') {
     if (state) { const newDay = checkRealDay(state); saveGame(state, !newDay); if (note) say(note, 'good'); go('village'); return; }
@@ -1708,6 +1712,7 @@ function settingsScreen(s: GameState): string {
     </div>
     ${s.player.marriedTo ? `<p class="muted">${t`Du bist mit ${PARTNERS[s.player.marriedTo].name} verheiratet.`}</p>` : ''}
     ${cloud.enabled ? accountHtml() : ''}
+    ${cloud.enabled && cloud.signedIn ? `<h2>${t`Vollversion`}</h2>${ui.full ? `<p class="good">${t`Freigeschaltet. Danke, dass du Brackenwyrm unterstützt!`}</p>` : `<p class="muted">${t`Bis zum ersten Drachen ist Brackenwyrm kostenlos. Danach geht es mit der Vollversion weiter (einmalig ${priceText()}). Hast du einen Code, kannst du ihn hier einlösen.`}</p>${redeemHtml()}`}` : ''}
     <h2>${t`Spielstand auf ein anderes Gerät mitnehmen`}</h2>
     <p class="muted">${cloud.signedIn ? t('Mit deinem Spielerkonto geht das automatisch. Der Code hier ist nur eine Notlösung, zum Beispiel als Sicherungskopie.') : t('Ohne Spielerkonto liegt der Spielstand nur in diesem Browser. Kopiere den Code und füge ihn auf dem anderen Gerät ein.')}</p>
     <textarea id="exportcode" readonly aria-label="${t`Spielstand-Code`}">${exportCode(s)}</textarea>
@@ -1765,6 +1770,7 @@ function loadWache(): void {
   if (w.tab === 'reports') { w.reports = null; cloud.modReports().then((r) => { w.reports = r; }, fail).finally(render); }
   if (w.tab === 'banned') { w.banned = null; cloud.modBanned().then((r) => { w.banned = r; }, fail).finally(render); }
   if (w.tab === 'cheats') { w.cheats = null; cloud.modCheats().then((r) => { w.cheats = r; }, fail).finally(render); }
+  if (w.tab === 'vollversion') { w.codes = null; cloud.modCodes().then((r) => { w.codes = r; }, fail).finally(render); }
   render();
 }
 
@@ -1790,6 +1796,17 @@ function wacheScreen(s: GameState): string {
       <div class="row"><button type="button" class="tbtn" data-act="aushangpost">${t`Anschlagen`}</button></div></section>
       ${(ui.aushang ?? []).map((a) => `<article class="notice"><h2>${esc(a.title)}</h2><p class="muted">${when(a.created_at)} · ${esc(a.author)}</p><p>${esc(a.body)}</p>
         <button type="button" class="tbtn ghost" data-act="aushangdel:${a.id}">${t`Abnehmen`}</button></article>`).join('')}`;
+  } else if (w.tab === 'vollversion') {
+    body = `<section class="good-box"><h2>${t`Vollversion verschenken`}</h2>
+        <p class="muted">${t`Zum Beispiel für Tester. Der Held bekommt die Vollversion sofort, auf allen Geräten.`}</p>
+        <div class="row"><input type="text" id="mod-hero" maxlength="40" placeholder="${t`Name des Helden`}" aria-label="${t`Name des Helden`}"><button type="button" class="tbtn" data-act="modfull:grant">${t`Freischalten`}</button></div></section>
+      <section class="good-box"><h2>${t`Codes erzeugen`}</h2>
+        <p class="muted">${t`Jeder Code schaltet genau ein Spielerkonto frei. Zum Verkaufen, Verschenken oder Verlosen.`}</p>
+        <div class="row"><input type="number" id="mod-n" min="1" max="100" value="5" aria-label="${t`Anzahl`}"><input type="text" id="mod-note" maxlength="100" placeholder="${t`Notiz, z. B. Tester Oktober`}" aria-label="${t`Notiz`}"><button type="button" class="tbtn" data-act="modfull:codes">${t`Erzeugen`}</button></div>
+        ${w.newCodes.length ? `<textarea readonly rows="${Math.min(10, w.newCodes.length + 1)}" aria-label="${t`Neue Codes`}">${w.newCodes.join('\n')}</textarea>` : ''}</section>
+      <h2>${t`Alle Codes`}</h2>
+      ${w.codes === null ? '<p class="muted">…</p>' : !w.codes.length ? `<p class="muted">${t`Noch keine Codes.`}</p>`
+        : `<table class="mod-table"><thead><tr><th>${t`Code`}</th><th>${t`Notiz`}</th><th>${t`eingelöst von`}</th></tr></thead><tbody>${w.codes.map((c) => `<tr><td><code>${esc(c.code)}</code></td><td>${esc(c.note)}</td><td>${c.redeemed_by ? `${esc(c.redeemed_by)} <span class="muted">${c.redeemed_at ? when(c.redeemed_at) : ''}</span>` : '<span class="muted">–</span>'}</td></tr>`).join('')}</tbody></table>`}`;
   } else if (w.tab === 'banned') {
     body = w.banned === null ? '<p class="muted">…</p>' : !w.banned.length ? `<p class="muted">${t`Niemand ist gesperrt.`}</p>`
       : `<ul class="warriors">${w.banned.map((b) => `<li class="warrior">${t`<span></span><span class="t-info"><strong>${esc(b.name)}</strong><small>Stufe ${b.level} · ${b.dragon_kills} Drachenkills</small></span>`}
@@ -1811,26 +1828,23 @@ function wacheScreen(s: GameState): string {
       { act: 'wache:reports', label: t('Meldungen'), key: 'm', hint: w.reports?.length ? String(w.reports.length) : '', primary: w.tab === 'reports' },
       { act: 'wache:cheats', label: t('Auffällige Spielstände'), key: 'a', primary: w.tab === 'cheats' },
       { act: 'wache:banned', label: t('Gesperrte'), key: 'g', primary: w.tab === 'banned' },
+      { act: 'wache:vollversion', label: t('Vollversion und Codes'), key: 'v', primary: w.tab === 'vollversion' },
     ] },
     { title: t('Zurück'), items: [{ act: 'go:settings', label: t('Einstellungen'), key: 'e' }, back] },
   ]);
 }
 
 function shadowsScreen(s: GameState): string {
-  const now = new Date();
-  const mid = new Date(now);
-  mid.setHours(24, 0, 0, 0);
-  const mins = Math.max(0, Math.round((mid.getTime() - now.getTime()) / 60000));
   const p = s.player;
   const cost = soulRestoreCost(p);
   const canBack = p.favor >= RESURRECT_FAVOR;
   const main = `<h1 class="shadow-title">${t`Das Schattenreich`}</h1>
     ${s.news.length ? `<section class="news"><h2>${t`Neuigkeiten`}</h2>${s.news.slice(-3).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}
-    <p class="lead">${t`Grauer Nebel, ein stiller Fluss. <span class="npc">Morwen</span> stakt ihr Boot heran. „Du schon wieder“, sagt sie. „Setz dich. Bei Sonnenaufgang bringe ich dich zurück.“`}</p>
+    <p class="lead">${t`Grauer Nebel, ein stiller Fluss. <span class="npc">Morwen</span> stakt ihr Boot heran. „Du schon wieder“, sagt sie. „Setz dich. Wenn die Dorfuhr den nächsten Tag schlägt, bringe ich dich zurück.“`}</p>
     <p>${t`Am Ufer treiben verirrte Seelen. „Wenn du mir ein paar davon vom Hals schaffst“, sagt Morwen, „fahre ich dich vielleicht früher zurück.“`}
       ${canBack ? `${t`<span class="place">Du hast genug Gunst für die Rückkehr.</span>`}` : `${t`Dafür brauchst du <span class="gem">${RESURRECT_FAVOR} Gunst</span>, du hast ${p.favor}.`}`}</p>
     <div class="progress">${bar(p.favor, RESURRECT_FAVOR, 'favor')}</div>
-    <p class="muted">${t`Neuer Tag in ${Math.floor(mins / 60)} Std. ${mins % 60} Min. Gold im Kontor ist sicher.`}</p>
+    <p class="muted">${t`Neuer Tag in ${waitText()}. Gold im Kontor ist sicher.`}</p>
     ${flashHtml()}
     ${cloud.enabled ? squareHtml('schattenreich') : ''}`;
   return layout(s, main, [{ title: t('Am Nebelfluss'), items: [
@@ -1851,6 +1865,50 @@ const DK_POINTS: { id: DragonPoint; name: string; text: string }[] = [
   { id: 'atk', name: t('+1 Angriff'), text: t('Deine Schläge sitzen fester. Für immer.') },
   { id: 'def', name: t('+1 Verteidigung'), text: t('Du weißt jetzt, wie man einem Wyrmzahn ausweicht.') },
 ];
+
+// ---------- Vollversion ----------
+let fullLoading = false;
+/** Darf der Held nach dem Drachen weiterspielen? Ohne Server (lokale Testfassung) gibt es keine Sperre. */
+function fullOk(): boolean {
+  return !cloud.enabled || ui.full === true;
+}
+function loadFull(): void {
+  if (!cloud.enabled) { ui.full = true; return; }
+  if (!cloud.signedIn) { ui.full = false; return; }
+  const cached = prefs.full && prefs.full.uid === cloud.userId ? prefs.full.ok : null;
+  if (cached !== null) ui.full = cached;
+  fullLoading = true;
+  cloud.hasFull().then((ok) => { ui.full = ok; prefs.full = { uid: cloud.userId, ok }; savePrefs(prefs); },
+    () => { ui.full = cached ?? false; })
+    .finally(() => { fullLoading = false; render(); });
+}
+
+const CODE_HINT = 'BW-XXXX-XXXX'; // i18n-ignore
+
+function redeemHtml(): string {
+  return `<div class="row"><input type="text" id="unlock-code" maxlength="20" placeholder="${CODE_HINT}" aria-label="${t`Code`}" autocomplete="off" style="text-transform:uppercase"><button type="button" class="tbtn" data-act="redeem">${t`Code einlösen`}</button></div>
+    ${ui.fullMsg ? `<p class="muted">${esc(ui.fullMsg)}</p>` : ''}`;
+}
+
+function vollversionScreen(s: GameState): string {
+  const p = s.player;
+  const buy = SHOP.buyUrl
+    ? `<p><a class="btn" href="${esc(SHOP.buyUrl)}" target="_blank" rel="noopener">${t`Vollversion kaufen (${priceText()})`}</a></p><p class="muted">${t`Nach dem Kauf bekommst du einen Code. Den gibst du hier ein.`}</p>`
+    : `<p class="muted">${t`Bald kannst du die Vollversion hier für einmalig ${priceText()} kaufen. Bis dahin schalten wir sie für dich frei: Schreib uns über „Rückmeldung geben“ oder löse einen Code ein, wenn du einen hast.`}</p>`;
+  const main = `<h1>${FULL_TEXT.title}</h1>
+    <p class="lead">${FULL_TEXT.lead}</p>
+    <p>${FULL_TEXT.more}</p>
+    <section class="good-box"><h2>${t`Vollversion`}</h2>
+      <p>${FULL_TEXT.fair}</p>
+      ${!cloud.signedIn ? `<p class="warn-box">${t`Die Vollversion hängt an deinem Spielerkonto. Lege zuerst in den Einstellungen ein Konto an oder melde dich an. Dein Held wartet so lange hier.`}</p>`
+        : ui.full === null ? `<p class="muted">${t`Prüfe, ob du die Vollversion schon hast …`}</p>` : `${buy}<h3>${t`Code einlösen`}</h3>${redeemHtml()}`}
+    </section>
+    <p class="muted">${t`Dein Held ${esc(p.name)} bleibt genau so, wie er ist. Sobald die Vollversion freigeschaltet ist, geht es hier weiter.`}</p>`;
+  return layout(s, main, [{ title: t('Weiter'), items: [
+    { act: 'go:settings', label: cloud.signedIn ? t('Einstellungen') : t('Spielerkonto anlegen'), key: 'e', primary: !cloud.signedIn },
+    { act: 'feedback', label: t('Rückmeldung geben'), key: 'm' },
+  ] }]);
+}
 
 function dragonBonusScreen(s: GameState): string {
   const p = s.player;
@@ -1895,7 +1953,10 @@ function currentScreen(): Screen {
   if (ui.screen === 'impressum' || ui.screen === 'datenschutz') return ui.screen;
   if (!state) return ui.screen === 'create' || ui.screen === 'login' ? ui.screen : 'title';
   if (ui.screen === 'title' || ui.screen === 'create' || ui.screen === 'login') return ui.screen;
-  if (state.pendingDragonBonus && !state.fight) return 'dragonBonus';
+  if (state.pendingDragonBonus && !state.fight) {
+    if (fullOk()) return 'dragonBonus';
+    return ['settings', 'feedback', 'impressum', 'datenschutz', 'wache'].includes(ui.screen) ? ui.screen : 'vollversion';
+  }
   if (ui.conflict) return 'syncConflict';
   if (state.fight) return 'fight';
   // Tote bleiben im Schattenreich, dürfen aber spuken, Briefe lesen und die Neuigkeiten sehen.
@@ -1919,13 +1980,14 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), tresen: () => tresenScreen(s!), dag: () => dagScreen(s!), fivesix: () => fivesixScreen(s!), aushang: () => aushangScreen(s!), lager: () => lagerScreen(s!), gilde: () => gildeScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), vollversion: () => vollversionScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), tresen: () => tresenScreen(s!), dag: () => dagScreen(s!), fivesix: () => fivesixScreen(s!), aushang: () => aushangScreen(s!), lager: () => lagerScreen(s!), gilde: () => gildeScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!),
     impressum: () => legalScreen('impressum'), datenschutz: () => legalScreen('datenschutz'), wache: () => wacheScreen(s!), blocks: () => blocksScreen(s!), deleteAccount: () => deleteAccountScreen(s!),
   };
   root.innerHTML = views[scr]();
   sound.music(trackFor(scr));
   soundCues();
   if (cloud.signedIn && !safetyLoaded) loadSafety();
+  if (ui.full === null && !fullLoading) loadFull();
   if (scr === 'village') { loadSquare('dorfplatz'); checkMail(); loadStatue(); if (ui.aushang === null) { ui.aushang = []; loadAushang(); } }
   if (scr === 'inn') loadSquare('gasthaus');
   if (scr === 'shadows') loadSquare('schattenreich');
@@ -2183,7 +2245,33 @@ function handle(act: string, el: HTMLElement): void {
       }, (e) => say(e instanceof CloudError ? e.message : t('Das hat nicht geklappt.'), 'warn')).finally(render);
       return;
     }
-    case 'wache': ui.wache.tab = a as 'reports' | 'banned' | 'cheats' | 'aushang'; ui.flash = []; loadWache(); return;
+    case 'redeem': {
+      const code = ((document.getElementById('unlock-code') as HTMLInputElement | null)?.value ?? '').trim();
+      if (code.replace(/[^A-Za-z0-9]/g, '').length < 8) { ui.fullMsg = t('Ein Code sieht so aus: BW-XXXX-XXXX'); render(); return; }
+      ui.fullMsg = t('Prüfe den Code …'); render();
+      cloud.redeemCode(code).then((r) => {
+        if (!r.ok) { ui.fullMsg = serverText(r.error ?? '') || t('Das hat nicht geklappt.'); return; }
+        ui.full = true; prefs.full = { uid: cloud.userId, ok: true }; savePrefs(prefs);
+        ui.fullMsg = '';
+        say(t('Die Vollversion ist freigeschaltet. Viel Spaß mit allem, was nach dem Drachen kommt!'), 'gold');
+      }, (e) => { ui.fullMsg = e instanceof CloudError ? e.message : t('Das hat nicht geklappt.'); }).finally(render);
+      return;
+    }
+    case 'modfull': {
+      const w = ui.wache;
+      if (a === 'grant') {
+        const hero = ((document.getElementById('mod-hero') as HTMLInputElement | null)?.value ?? '').trim();
+        if (!hero) return;
+        cloud.modGrantFull(hero).then((n) => say(t`${n} hat jetzt die Vollversion.`, 'good'), (e) => say(e instanceof CloudError ? e.message : t('Das hat nicht geklappt.'), 'warn')).finally(render);
+      }
+      if (a === 'codes') {
+        const n = Math.max(1, Math.min(100, Math.floor(Number((document.getElementById('mod-n') as HTMLInputElement | null)?.value) || 1)));
+        const note = ((document.getElementById('mod-note') as HTMLInputElement | null)?.value ?? '').trim();
+        cloud.modMakeCodes(n, note).then((codes) => { w.newCodes = codes; loadWache(); }, (e) => { w.err = e instanceof CloudError ? e.message : t('Das hat nicht geklappt.'); render(); });
+      }
+      return;
+    }
+    case 'wache': ui.wache.tab = a as 'reports' | 'banned' | 'cheats' | 'aushang' | 'vollversion'; ui.flash = []; loadWache(); return;
     case 'mod': {
       const r = ui.wache.reports?.[Number(b)];
       if (!r) return;
@@ -2384,7 +2472,7 @@ function handle(act: string, el: HTMLElement): void {
         done(t('Gleiche ab …'));
         syncNow().then(done);
       } else if (a === 'out') {
-        cloud.signOut(); prefs.lastSyncedAt = 0; savePrefs(prefs); resetSafety(); done(t('Abgemeldet. Der Spielstand bleibt auf diesem Gerät.'));
+        cloud.signOut(); prefs.lastSyncedAt = 0; savePrefs(prefs); resetSafety(); ui.full = null; ui.guild.mine = undefined; done(t('Abgemeldet. Der Spielstand bleibt auf diesem Gerät.'));
       }
       return;
     }

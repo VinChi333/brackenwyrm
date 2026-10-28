@@ -92,6 +92,10 @@ export const SERVER_TEXTS = [
   'Die Gilde „{0}“ hat deine Bewerbung leider abgelehnt.',
   'Aus der Gilde entlassen',
   'Du gehörst nicht mehr zur Gilde „{0}“.',
+  // Vollversion (Teil 8)
+  'Zu viele Versuche. Probier es in einer Stunde wieder.',
+  'Dieser Code ist ungültig oder wurde schon eingelöst.',
+  'Zwischen 1 und 100 Codes auf einmal.',
 ] as const;
 
 let extra: readonly string[] = [];

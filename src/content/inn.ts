@@ -14,7 +14,7 @@ export const FRIEDA_TALKS_PER_DAY = 3;
 const FRIEDA_LORE = [
   t('„Warum Moosgrund? Die ersten Siedler fanden am Waldrand eine Mulde, so dick mit Moos gepolstert, dass sie die erste Nacht wie auf Federn schliefen. Am Morgen sagten sie: Hier bleiben wir. Den Grund haben wir behalten, das Moos auch.“'),
   t('„Moosgrund gab es schon, bevor der Wald so dicht wurde“, sagt Frieda. „Damals hieß es Moosgrund. Heute auch. Wir sind nicht sehr einfallsreich.“'),
-  t('„Morwen fährt jeden, der im Wald fällt, bei Sonnenaufgang zurück. Sie nimmt kein Gold dafür. Sie nimmt das Gold, das du dabei hattest.“'),
+  t('„Morwen fährt jeden, der im Wald fällt, beim nächsten Schlag der Dorfuhr zurück. Sie nimmt kein Gold dafür. Sie nimmt das Gold, das du dabei hattest.“'),
   t('„Wenn du dich traust, such im Wald den Nervenkitzel. Gefährlicher, ja. Aber da liegt auch mehr Gold herum.“'),
   t('„Der Wyrm schläft in der Farnschlucht. Wer ihn weckt, sollte alle Meister auf dem Trainingsplatz besiegt haben. Alle vierzehn.“'),
   t('„Eulenbären sind halb Eule, halb Bär und ganz schlecht gelaunt. Lauf nicht weg, die sind schneller.“'),

@@ -44,6 +44,7 @@ export interface GuildMine {
   members: GuildMember[];
   applicants: GuildMember[];
 }
+export interface CodeRow { code: string; created_at: string; note: string; redeemed_by: string | null; redeemed_at: string | null }
 export interface AushangRow { id: number; created_at: string; title: string; body: string; author: string }
 export type FameCat = 'drachen' | 'reich' | 'charme' | 'schnell' | 'erben' | 'furcht' | 'schatz' | 'veteran';
 export interface FameCatRow { name: string; gender: Gender; dragonKills: number; level: number; value: number }
@@ -521,6 +522,39 @@ export class Cloud {
   guildKick(target: string): Promise<void> { return this.rpc7('guild_kick', { target }); }
   guildRank(target: string, newRank: 'leader' | 'officer' | 'member'): Promise<void> { return this.rpc7('guild_rank', { target, new_rank: newRank }); }
   guildText(motd: string, descr: string): Promise<void> { return this.rpc7('guild_text', { motd, descr }); }
+
+  // ---------- Vollversion (Teil 8) ----------
+  /** Hat dieses Konto die Vollversion? Ohne Teil 8 auf dem Server gibt es keine Sperre. */
+  async hasFull(): Promise<boolean> {
+    await this.ensureSession();
+    try {
+      return !!(await this.call('/rest/v1/rpc/has_full', { method: 'POST', body: {} }));
+    } catch (e) {
+      if (this.missingPart5(e)) return true;
+      throw e;
+    }
+  }
+  redeemCode(code: string): Promise<{ ok: boolean; already?: boolean; error?: string }> {
+    return this.rpcPart8('redeem_code', { code });
+  }
+  modGrantFull(hero: string): Promise<string> { return this.rpcPart8('mod_grant_full', { hero }); }
+  async modMakeCodes(n: number, note: string): Promise<string[]> {
+    const rows = await this.rpcPart8<unknown[]>('mod_make_codes', { n, note });
+    return (Array.isArray(rows) ? rows : []).map((r) => (typeof r === 'string' ? r : String((r as Record<string, unknown>).mod_make_codes ?? Object.values(r as object)[0])));
+  }
+  async modCodes(): Promise<CodeRow[]> {
+    const rows = await this.rpcPart8<CodeRow[]>('mod_codes', {});
+    return Array.isArray(rows) ? rows : [];
+  }
+  private async rpcPart8<T>(name: string, body: object): Promise<T> {
+    await this.ensureSession();
+    try {
+      return await this.call(`/rest/v1/rpc/${name}`, { method: 'POST', body });
+    } catch (e) {
+      if (this.missingPart5(e)) throw new CloudError('server', t('Die Vollversion ist auf dem Server noch nicht eingerichtet (Teil 8).'));
+      throw e;
+    }
+  }
 
   transferGold(target: string, amount: number): Promise<{ amount: number; name: string; left_today: number }> {
     return this.rpc5('transfer_gold', { target, amount }, t('Überweisen'));

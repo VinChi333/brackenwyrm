@@ -28,8 +28,12 @@ await db.exec(readFileSync(new URL('../server/supabase-6-spieltage.sql', import.
 await db.exec(readFileSync(new URL('../server/supabase-6-spieltage.sql', import.meta.url), 'utf8')); // wiederholbar
 await db.exec(readFileSync(new URL('../server/supabase-7-gilden.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-7-gilden.sql', import.meta.url), 'utf8')); // wiederholbar
+await db.exec(readFileSync(new URL('../server/supabase-8-vollversion.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-8-vollversion.sql', import.meta.url), 'utf8')); // wiederholbar
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c', N = '00000000-0000-0000-0000-00000000000d';
 await db.exec(`insert into auth.users values ('${A}','a@x'),('${B}','b@x'),('${C}','c@x'),('${N}','n@x')`);
+// Testhelden haben die Vollversion (Teil 8), sonst zählt online nur ein Drachenkill
+await db.exec(`insert into public.full_version (user_id, source) values ('${A}','wache'),('${B}','wache'),('${C}','wache'),('${N}','wache')`);
 async function as(uid, sql, params) {
   await db.exec(`reset role; select set_config('request.jwt.claim.sub', '${uid}', false); set role authenticated;`);
   try { return await db.query(sql, params); } finally { await db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false);`); }
@@ -557,6 +561,43 @@ await db.exec(`update public.fighters set banned = false where user_id = '${A}'`
   r = await db.query(`select count(*)::int as n from public.guilds`);
   ok(r.rows[0].n === 0, 'leere Gilde wird aufgelöst');
   await db.exec(`delete from public.commentary; delete from public.mail`);
+}
+
+// Teil 8: Vollversion
+{
+  const fail = async (uid, sql) => { try { await as(uid, sql); return ''; } catch (e) { return e.message; } };
+  await db.exec(`delete from public.full_version where user_id = '${B}'; delete from public.unlock_codes; delete from public.code_attempts; delete from public.admins; insert into public.admins (user_id) values ('${A}')`);
+  r = await as(B, `select public.has_full() as f`);
+  ok(r.rows[0].f === false, 'ohne Vollversion');
+  let e = await fail(B, `select public.mod_make_codes(3, 'Test')`);
+  ok(/Wache/.test(e), 'nur die Wache erzeugt Codes');
+  r = await as(A, `select c from public.mod_make_codes(3, 'Tester') as c`);
+  const codes = r.rows.map((x) => x.c);
+  ok(codes.length === 3 && codes.every((c) => /^BW-[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(c)) && !codes.some((c) => /[01OI]/.test(c.slice(3))), 'drei Codes im richtigen Format: ' + codes.join(' '));
+  r = await as(B, `select public.redeem_code('BW-AAAA-AAAA') as r`);
+  ok(r.rows[0].r.ok === false && /ungültig/.test(r.rows[0].r.error), 'falscher Code wird abgelehnt');
+  const sloppy = codes[0].toLowerCase().replace(/-/g, ' ');
+  r = await as(B, `select public.redeem_code('${sloppy}') as r`);
+  ok(r.rows[0].r.ok === true, 'Code auch klein und mit Leerzeichen einlösbar');
+  r = await as(B, `select public.has_full() as f`);
+  ok(r.rows[0].f === true, 'jetzt Vollversion');
+  await db.exec(`delete from public.full_version where user_id = '${C}'`);
+  r = await as(C, `select public.redeem_code('${codes[0]}') as r`);
+  ok(r.rows[0].r.ok === false && /schon eingelöst/.test(r.rows[0].r.error), 'Code nur einmal');
+  for (let i = 0; i < 9; i++) await as(C, `select public.redeem_code('BW-ZZZZ-ZZZ${i}')`);
+  e = await fail(C, `select public.redeem_code('${codes[1]}')`);
+  ok(/Zu viele Versuche/.test(e), 'nach 10 Fehlversuchen eine Stunde Pause');
+  await db.exec(`delete from public.full_version where user_id = '${N}'`);
+  r = await as(A, `select public.mod_grant_full('opfer') as n`);
+  ok(r.rows[0].n === 'Opfer', 'Wache schenkt die Vollversion (Name egal ob groß oder klein)');
+  r = await as(A, `select code, redeemed_by from public.mod_codes()`);
+  ok(r.rows.length === 3 && r.rows.some((x) => x.redeemed_by), 'Wache sieht die Codes und wer sie eingelöst hat');
+  // Ruhmeshalle: ohne Vollversion höchstens ein Drachenkill
+  await db.exec(`delete from public.full_version where user_id = '${C}'; update public.fighters set dragon_kills = 1 where user_id = '${C}'`);
+  await as(C, `update public.fighters set dragon_kills = 2 where user_id = '${C}'`);
+  r = await db.query(`select dragon_kills from public.fighters where user_id = '${C}'`);
+  ok(r.rows[0].dragon_kills === 1, 'ohne Vollversion bleibt es online bei einem Drachenkill');
+  await db.exec(`delete from public.admins; delete from public.code_attempts`);
 }
 
 // Aktualisierung einer Datenbank mit dem alten Teil 2 (ohne Rassen)

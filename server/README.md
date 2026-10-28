@@ -49,6 +49,13 @@ Ob alles da ist, zeigt `supabase-pruefung.sql` (jede Zeile muss `true` sein).
 `supabase-7-gilden.sql` nach Teil 6 ausführen. Bringt Gilden mit Gildenhalle, Rängen und eigenem Gespräch.
 Teil 7 ersetzt die Gesprächsregel aus Teil 4: Wer Teil 4 erneut ausführt, führt danach Teil 6 und Teil 7 erneut aus.
 
+## Teil 8: Vollversion (ab 0.47)
+
+`supabase-8-vollversion.sql` nach Teil 7 ausführen. Danach braucht ein Held nach dem ersten Drachen die Vollversion,
+um weiterzuspielen. Freischalten: im Spiel als Wache unter **Einstellungen → Die Wache → Vollversion und Codes**
+(einzelne Helden freischalten oder Codes erzeugen). Ohne Teil 8 gibt es keine Sperre.
+Den Kauflink trägt man später in `src/content/shop.ts` bei `buyUrl` ein.
+
 ## E-Mails: Passwort vergessen (ab 0.44)
 
 „Passwort vergessen?“ schickt einen Code per E-Mail. Der eingebaute Mailversand von Supabase schickt nur an

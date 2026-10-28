@@ -229,7 +229,7 @@ function afterEvent(s: GameState, wasAlive: boolean, lines: LogLine[]): LogLine[
 export function graveSearch(s: GameState): string | null {
   const p = s.player;
   if (p.alive) return t('Lebende haben am Nebelfluss nichts verloren.');
-  if (p.graveFights <= 0) return t('Für heute hast du keine Kraft mehr für Schattenkämpfe. Morwen bringt dich bei Sonnenaufgang zurück.');
+  if (p.graveFights <= 0) return t('Für heute hast du keine Kraft mehr für Schattenkämpfe. Morwen bringt dich beim nächsten Schlag der Dorfuhr zurück.');
   if (p.soul <= 0) return t('Deine Seele ist zu schwach. Bitte Morwen, deine Seelenkraft zu stärken.');
   p.graveFights -= 1;
   const m = pick(SHADES);

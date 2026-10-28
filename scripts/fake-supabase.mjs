@@ -16,7 +16,7 @@ await db.exec(`
   grant usage on schema auth to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
 `);
-for (const f of ['supabase.sql', 'supabase-2-dorf.sql', 'supabase-3-briefe.sql', 'supabase-4-schutz.sql', 'supabase-5-dorfleben.sql', 'supabase-6-spieltage.sql', 'supabase-7-gilden.sql']) await db.exec(readFileSync(new URL(`../server/${f}`, import.meta.url), 'utf8'));
+for (const f of ['supabase.sql', 'supabase-2-dorf.sql', 'supabase-3-briefe.sql', 'supabase-4-schutz.sql', 'supabase-5-dorfleben.sql', 'supabase-6-spieltage.sql', 'supabase-7-gilden.sql', 'supabase-8-vollversion.sql']) await db.exec(readFileSync(new URL(`../server/${f}`, import.meta.url), 'utf8'));
 
 let queue = Promise.resolve();
 /** Führt SQL als angemeldeter Spieler (oder anon) aus. Nacheinander, weil PGlite nur eine Verbindung hat. */
