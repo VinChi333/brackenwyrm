@@ -108,6 +108,8 @@ grant execute on function public.has_full(), public.redeem_code(text), public.mo
 create or replace function public.fighters_guard8() returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if auth.uid() is distinct from new.user_id then return new; end if;
+  -- "anlegen oder ändern": gibt es die Zeile schon, prüft erst der Teil für Änderungen (sonst sähe der Schummelschutz nichts)
+  if tg_op = 'INSERT' and exists (select 1 from public.fighters f where f.user_id = new.user_id) then return new; end if;
   if new.dragon_kills > 1 and not exists (select 1 from public.full_version v where v.user_id = new.user_id) then
     new.dragon_kills := greatest(1, coalesce(case when tg_op = 'UPDATE' then old.dragon_kills end, 1));
   end if;
