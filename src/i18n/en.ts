@@ -2480,4 +2480,11 @@ export const EN: Record<string, string> = {
   "Zu viele Versuche. Probier es in einer Stunde wieder.": "Too many attempts. Try again in an hour.",
   "Dieser Code ist ungültig oder wurde schon eingelöst.": "This code is invalid or has already been redeemed.",
   "Zwischen 1 und 100 Codes auf einmal.": "Between 1 and 100 codes at a time.",
+  "Als App": "As an app",
+  "Brackenwyrm läuft als App. Es startet vom Startbildschirm, im Vollbild und auch bei schlechtem Netz.": "Brackenwyrm is running as an app. It starts from your home screen, full screen, even with a poor connection.",
+  "Leg Brackenwyrm als App auf deinen Startbildschirm: eigenes Symbol, Vollbild, schneller Start.": "Put Brackenwyrm on your home screen as an app: its own icon, full screen, quick start.",
+  "Als App installieren": "Install as app",
+  "Auf dem iPhone oder iPad: In Safari unten auf das Teilen-Symbol tippen (Quadrat mit Pfeil nach oben), dann „Zum Home-Bildschirm“.": "On iPhone or iPad: in Safari, tap the Share icon (square with an arrow pointing up), then “Add to Home Screen”.",
+  "Im Browser-Menü findest du „App installieren“ oder „Zum Startbildschirm hinzufügen“. Dann startet Brackenwyrm wie eine App.": "In your browser menu you’ll find “Install app” or “Add to Home screen”. Then Brackenwyrm starts like an app.",
+  "Brackenwyrm liegt jetzt auf deinem Startbildschirm.": "Brackenwyrm is now on your home screen.",
 };

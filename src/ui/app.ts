@@ -7,6 +7,7 @@ import type { FeedbackKind } from '../content/feedback';
 import { fameTable } from '../content/fame';
 import { TITLE_KEYS, titleFor } from '../content/titles';
 import { FULL_TEXT, SHOP, priceText } from '../content/shop';
+import { canInstall, initPwa, install, isIos, isStandalone } from '../pwa';
 import { PARTNERS } from '../content/lovers';
 import { MERTEN, MOUNTS, MOUNT_ORDER, mountRepay } from '../content/mounts';
 import { buyMount, feedMount, feedPrice, sellMount, tradeCost } from '../game/stable';
@@ -1712,6 +1713,11 @@ function settingsScreen(s: GameState): string {
     </div>
     ${s.player.marriedTo ? `<p class="muted">${t`Du bist mit ${PARTNERS[s.player.marriedTo].name} verheiratet.`}</p>` : ''}
     ${cloud.enabled ? accountHtml() : ''}
+    <h2>${t`Als App`}</h2>
+    ${isStandalone() ? `<p class="muted">${t`Brackenwyrm läuft als App. Es startet vom Startbildschirm, im Vollbild und auch bei schlechtem Netz.`}</p>`
+      : canInstall() ? `<p class="muted">${t`Leg Brackenwyrm als App auf deinen Startbildschirm: eigenes Symbol, Vollbild, schneller Start.`}</p><div class="row"><button type="button" class="tbtn" data-act="install">${t`Als App installieren`}</button></div>`
+      : isIos() ? `<p class="muted">${t`Auf dem iPhone oder iPad: In Safari unten auf das Teilen-Symbol tippen (Quadrat mit Pfeil nach oben), dann „Zum Home-Bildschirm“.`}</p>`
+      : `<p class="muted">${t`Im Browser-Menü findest du „App installieren“ oder „Zum Startbildschirm hinzufügen“. Dann startet Brackenwyrm wie eine App.`}</p>`}
     ${cloud.enabled && cloud.signedIn ? `<h2>${t`Vollversion`}</h2>${ui.full ? `<p class="good">${t`Freigeschaltet. Danke, dass du Brackenwyrm unterstützt!`}</p>` : `<p class="muted">${t`Bis zum ersten Drachen ist Brackenwyrm kostenlos. Danach geht es mit der Vollversion weiter (einmalig ${priceText()}). Hast du einen Code, kannst du ihn hier einlösen.`}</p>${redeemHtml()}`}` : ''}
     <h2>${t`Spielstand auf ein anderes Gerät mitnehmen`}</h2>
     <p class="muted">${cloud.signedIn ? t('Mit deinem Spielerkonto geht das automatisch. Der Code hier ist nur eine Notlösung, zum Beispiel als Sicherungskopie.') : t('Ohne Spielerkonto liegt der Spielstand nur in diesem Browser. Kopiere den Code und füge ihn auf dem anderen Gerät ein.')}</p>
@@ -2245,6 +2251,9 @@ function handle(act: string, el: HTMLElement): void {
       }, (e) => say(e instanceof CloudError ? e.message : t('Das hat nicht geklappt.'), 'warn')).finally(render);
       return;
     }
+    case 'install':
+      install().then((ok) => { if (ok) say(t('Brackenwyrm liegt jetzt auf deinem Startbildschirm.'), 'good'); render(); }, () => {});
+      return;
     case 'redeem': {
       const code = ((document.getElementById('unlock-code') as HTMLInputElement | null)?.value ?? '').trim();
       if (code.replace(/[^A-Za-z0-9]/g, '').length < 8) { ui.fullMsg = t('Ein Code sieht so aus: BW-XXXX-XXXX'); render(); return; }
@@ -2971,6 +2980,7 @@ function setupTilt(): void {
 
 export function start(el: HTMLElement): void {
   root = el;
+  initPwa(() => { if (currentScreen() === 'settings') render(); });
   document.documentElement.lang = lang;
   (window as unknown as { __i18nMissing?: Set<string> }).__i18nMissing = missing;
   root.addEventListener('click', (e) => {
