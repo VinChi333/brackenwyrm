@@ -1,6 +1,6 @@
 -- Brackenwyrm, Teil 3: Kriegerliste, Steckbriefe, Briefe und Spuken (wie im Original).
 -- Nach Teil 1 und Teil 2 einmal im SQL Editor ausführen. Kann gefahrlos erneut ausgeführt werden.
--- Hinweis: Wer diesen Teil erneut ausführt, führt danach auch Teil 6 (supabase-6-spieltage.sql) erneut aus.
+-- Hinweis: Wer diesen Teil erneut ausführt, führt danach auch Teil 6 und Teil 7 erneut aus.
 
 -- ---------------------------------------------------------------------------------------------
 -- Steckbrief (wie die Bio im Original): eigener Text, Reittier und Ehepartner, für alle sichtbar.

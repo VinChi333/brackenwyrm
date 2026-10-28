@@ -9,7 +9,7 @@
 --   Niederlage: Angreifer stirbt, verliert Gold und 15 % Erfahrung; Opfer erhält das Gold und 10 % der Erfahrung des Angreifers.
 -- Der Kampf wird hier auf dem Server berechnet, damit niemand anderen Spielern Gold "wegschummeln" kann.
 -- WICHTIG: Die Kampfwerte unten müssen zu src/game/balance.ts passen (maxHp, attack, defense).
--- Hinweis: Wer diesen Teil erneut ausführt, führt danach auch Teil 6 (supabase-6-spieltage.sql) erneut aus.
+-- Hinweis: Wer diesen Teil erneut ausführt, führt danach auch Teil 6 und Teil 7 erneut aus.
 
 -- ---------------------------------------------------------------------------------------------
 -- Ruhmeshalle: Geschlecht dazu, damit der Titel stimmt (Gräfin statt Graf).

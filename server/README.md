@@ -44,6 +44,11 @@ Teil 6 (ab Testversion 0.44) stellt auf zwei Spieltage pro echtem Tag um (6 und 
 eigenen Titel. **Wer Teil 2 bis 5 erneut ausführt, führt danach immer auch Teil 6 erneut aus.**
 Ob alles da ist, zeigt `supabase-pruefung.sql` (jede Zeile muss `true` sein).
 
+## Teil 7: Gilden (ab 0.46)
+
+`supabase-7-gilden.sql` nach Teil 6 ausführen. Bringt Gilden mit Gildenhalle, Rängen und eigenem Gespräch.
+Teil 7 ersetzt die Gesprächsregel aus Teil 4: Wer Teil 4 erneut ausführt, führt danach Teil 6 und Teil 7 erneut aus.
+
 ## E-Mails: Passwort vergessen (ab 0.44)
 
 „Passwort vergessen?“ schickt einen Code per E-Mail. Der eingebaute Mailversand von Supabase schickt nur an

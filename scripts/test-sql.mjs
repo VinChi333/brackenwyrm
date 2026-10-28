@@ -26,6 +26,8 @@ await db.exec(readFileSync(new URL('../server/supabase-4-schutz.sql', import.met
 await db.exec(readFileSync(new URL('../server/supabase-5-dorfleben.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-6-spieltage.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-6-spieltage.sql', import.meta.url), 'utf8')); // wiederholbar
+await db.exec(readFileSync(new URL('../server/supabase-7-gilden.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-7-gilden.sql', import.meta.url), 'utf8')); // wiederholbar
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c', N = '00000000-0000-0000-0000-00000000000d';
 await db.exec(`insert into auth.users values ('${A}','a@x'),('${B}','b@x'),('${C}','c@x'),('${N}','n@x')`);
 async function as(uid, sql, params) {
@@ -487,6 +489,74 @@ await db.exec(`update public.fighters set banned = false where user_id = '${A}'`
   await db.exec(`update public.fighters set pvp_used = 3, pvp_day = public.bw_gameday() - 1 where user_id = '${A}'`);
   r = await as(A, `select public.pvp_status() as s`);
   ok(r.rows[0].s.fights_left === 3, 'neuer Spieltag: wieder 3 Spielerkämpfe');
+}
+
+// Teil 7: Gilden
+{
+  await db.exec(`update public.fighters set banned = false, level = 6, gold = 5000 where user_id in ('${A}','${B}','${C}'); update public.fighters set level = 2, dragon_kills = 0 where user_id = '${C}'`);
+  const fail = async (uid, sql) => { try { await as(uid, sql); return ''; } catch (e) { return e.message; } };
+  let e = await fail(C, `select public.guild_create('Kleine Gilde', 'KG')`);
+  ok(/Stufe 5/.test(e), 'Gilde gründen erst ab Stufe 5: ' + e);
+  e = await fail(A, `select public.guild_create('Die Moosritter', 'x')`);
+  ok(/Kürzel/.test(e), 'Kürzel wird geprüft');
+  r = await as(A, `select public.guild_create('Die Moosritter', 'moos') as g`);
+  ok(r.rows[0].g.tag === 'MOOS' && r.rows[0].g.paid === 3000, 'Gilde gegründet, Kürzel groß, 3000 Gold');
+  r = await db.query(`select gold from public.fighters where user_id = '${A}'`);
+  ok(r.rows[0].gold === 2000, 'Gold vom Server abgezogen');
+  e = await fail(B, `select public.guild_create('die moosritter', 'MR')`);
+  ok(/gibt es schon/.test(e), 'Name nur einmal');
+  e = await fail(A, `select public.guild_create('Zweite', 'ZW')`);
+  ok(/schon in einer Gilde/.test(e), 'nur eine Gilde je Held');
+  const gid = (await as(A, `select id from public.guild_list()`)).rows[0].id;
+  r = await asAnon(`select name, tag, members, leader from public.guild_list()`);
+  ok(r.rows[0].members === 1 && r.rows[0].leader === 'Angreifer', 'Gildenliste auch ohne Anmeldung, mit Gildenmeister');
+  await as(B, `select public.guild_apply(${gid})`);
+  r = await as(B, `select public.guild_mine() as m`);
+  ok(r.rows[0].m.rank === 'applicant', 'Bewerbung offen');
+  r = await db.query(`select count(*)::int as n from public.mail where to_user = '${A}' and subject = 'Neue Bewerbung'`);
+  ok(r.rows[0].n === 1, 'Gildenmeister bekommt einen Brief');
+  e = await fail(B, `select public.guild_decide('${B}', true)`);
+  ok(/Gildenführung/.test(e), 'Bewerber kann sich nicht selbst aufnehmen');
+  r = await as(A, `select public.guild_mine() as m`);
+  ok(r.rows[0].m.applicants.length === 1 && r.rows[0].m.members.length === 1, 'Gildenmeister sieht die Bewerbung');
+  await as(A, `select public.guild_decide('${B}', true)`);
+  r = await as(B, `select public.guild_mine() as m`);
+  ok(r.rows[0].m.rank === 'member' && r.rows[0].m.members.length === 2 && r.rows[0].m.applicants.length === 0, 'aufgenommen, Mitglied sieht keine Bewerbungen');
+  // Gildengespräch nur für Mitglieder
+  await db.exec(`delete from public.commentary`);
+  await as(B, `insert into public.commentary (section, body) values ('gilde', 'Nur für uns')`);
+  r = await as(A, `select name, body from public.commentary where section = 'gilde'`);
+  ok(r.rows.length === 1 && r.rows[0].name.startsWith('[MOOS] '), 'Mitglieder lesen das Gildengespräch, Kürzel vor dem Namen: ' + r.rows[0]?.name);
+  r = await as(C, `select count(*)::int as n from public.commentary where section = 'gilde'`);
+  ok(r.rows[0].n === 0, 'Fremde sehen das Gildengespräch nicht');
+  r = await asAnon(`select count(*)::int as n from public.commentary where section = 'gilde'`);
+  ok(r.rows[0].n === 0, 'ohne Anmeldung auch nicht');
+  e = await fail(C, `insert into public.commentary (section, body) values ('gilde', 'Hallo?')`);
+  ok(/keiner Gilde/.test(e), 'Fremde können dort nicht schreiben');
+  await new Promise((res) => setTimeout(res, 50));
+  await db.exec(`delete from public.commentary`);
+  await as(A, `insert into public.commentary (section, body) values ('dorfplatz', 'Hallo Dorf')`);
+  r = await asAnon(`select name from public.commentary where section = 'dorfplatz'`);
+  ok(r.rows[0].name.startsWith('[MOOS] '), 'Kürzel auch auf dem Dorfplatz');
+  // Ränge
+  e = await fail(B, `select public.guild_rank('${A}', 'member')`);
+  ok(/Gildenmeister/.test(e), 'nur der Gildenmeister vergibt Ränge');
+  await as(A, `select public.guild_rank('${B}', 'officer')`);
+  await as(A, `select public.guild_text('Treffen am Wyrmstein', 'Wir jagen Wyrme.')`);
+  r = await as(B, `select public.guild_mine() as m`);
+  ok(r.rows[0].m.rank === 'officer' && r.rows[0].m.guild.motd === 'Treffen am Wyrmstein', 'Offizier, Nachricht der Gildenführung');
+  e = await fail(B, `select public.guild_kick('${A}')`);
+  ok(/Gildenführung/.test(e), 'Offizier kann den Gildenmeister nicht hinauswerfen');
+  r = await as(B, `select count(*)::int as n from public.guild_tags() where tag = 'MOOS'`);
+  ok(r.rows[0].n === 2, 'Kürzel für die Kriegerliste');
+  // Gildenmeister geht: Offizier übernimmt. Letzter geht: Gilde aufgelöst.
+  await as(A, `select public.guild_leave()`);
+  r = await as(B, `select public.guild_mine() as m`);
+  ok(r.rows[0].m.rank === 'leader', 'Offizier übernimmt, wenn der Gildenmeister geht');
+  await as(B, `select public.guild_leave()`);
+  r = await db.query(`select count(*)::int as n from public.guilds`);
+  ok(r.rows[0].n === 0, 'leere Gilde wird aufgelöst');
+  await db.exec(`delete from public.commentary; delete from public.mail`);
 }
 
 // Aktualisierung einer Datenbank mit dem alten Teil 2 (ohne Rassen)

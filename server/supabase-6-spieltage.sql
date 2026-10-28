@@ -7,7 +7,7 @@
 -- Außerdem: eigene Titel nach Drachenkills (f_title).
 --
 -- Die Funktionen hier sind die neueste Fassung. Sie ersetzen die gleichnamigen aus Teil 2 bis 5.
--- Wer Teil 2 bis 5 erneut ausführt, muss danach auch Teil 6 erneut ausführen.
+-- Wer Teil 2 bis 5 erneut ausführt, muss danach auch Teil 6 (und Teil 7) erneut ausführen.
 
 -- =============================================================================================
 -- Spieltag: ein Datum, das sich zweimal am Tag ändert (um 6 und um 18 Uhr Wiener Zeit).

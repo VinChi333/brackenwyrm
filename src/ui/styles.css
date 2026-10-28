@@ -739,3 +739,12 @@ textarea#mail-body { width: 100%; font: inherit; color: var(--text); background:
 @keyframes guide-pulse { 0%, 100% { opacity: .45; transform: translateX(-2px); } 50% { opacity: 1; transform: translateX(1px); } }
 @media (prefers-reduced-motion: reduce) { .guide-toast, .nav-link.guided > span:first-child::before, .dock-btn.guided > span:first-child::before { animation: none; } }
 body.reduced .guide-toast, body.reduced .nav-link.guided > span:first-child::before, body.reduced .dock-btn.guided > span:first-child::before { animation: none; }
+
+/* Gilden */
+.g-tag { color: var(--gold, #e8c46a); font-weight: 600; letter-spacing: 0.04em; }
+h1 .g-tag { font-size: 0.7em; }
+.guild-edit { margin: 16px 0; }
+.guild-edit textarea { width: 100%; }
+.warrior .row { gap: 6px; flex-wrap: wrap; }
+.warrior.g-member { grid-template-columns: 1fr auto; }
+@media (max-width: 560px) { .warrior.g-member { grid-template-columns: 1fr; } }

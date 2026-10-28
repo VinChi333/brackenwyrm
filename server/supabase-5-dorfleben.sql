@@ -6,7 +6,7 @@
 --   3. Fünf Sechser (Original: game_fivesix): Würfelspiel mit gemeinsamem Jackpot.
 --   4. Aushang am Rathaus (Original: Nachricht des Tages): Ankündigungen der Wache an alle.
 --   5. Ruhmeshalle mit Ranglisten (Original: hof.php): Drachentöter, Reichste, Charmanteste, Schnellste, ...
--- Hinweis: Wer diesen Teil erneut ausführt, führt danach auch Teil 6 (supabase-6-spieltage.sql) erneut aus.
+-- Hinweis: Wer diesen Teil erneut ausführt, führt danach auch Teil 6 und Teil 7 erneut aus.
 
 -- =============================================================================================
 -- Neue Angaben für die Ranglisten (vom Spiel gemeldet, vom Server begrenzt) und der Siegzähler (nur Server)

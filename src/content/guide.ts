@@ -47,7 +47,7 @@ export const GUIDE_END = {
 /** Ab welcher Stufe ein Ort im Menü auftaucht (nur für Neulinge, nur bis Stufe 3). Nicht genannte Orte sind sofort da. */
 export const PLACE_UNLOCK: Record<string, number> = {
   'go:stable': 2, 'go:quirin': 2, 'go:ambros': 2, 'go:news': 2, 'go:aushang': 2, 'go:warriors': 2, 'go:mail': 2, 'go:chronicle': 2,
-  'go:fields': 3, 'go:lager': 3, 'go:seer': 3, 'go:garten': 3, 'go:felsen': 3, 'go:dag': 3, 'go:fivesix': 3,
+  'go:fields': 3, 'go:lager': 3, 'go:seer': 3, 'go:garten': 3, 'go:felsen': 3, 'go:dag': 3, 'go:fivesix': 3, 'go:gilde': 3,
 };
 export const GUIDE_OPEN_LEVEL = 3;
 
@@ -55,7 +55,7 @@ export const PLACE_NAMES: Record<string, string> = {
   'go:stable': t('Mertens Pferdestall'), 'go:quirin': t('Quirins Tränke'), 'go:ambros': t('der alte Ambros'), 'go:news': t('die Tagesneuigkeiten'),
   'go:aushang': t('der Aushang am Rathaus'), 'go:warriors': t('die Kriegerliste'), 'go:mail': t('die Briefe'), 'go:chronicle': t('die Kampfchronik'),
   'go:fields': t('die Felder vor dem Tor'), 'go:lager': t('das Söldnerlager'), 'go:seer': t('das Zelt der Seherin'), 'go:garten': t('der Rosengarten'),
-  'go:felsen': t('der Wyrmstein'), 'go:dag': t('Veit Galgenstrick im Gasthaus'), 'go:fivesix': t('die Würfelecke im Gasthaus'),
+  'go:felsen': t('der Wyrmstein'), 'go:dag': t('Veit Galgenstrick im Gasthaus'), 'go:fivesix': t('die Würfelecke im Gasthaus'), 'go:gilde': t('die Gildenhalle'),
 };
 
 /** Kurzer Hinweis beim ersten Besuch eines Ortes. */
@@ -79,4 +79,5 @@ export const SCREEN_HINTS: Record<string, string> = {
   feste: t('Die versunkene Feste ist jeden Tag ein anderes Labyrinth. Pass auf dein Licht auf, und ganz hinten wartet der Hüter.'),
   warriors: t('Alle Helden aus Moosgrund. Du kannst ihre Steckbriefe lesen und ihnen Briefe schreiben.'),
   seer: t('Die Seherin lässt dich gegen Gold mit den Toten im Schattenreich reden.'),
+  gilde: t('In einer Gilde habt ihr eine eigene Halle mit eigenem Gespräch, und euer Kürzel steht vor eurem Namen. Beitreten geht jederzeit, gründen ab Stufe 5.'),
 };

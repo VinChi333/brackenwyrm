@@ -35,6 +35,15 @@ export interface BlockRow { blocked: string; name: string }
 export interface BountyRow { target: string; name: string; gender: Gender; level: number; dragon_kills: number; total: number; setters: number }
 export interface JackpotInfo { pot: number; last5: string; last5_pot: number; last4: string; last4_pot: number; last3: string; last3_pot: number; plays_left: number; cost: number }
 export interface DiceResult { dice: number[]; sixes: number; win: number; cost: number; pot: number; plays_left: number }
+export interface GuildRow { id: number; name: string; tag: string; members: number; leader: string }
+export type GuildRank = 'leader' | 'officer' | 'member' | 'applicant';
+export interface GuildMember { user_id: string; name: string; level: number; gender: Gender; dragon_kills: number; rank: GuildRank; online?: boolean; since: string }
+export interface GuildMine {
+  rank: GuildRank;
+  guild: { id: number; name: string; tag: string; motd?: string; descr?: string };
+  members: GuildMember[];
+  applicants: GuildMember[];
+}
 export interface AushangRow { id: number; created_at: string; title: string; body: string; author: string }
 export type FameCat = 'drachen' | 'reich' | 'charme' | 'schnell' | 'erben' | 'furcht' | 'schatz' | 'veteran';
 export interface FameCatRow { name: string; gender: Gender; dragonKills: number; level: number; value: number }
@@ -463,6 +472,55 @@ export class Cloud {
     const rows = await this.rpc5<BountyRow[]>('bounty_list', {}, t('Das Kopfgeld'));
     return (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, total: Number(r.total), gender: r.gender === 'f' ? 'f' : 'm' }));
   }
+
+  // ---------- Gilden (Teil 7) ----------
+  private async rpc7<T>(name: string, body: object): Promise<T> {
+    await this.ensureSession();
+    try {
+      return await this.call(`/rest/v1/rpc/${name}`, { method: 'POST', body });
+    } catch (e) {
+      if (this.missingPart5(e)) throw new CloudError('server', t('Gilden sind auf dem Server noch nicht eingerichtet (Teil 7).'));
+      throw e;
+    }
+  }
+
+  async guildList(): Promise<GuildRow[]> {
+    try {
+      const rows = await this.call('/rest/v1/rpc/guild_list', { method: 'POST', body: {} }, !!this.session);
+      return (Array.isArray(rows) ? rows : []).map((r) => ({ ...r, id: Number(r.id), members: Number(r.members), leader: r.leader ?? '' }));
+    } catch (e) {
+      if (this.missingPart5(e)) return [];
+      throw e;
+    }
+  }
+
+  /** Gildenkürzel je Held (für die Kriegerliste). */
+  async guildTags(): Promise<Map<string, string>> {
+    try {
+      const rows = await this.call('/rest/v1/rpc/guild_tags', { method: 'POST', body: {} }, !!this.session);
+      return new Map((Array.isArray(rows) ? rows : []).map((r: { user_id: string; tag: string }) => [r.user_id, r.tag]));
+    } catch {
+      return new Map();
+    }
+  }
+
+  async guildMine(): Promise<GuildMine | null> {
+    const r = await this.rpc7<GuildMine | null>('guild_mine', {});
+    if (!r) return null;
+    const fix = (m: GuildMember): GuildMember => ({ ...m, gender: m.gender === 'f' ? 'f' : 'm' });
+    return { ...r, members: (r.members ?? []).map(fix), applicants: (r.applicants ?? []).map(fix) };
+  }
+
+  guildCreate(gname: string, gtag: string): Promise<{ id: number; name: string; tag: string; paid: number }> {
+    return this.rpc7('guild_create', { gname, gtag });
+  }
+  guildApply(gid: number): Promise<{ name: string; tag: string }> { return this.rpc7('guild_apply', { gid }); }
+  guildWithdraw(): Promise<void> { return this.rpc7('guild_withdraw', {}); }
+  guildLeave(): Promise<void> { return this.rpc7('guild_leave', {}); }
+  guildDecide(target: string, accept: boolean): Promise<void> { return this.rpc7('guild_decide', { target, accept }); }
+  guildKick(target: string): Promise<void> { return this.rpc7('guild_kick', { target }); }
+  guildRank(target: string, newRank: 'leader' | 'officer' | 'member'): Promise<void> { return this.rpc7('guild_rank', { target, new_rank: newRank }); }
+  guildText(motd: string, descr: string): Promise<void> { return this.rpc7('guild_text', { motd, descr }); }
 
   transferGold(target: string, amount: number): Promise<{ amount: number; name: string; left_today: number }> {
     return this.rpc5('transfer_gold', { target, amount }, t('Überweisen'));

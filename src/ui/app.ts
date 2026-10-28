@@ -29,7 +29,7 @@ import {
 import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
-import type { AushangRow, BountyRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
+import type { AushangRow, BountyRow, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
 import { censor, isClean } from '../content/badwords';
 import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
 import { DIR_NAME, FESTE_COST, FESTE_MIN_LEVEL, SIZE as FESTE_SIZE, afterFesteFight, canEnterFeste, enterFeste, festeLight, exits, heirloomNames, leaveFeste, mazeFor, moveFeste, treasureNews, type Dir } from '../game/feste';
@@ -57,12 +57,12 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros'
   | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount'
   | 'quirin' | 'seer' | 'felsen' | 'garten' | 'feste' | 'heirlooms'
-  | 'tresen' | 'dag' | 'fivesix' | 'aushang' | 'lager';
+  | 'tresen' | 'dag' | 'fivesix' | 'aushang' | 'lager' | 'gilde';
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = t('Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.');
-const VERSION = t('Testversion {0}', '0.45');
+const VERSION = t('Testversion {0}', '0.46');
 
 interface Ui {
   screen: Screen;
@@ -116,6 +116,7 @@ interface Ui {
   sayText: string;
   acctEmail: string;        // Spielerkonto: eingegebene Adresse
   acctMsg: string;
+  guild: { mine: GuildMine | null | undefined; list: GuildRow[] | null; err: string; confirmLeave: boolean; tags: Map<string, string> };
   resetStep: '' | 'email' | 'code';   // Passwort vergessen: Adresse eingeben, dann Code und neues Passwort
   conflict: RemoteSave | null;  // Server-Stand, wenn beide Geräte weitergespielt haben
   fame: FameRow[] | null;       // echte Spieler aus der Online-Ruhmeshalle
@@ -128,7 +129,7 @@ let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '' }, dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' }, gilde: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', guild: { mine: undefined, list: null, err: '', confirmLeave: false, tags: new Map() }, conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
 };
 let root: HTMLElement;
 
@@ -486,6 +487,7 @@ function villageScreen(s: GameState): string {
       ...(cloud.enabled ? [
         { act: 'go:garten', label: t('Der Rosengarten'), key: 'o' },
         { act: 'go:felsen', label: t('Der Wyrmstein'), key: 'y', hint: p.dragonKills ? t('Drachentöter') : '' },
+        { act: 'go:gilde', label: t('Gildenhalle'), key: 'u', hint: !cloud.signedIn ? t('nur mit Spielerkonto') : ui.guild.mine?.guild && ui.guild.mine.rank !== 'applicant' ? `[${ui.guild.mine.guild.tag}]` : '', disabled: !cloud.signedIn },
       ] : []),
     ] },
     { title: t('Sonstiges'), items: [
@@ -841,6 +843,79 @@ function loadAushang(): void {
   cloud.aushang(10).then((r) => { ui.aushang = r; }, () => { ui.aushang = ui.aushang ?? []; }).finally(() => { if (['village', 'aushang', 'wache'].includes(currentScreen())) render(); });
 }
 
+function loadGuild(): void {
+  const g = ui.guild;
+  g.err = '';
+  Promise.all([cloud.guildMine(), cloud.guildList()]).then(([mine, list]) => { g.mine = mine; g.list = list; if (mine && mine.rank !== 'applicant') loadSquare('gilde', true); },
+    (e) => { g.mine = null; g.list = g.list ?? []; g.err = e instanceof CloudError ? e.message : t('Die Gildenhalle ist verschlossen.'); })
+    .finally(() => { if (currentScreen() === 'gilde') render(); });
+}
+
+const GUILD_COST = 3000;
+
+function rankName(r: GuildMember['rank'], g: Gender): string {
+  if (r === 'leader') return g === 'f' ? t('Gildenmeisterin') : t('Gildenmeister');
+  if (r === 'officer') return g === 'f' ? t('Offizierin') : t('Offizier');
+  if (r === 'applicant') return g === 'f' ? t('Bewerberin') : t('Bewerber');
+  return t('Mitglied');
+}
+
+function gildeScreen(s: GameState): string {
+  const p = s.player;
+  const g = ui.guild;
+  const mine = g.mine;
+  const back = { act: 'go:village', label: t('Zurück ins Dorf'), key: 'd' };
+  const lead = `<p class="lead">${t`Am Rand des Dorfplatzes steht ein altes Fachwerkhaus. An der Tür hängen die Wappen der Gilden von Moosgrund, und von drinnen hört man Lachen, Pläne und das Klappern von Würfeln.`}</p>`;
+  if (mine === undefined) return layout(s, `<h1>${t`Die Gildenhalle`}</h1>${lead}<p class="muted">${t`Der Hausmeister sucht den Schlüssel …`}</p>`, [{ title: t('Zurück'), items: [back] }]);
+  const err = g.err ? `<p class="warn-box">${esc(g.err)}</p>` : '';
+  if (!mine || mine.rank === 'applicant') {
+    const canFound = p.level >= 5 || p.dragonKills > 0;
+    const list = g.list === null ? '<p class="muted">…</p>' : g.list.length
+      ? `<table class="fame"><thead><tr><th>${t`Gilde`}</th><th class="num">${t`Mitglieder`}</th><th></th></tr></thead><tbody>${g.list.map((x) => `<tr class="${mine?.guild.id === x.id ? 'me' : ''}"><td><strong>${esc(x.name)}</strong> <span class="g-tag">[${esc(x.tag)}]</span>${x.leader ? `<small>${t`Gildenmeister: ${esc(x.leader)}`}</small>` : ''}</td><td class="num">${x.members}</td><td>${mine ? (mine.guild.id === x.id ? `<span class="muted">${t`angefragt`}</span>` : '') : `<button type="button" class="tbtn" data-act="guild:apply:${x.id}">${t`Beitritt anfragen`}</button>`}</td></tr>`).join('')}</tbody></table>`
+      : `<p class="muted">${t`Noch hängt kein einziges Wappen an der Tür. Gründe die erste Gilde von Moosgrund!`}</p>`;
+    const main = `<h1>${t`Die Gildenhalle`}</h1>${lead}${flashHtml()}${err}
+      ${mine ? `<p class="notice">${t`Deine Bewerbung bei <strong>${esc(mine.guild.name)}</strong> [${esc(mine.guild.tag)}] wartet auf eine Antwort der Gildenführung.`} <button type="button" class="linkish" data-act="guild:withdraw">${t`Bewerbung zurückziehen`}</button></p>` : ''}
+      <h2>${t`Die Gilden von Moosgrund`}</h2>${list}
+      <h2>${t`Eine Gilde gründen`}</h2>
+      ${canFound ? `<div class="acct-form">
+          <label class="field">${t`Name der Gilde`}<input type="text" id="guild-name" maxlength="30" placeholder="${t`z. B. Die Moosritter`}"></label>
+          <label class="field">${t`Kürzel (2 bis 4 Zeichen)`}<input type="text" id="guild-tag" maxlength="4" placeholder="${t`z. B. MOOS`}" style="text-transform:uppercase"></label>
+        </div>
+        <div class="row"><button type="button" class="btn" data-act="guild:create"${p.gold < GUILD_COST ? ' disabled' : ''}>${t`Gilde gründen (${GUILD_COST} Gold)`}</button></div>
+        <p class="muted">${p.gold < GUILD_COST ? t`Du hast nur ${p.gold} Gold dabei.` : t`Das Gold wird gleich bezahlt, und du übernimmst die Führung.`}</p>`
+      : `<p class="muted">${t`Eine Gilde gründen kann man ab Stufe 5. Beitreten geht jederzeit.`}</p>`}`;
+    return layout(s, main, [{ title: t('Zurück'), items: [back] }]);
+  }
+  const boss = mine.rank === 'leader';
+  const lead2 = boss || mine.rank === 'officer';
+  const memberRow = (m: GuildMember) => {
+    const isMe = m.user_id === cloud.userId;
+    const acts: string[] = [];
+    if (!isMe && boss) {
+      if (m.rank === 'member') acts.push(`<button type="button" class="tbtn ghost" data-act="guild:rank:${m.user_id}:officer">${t`befördern`}</button>`);
+      if (m.rank === 'officer') acts.push(`<button type="button" class="tbtn ghost" data-act="guild:rank:${m.user_id}:member">${t`zurückstufen`}</button>`, `<button type="button" class="tbtn ghost" data-act="guild:rank:${m.user_id}:leader">${t`Führung übergeben`}</button>`);
+    }
+    if (!isMe && (boss || (mine.rank === 'officer' && m.rank === 'member'))) acts.push(`<button type="button" class="tbtn ghost" data-act="guild:kick:${m.user_id}">${t`entlassen`}</button>`);
+    return `<li class="warrior g-member${isMe ? ' me' : ''}"><span class="t-info"><strong><span class="t-title">${esc(titleFor(m.dragon_kills, m.gender))}</span> ${esc(m.name)}</strong> <small>${rankName(m.rank, m.gender)} · ${t`Stufe ${m.level}`}${m.online ? ` · <span class="good">${t`unterwegs`}</span>` : ''}</small></span>${acts.length ? `<span class="row">${acts.join('')}</span>` : ''}</li>`;
+  };
+  const gi = mine.guild;
+  const main = `<h1>${esc(gi.name)} <span class="g-tag">[${esc(gi.tag)}]</span></h1>
+    <p class="lead">${t`Ihr habt einen eigenen Raum in der Gildenhalle, mit eurem Wappen über dem Kamin. Du bist hier ${rankName(mine.rank, p.gender)}.`}</p>
+    ${flashHtml()}${err}
+    ${gi.motd ? `<section class="notice"><h2>${t`Nachricht der Gildenführung`}</h2><p>${esc(gi.motd).replace(/\n/g, '<br>')}</p></section>` : ''}
+    ${gi.descr ? `<p>${esc(gi.descr).replace(/\n/g, '<br>')}</p>` : ''}
+    ${lead2 && mine.applicants.length ? `<h2>${t`Bewerbungen`}</h2><ul class="warriors">${mine.applicants.map((a) => `<li class="warrior g-member"><span class="t-info"><strong>${esc(a.name)}</strong> <small>${t`Stufe ${a.level}`}${a.dragon_kills ? t` · Drachentöter ${a.dragon_kills}×` : ''}</small></span><span class="row"><button type="button" class="tbtn" data-act="guild:accept:${a.user_id}">${t`aufnehmen`}</button><button type="button" class="tbtn ghost" data-act="guild:decline:${a.user_id}">${t`ablehnen`}</button></span></li>`).join('')}</ul>` : ''}
+    <h2>${t`Mitglieder (${mine.members.length})`}</h2>
+    <ul class="warriors">${mine.members.map(memberRow).join('')}</ul>
+    ${squareHtml('gilde')}
+    ${lead2 ? `<details class="guild-edit"><summary>${t`Nachricht und Beschreibung ändern`}</summary>
+      <label class="field">${t`Nachricht der Gildenführung`}<textarea id="guild-motd" maxlength="300" rows="3">${esc(gi.motd ?? '')}</textarea></label>
+      <label class="field">${t`Beschreibung der Gilde`}<textarea id="guild-descr" maxlength="600" rows="4">${esc(gi.descr ?? '')}</textarea></label>
+      <div class="row"><button type="button" class="tbtn" data-act="guild:text">${t`Speichern`}</button></div></details>` : ''}
+    <p class="fine"><button type="button" class="linkish" data-act="guild:leave">${g.confirmLeave ? (boss && mine.members.length > 1 ? t('Wirklich? Die Führung geht dann an deine Offiziere. Nochmal tippen.') : boss ? t('Wirklich? Du bist allein, die Gilde wird dann aufgelöst. Nochmal tippen.') : t('Wirklich austreten? Nochmal tippen.')) : t('Aus der Gilde austreten')}</button></p>`;
+  return layout(s, main, [{ title: t('Zurück'), items: [back] }]);
+}
+
 function lagerScreen(s: GameState): string {
   const p = s.player;
   const cp = p.companion;
@@ -1014,7 +1089,7 @@ function chronicleScreen(s: GameState): string {
 const SCREEN_NAMES: Partial<Record<Screen, string>> = {
   village: t('Dorfplatz'), forest: t('Wald'), fight: t('Kampf'), training: t('Trainingsplatz'), healer: t('Kräuterhütte'), smith: t('Schmiede'),
   bank: t('Kontor'), inn: t('Gasthaus'), bestiary: t('Bestiarium'), fame: t('Ruhmeshalle'), chronicle: t('Kampfchronik'), settings: t('Einstellungen'),
-  shadows: t('Schattenreich'), dragonBonus: t('Drachenkill'), quirin: t('Quirins Tränke'), tresen: t('Tresen'), lager: t('Söldnerlager'), dag: t('Veit Galgenstrick'), fivesix: t('Sechserjagd'), aushang: t('Aushang'), feste: t('Versunkene Feste'), heirlooms: t('Erbstücke'), seer: t('Seherin'), felsen: t('Wyrmstein'), garten: t('Rosengarten'),
+  shadows: t('Schattenreich'), dragonBonus: t('Drachenkill'), quirin: t('Quirins Tränke'), tresen: t('Tresen'), lager: t('Söldnerlager'), gilde: t('Gildenhalle'), dag: t('Veit Galgenstrick'), fivesix: t('Sechserjagd'), aushang: t('Aushang'), feste: t('Versunkene Feste'), heirlooms: t('Erbstücke'), seer: t('Seherin'), felsen: t('Wyrmstein'), garten: t('Rosengarten'),
   stable: t('Pferdestall'), ambros: t('Ambros'), warriors: t('Kriegerliste'), mail: t('Briefe'), bio: t('Steckbrief'),
 };
 
@@ -1159,20 +1234,23 @@ function newsScreen(s: GameState): string {
   return layout(s, main, [{ title: t('Zurück'), items: [back] }]);
 }
 
-type ChatSection = 'dorfplatz' | 'gasthaus' | 'schattenreich' | 'felsen' | 'garten';
+type ChatSection = 'dorfplatz' | 'gasthaus' | 'schattenreich' | 'felsen' | 'garten' | 'gilde';
 const CHAT: Record<ChatSection, { title: string; empty: string; screens: Screen[]; place: string; hint?: string }> = {
   dorfplatz: { title: t('Auf dem Dorfplatz'), empty: t('Auf dem Dorfplatz ist es still. Sag doch was.'), screens: ['village'], place: t('Dorfplatz') },
   gasthaus: { title: t('Am Tresen'), empty: t('Am Tresen schweigt man heute. Frieda poliert Gläser.'), screens: ['inn'], place: t('Tresen') },
   schattenreich: { title: t('Flüstern am Nebelfluss'), empty: t('Nur der Fluss rauscht. Flüstere den anderen Seelen etwas zu.'), screens: ['shadows', 'seer'], place: t('Nebelfluss') },
   felsen: { title: t('Am Wyrmstein'), empty: t('Die Drachentöter schweigen heute. Erzähl doch, wie dein letzter Kampf war.'), screens: ['felsen'], place: t('Wyrmstein'), hint: t('Erzähl von deinen Taten …') },
+  gilde: { title: t('Gildengespräch'), empty: t('In der Gildenhalle ist es still. Sag deinen Gefährten etwas.'), screens: ['gilde'], place: t('Gildenhalle'), hint: t('Nur deine Gilde hört mit …') },
   garten: { title: t('Im Rosengarten'), empty: t('Nur die Bienen summen. Setz dich auf eine Bank und sag etwas.'), screens: ['garten'], place: t('Rosengarten'), hint: t('Flüstere etwas zwischen den Rosen …') },
 };
 
 /** Vom Server kommen Namen mit deutschem Titel ("Moosritterin Hilda"). In anderen Sprachen den Titel übersetzen. */
 function titledLocal(name: string): string {
   if (lang === 'de') return name;
-  const k = TITLE_KEYS.find((x) => name.startsWith(x + ' '));
-  return k ? t(k) + name.slice(k.length) : name;
+  const tag = name.match(/^\[[^\]]{1,6}\] /)?.[0] ?? '';
+  const rest = name.slice(tag.length);
+  const k = TITLE_KEYS.find((x) => rest.startsWith(x + ' '));
+  return tag + (k ? t(k) + rest.slice(k.length) : rest);
 }
 
 /** Gesten wie im Original: "/me lacht", ":lacht" oder "::lacht" wird zu "Name lacht". Sonst null. */
@@ -1537,7 +1615,7 @@ function warriorsScreen(s: GameState): string {
     : !list.length ? `<p class="muted">${t`Noch niemand eingetragen.`}</p>`
     : `<ul class="warriors">${list.map((w) => `<li class="warrior ${w.userId === me ? 'me' : ''}">
         <span class="t-portrait">${heroPortrait(w.race, w.specialty, w.gender)}</span>
-        <button type="button" class="t-info w-link" data-act="bio:${w.userId}" title="${t`Steckbrief ansehen`}">${t`<strong><span class="t-title">${esc(titleFor(w.dragonKills, w.gender))}</span> ${esc(w.name)}</strong> <small>Stufe ${w.level} · ${raceName(w.race, w.gender)} · ${SPECIALTIES[w.specialty].name}`}${w.dragonKills ? t` · Drachentöter ${w.dragonKills}×` : ''}</small>
+        <button type="button" class="t-info w-link" data-act="bio:${w.userId}" title="${t`Steckbrief ansehen`}">${ui.guild.tags.get(w.userId) ? `<span class="g-tag">[${esc(ui.guild.tags.get(w.userId)!)}]</span> ` : ''}${t`<strong><span class="t-title">${esc(titleFor(w.dragonKills, w.gender))}</span> ${esc(w.name)}</strong> <small>Stufe ${w.level} · ${raceName(w.race, w.gender)} · ${SPECIALTIES[w.specialty].name}`}${w.dragonKills ? t` · Drachentöter ${w.dragonKills}×` : ''}</small>
           <small class="w-status">${statusOf(w)}</small></button>
         ${w.userId === me ? '<span class="muted">du</span>' : `<button type="button" class="tbtn" data-act="write:${w.userId}">${t`Brief`}</button>`}
       </li>`).join('')}</ul>`;
@@ -1572,7 +1650,7 @@ function mailScreen(s: GameState): string {
         const open = ui.mailOpen === m.id;
         return `<li class="mail ${m.seen ? '' : 'unread'} ${open ? 'open' : ''}">
           <button type="button" class="mail-head" data-act="mailopen:${m.id}" aria-expanded="${open}">
-            <span class="mail-from">${esc(m.from_name ? titledLocal(m.from_name) : t('Unbekannt'))}</span><span class="muted">${when(m.created_at)}</span>
+            <span class="mail-from">${esc(m.from_name ? (m.from_user ? titledLocal(m.from_name) : serverText(m.from_name)) : t('Unbekannt'))}</span><span class="muted">${when(m.created_at)}</span>
             <span class="mail-subj">${esc((m.from_user ? m.subject : serverText(m.subject)) || t('(ohne Betreff)'))}</span></button>
           ${open ? `<div class="mail-body"><p>${esc(m.from_user ? m.body : serverText(m.body)).replace(/\n/g, '<br>')}</p>
             <div class="row">${m.from_user ? `<button type="button" class="tbtn" data-act="reply:${m.id}">${t`Antworten`}</button>` : ''}
@@ -1595,6 +1673,7 @@ function mailScreen(s: GameState): string {
 function loadWarriors(): void {
   ui.warriors = null; ui.listErr = '';
   render();
+  cloud.guildTags().then((m) => { ui.guild.tags = m; }, () => {});
   cloud.warriors().then((r) => { ui.warriors = r; }, (e) => { ui.warriors = []; ui.listErr = e instanceof CloudError ? e.message : t('Die Liste ließ sich nicht laden.'); })
     .finally(() => { if (currentScreen() === 'warriors' || currentScreen() === 'haunt') render(); });
 }
@@ -1840,7 +1919,7 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), tresen: () => tresenScreen(s!), dag: () => dagScreen(s!), fivesix: () => fivesixScreen(s!), aushang: () => aushangScreen(s!), lager: () => lagerScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), tresen: () => tresenScreen(s!), dag: () => dagScreen(s!), fivesix: () => fivesixScreen(s!), aushang: () => aushangScreen(s!), lager: () => lagerScreen(s!), gilde: () => gildeScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!),
     impressum: () => legalScreen('impressum'), datenschutz: () => legalScreen('datenschutz'), wache: () => wacheScreen(s!), blocks: () => blocksScreen(s!), deleteAccount: () => deleteAccountScreen(s!),
   };
   root.innerHTML = views[scr]();
@@ -1853,6 +1932,7 @@ export function render(): void {
   if (scr === 'seer' && s?.player.seerPaid) loadSquare('schattenreich');
   if (scr === 'felsen' && s && s.player.dragonKills > 0) loadSquare('felsen');
   if (scr === 'garten') loadSquare('garten');
+  if (scr === 'gilde' && ui.guild.mine && ui.guild.mine.rank !== 'applicant') loadSquare('gilde');
   // Der neueste Kampftext steht unten, also dorthin scrollen.
   const fl = root.querySelector<HTMLElement>('.battle .fight-log');
   if (fl) fl.scrollTop = fl.scrollHeight;
@@ -2226,6 +2306,7 @@ function handle(act: string, el: HTMLElement): void {
       if (a === 'tresen') ui.flash = [];
       if (a === 'dag' && cloud.signedIn) { ui.bounties = null; go('dag'); loadWarriors(); cloud.bounties().then((b) => { ui.bounties = b; }, (e) => { ui.bounties = []; say(e instanceof CloudError ? e.message : t('Veit schweigt.'), 'warn'); }).finally(render); return; }
       if (a === 'fivesix' && cloud.signedIn) { ui.dice = { info: null, last: null, err: '', busy: false }; go('fivesix'); cloud.jackpot().then((i) => { ui.dice.info = i; }, (e) => { ui.dice.err = e instanceof CloudError ? e.message : t('Der Tisch ist leer.'); }).finally(render); return; }
+      if (a === 'gilde' && cloud.signedIn) { ui.guild.confirmLeave = false; go('gilde'); loadGuild(); return; }
       if (a === 'aushang' && cloud.enabled) { ui.aushang = null; go('aushang'); loadAushang(); return; }
       if (a === 'fame' && cloud.enabled) loadFameCat();
       if (a === 'bank') ui.bankMode = '';
@@ -2520,6 +2601,46 @@ function handle(act: string, el: HTMLElement): void {
         saveGame(s); scheduleSync(500);
         say(t`Ansgar trägt es ins Buch ein: ${r.amount} Gold an ${r.name}. Heute kannst du noch ${Math.max(0, r.left_today)} Gold überweisen.`, 'good');
       }, (e) => say(e instanceof CloudError ? e.message : t('Die Überweisung hat nicht geklappt.'), 'warn')).finally(render);
+      return;
+    }
+    case 'guild': {
+      const g = ui.guild;
+      const fail = (e: unknown) => { say(e instanceof CloudError ? e.message : t('Das hat nicht geklappt.'), 'warn'); loadGuild(); };
+      const done = (msg: string, k: LogLine['k'] = 'good') => { if (msg) say(msg, k); loadGuild(); };
+      if (a !== 'leave') g.confirmLeave = false;
+      if (a === 'create') {
+        const name = ((document.getElementById('guild-name') as HTMLInputElement | null)?.value ?? '').trim();
+        const tag = ((document.getElementById('guild-tag') as HTMLInputElement | null)?.value ?? '').trim().toUpperCase();
+        if (name.length < 3 || !/^[A-ZÄÖÜ0-9]{2,4}$/.test(tag)) { say(t('Bitte einen Namen (mindestens 3 Zeichen) und ein Kürzel aus 2 bis 4 Buchstaben oder Ziffern eingeben.'), 'warn'); render(); return; }
+        if (s.player.gold < GUILD_COST) { say(t`Eine Gilde zu gründen kostet ${GUILD_COST} Gold. So viel hast du nicht dabei.`, 'warn'); render(); return; }
+        pushFirst(s).then(() => cloud.guildCreate(name, tag)).then((r) => {
+          s.player.gold -= r.paid;
+          saveGame(s); scheduleSync(500);
+          done(t`Der Wappenmaler pinselt „${r.name}“ [${r.tag}] an die Tür. Die Gilde gehört dir.`, 'gold');
+        }, fail);
+        return;
+      }
+      if (a === 'apply') { cloud.guildApply(Number(b)).then((r) => done(t`Deine Bewerbung bei „${r.name}“ hängt jetzt am Brett. Die Gildenführung bekommt einen Brief.`), fail); return; }
+      if (a === 'withdraw') { cloud.guildWithdraw().then(() => done(t('Du nimmst deine Bewerbung wieder vom Brett.'), 'info'), fail); return; }
+      if (a === 'accept' || a === 'decline') { cloud.guildDecide(b, a === 'accept').then(() => done(a === 'accept' ? t('Aufgenommen! Ein Bote bringt die gute Nachricht.') : t('Abgelehnt. Ein Bote bringt die Nachricht.'), 'info'), fail); return; }
+      if (a === 'kick') { cloud.guildKick(b).then(() => done(t('Entlassen. Der Name wird von der Tafel gewischt.'), 'info'), fail); return; }
+      if (a === 'rank') {
+        const r = act.split(':')[3] as 'leader' | 'officer' | 'member';
+        cloud.guildRank(b, r).then(() => done(r === 'leader' ? t('Du übergibst den Schlüssel der Gildenhalle. Ab jetzt führt jemand anderes.') : r === 'officer' ? t('Befördert!') : t('Zurückgestuft.'), 'info'), fail);
+        return;
+      }
+      if (a === 'text') {
+        const motd = (document.getElementById('guild-motd') as HTMLTextAreaElement | null)?.value ?? '';
+        const descr = (document.getElementById('guild-descr') as HTMLTextAreaElement | null)?.value ?? '';
+        cloud.guildText(motd, descr).then(() => done(t('Gespeichert. Die Tafel in der Gildenhalle ist frisch beschrieben.'), 'info'), fail);
+        return;
+      }
+      if (a === 'leave') {
+        if (!g.confirmLeave) { g.confirmLeave = true; render(); return; }
+        g.confirmLeave = false;
+        cloud.guildLeave().then(() => { ui.squares.gilde.comments = null; done(t('Du hängst deinen Gildenmantel an den Haken und gehst.'), 'info'); }, fail);
+        return;
+      }
       return;
     }
     case 'bounty': {

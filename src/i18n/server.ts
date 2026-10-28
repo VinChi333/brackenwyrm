@@ -66,6 +66,32 @@ export const SERVER_TEXTS = [
   // Morwens Brief nach dem Spuken
   'Du wurdest heimgesucht',
   'Heute Nacht hat dich der Geist von {0} heimgesucht. Du wirst morgen früh müde aufwachen.',
+  // Gilden (Teil 7)
+  'Eine Gilde gründen kann man erst ab Stufe 5.',
+  'Du bist schon in einer Gilde.',
+  'Der Gildenname braucht 3 bis 30 Zeichen.',
+  'Das Kürzel braucht 2 bis 4 Buchstaben oder Ziffern.',
+  'Dieser Name geht leider nicht.',
+  'Diesen Gildennamen gibt es schon.',
+  'Dieses Kürzel ist schon vergeben.',
+  'Eine Gilde zu gründen kostet {0} Gold. So viel hast du nicht dabei.',
+  'Diese Gilde gibt es nicht mehr.',
+  'Das darf nur die Gildenführung.',
+  'Diese Bewerbung gibt es nicht mehr.',
+  'Das geht nicht.',
+  'Das darf nur der Gildenmeister.',
+  'Diesen Rang gibt es nicht.',
+  'Du gehörst zu keiner Gilde.',
+  '{0} hat die Gilde „{1}“ [{2}] gegründet.',
+  'Gildenbote',
+  'Neue Bewerbung',
+  '{0} möchte in die Gilde „{1}“ aufgenommen werden. Entscheide in der Gildenhalle.',
+  'Willkommen in der Gilde',
+  'Du bist jetzt Mitglied der Gilde „{0}“ [{1}]. Die Gildenhalle steht dir offen.',
+  'Bewerbung abgelehnt',
+  'Die Gilde „{0}“ hat deine Bewerbung leider abgelehnt.',
+  'Aus der Gilde entlassen',
+  'Du gehörst nicht mehr zur Gilde „{0}“.',
 ] as const;
 
 let extra: readonly string[] = [];
