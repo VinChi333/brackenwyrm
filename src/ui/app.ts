@@ -62,7 +62,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = t('Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.');
-const VERSION = t('Testversion {0}', '0.44');
+const VERSION = t('Testversion {0}', '0.45');
 
 interface Ui {
   screen: Screen;
