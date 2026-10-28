@@ -16,9 +16,9 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'wurzelgnom', name: t('Wurzelgnom'), level: 1, shape: 'goblin', prop: 'club', scale: 0.75, eyes: '#f3c06a',
     intro: t('Ein Wurzelgnom springt aus dem Laub und fordert Wegzoll.'),
     hits: t('haut dir seine Knolle gegen das Schienbein'), falls: t('Der Wurzelgnom gräbt sich murrend ein.') },
-  { id: 'laubwurm', name: t('Laubwurm'), level: 1, shape: 'serpent', scale: 0.6, eyes: '#c8e07a',
-    intro: t('Ein fetter Laubwurm windet sich aus dem Laub und faucht dich an. Ja, er faucht.'),
-    hits: t('spuckt dir modrigen Schleim auf die Hose'), falls: t('Der Laubwurm zieht sich beleidigt unter die Blätter zurück.') },
+  { id: 'moosigel', name: t('Moosigel'), level: 1, shape: 'rat', scale: 0.85, eyes: '#f3c06a',
+    intro: t('Ein Igel, so groß wie ein Hund, rollt aus dem Farn. Auf seinem Rücken wachsen Moos und kleine Pilze.'),
+    hits: t('rollt sich zusammen und rammt dich mit seinen Stacheln'), falls: t('Der Moosigel rollt sich ein und kullert beleidigt davon.') },
   { id: 'eichelbold', name: t('Eichelbold'), level: 1, shape: 'goblin', prop: 'spear', scale: 0.6, eyes: '#f3c06a',
     intro: t('Ein Eichelbold mit einer Eichelkappe als Helm droht dir mit einem Zahnstocher.'),
     hits: t('piekst dich mit seinem Zahnstocherspeer'), falls: t('Der Eichelbold kullert davon und versteckt sich unter seiner Kappe.') },
@@ -294,7 +294,7 @@ const GENDER: Record<string, 'm' | 'f' | 'n'> = {
   harpyie: 'f', knochenritter: 'm', dornengolem: 'm', wyrmling: 'm', sturmrabe: 'm', waldhexe: 'f',
   eichenhueter: 'm', schattenwolf: 'm', steinwurm: 'm', farngeist: 'm', trollkoenig: 'm', wyrmwaechter: 'm',
   // neue Gegner ab 0.45
-  'laubwurm': 'm', 'eichelbold': 'm', 'krallenmarder': 'm', 'riesenzecke': 'f', 'moorhund': 'm', 'raubwels': 'm', 'dornenfuchs': 'm', 'vogelscheuche': 'f', 'schreckreiher': 'm', 'pilzschamane': 'm', 'ertrunkener': 'm', 'elchbulle': 'm', 'moorschmuggler': 'm', 'hornissenschwarm': 'm', 'hoehlenmolch': 'm', 'schwarzschuetzin': 'f', 'schlickhydra': 'f', 'borkenoger': 'm', 'wiedergaenger': 'm', 'kristallspinne': 'f', 'nachtgreif': 'm', 'dornendruide': 'm', 'steinblickechse': 'f', 'frostbaer': 'm', 'schattenreiter': 'm', 'moorriese': 'm', 'glutgeweih': 'm', 'wyrmpriesterin': 'f', 'urkeiler': 'm', 'nachtkoenigin': 'f',
+  'moosigel': 'm', 'eichelbold': 'm', 'krallenmarder': 'm', 'riesenzecke': 'f', 'moorhund': 'm', 'raubwels': 'm', 'dornenfuchs': 'm', 'vogelscheuche': 'f', 'schreckreiher': 'm', 'pilzschamane': 'm', 'ertrunkener': 'm', 'elchbulle': 'm', 'moorschmuggler': 'm', 'hornissenschwarm': 'm', 'hoehlenmolch': 'm', 'schwarzschuetzin': 'f', 'schlickhydra': 'f', 'borkenoger': 'm', 'wiedergaenger': 'm', 'kristallspinne': 'f', 'nachtgreif': 'm', 'dornendruide': 'm', 'steinblickechse': 'f', 'frostbaer': 'm', 'schattenreiter': 'm', 'moorriese': 'm', 'glutgeweih': 'm', 'wyrmpriesterin': 'f', 'urkeiler': 'm', 'nachtkoenigin': 'f',
   dragon: 'm',
   // Schattenreich
   'verirrte-seele': 'f', faehrmann: 'm', schattenhund: 'm', knochenkraehe: 'f', 'klagende-witwe': 'f', nebelschlund: 'm',
