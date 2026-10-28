@@ -70,6 +70,13 @@ const server = createServer(async (req, res) => {
       await admin('insert into auth.users values ($1, $2, $3)', [id, data.email, data.password]);
       return send(200, { access_token: id, refresh_token: id, expires_in: 3600, user: { id, email: data.email } });
     }
+    // Abgelaufener Zugangsschlüssel (zum Testen: "EXP:<id>") wird wie bei Supabase mit 401 abgelehnt
+    if (uid?.startsWith('EXP:') && url.pathname.startsWith('/rest/')) return send(401, { code: 'PGRST301', message: 'JWT expired' });
+    if (url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'refresh_token') {
+      const u = (await admin('select id, email from auth.users where id::text = $1', [String(data.refresh_token)])).rows[0];
+      if (!u) return send(400, { error_code: 'refresh_token_not_found', msg: 'Invalid Refresh Token' });
+      return send(200, { access_token: u.id, refresh_token: u.id, expires_in: 3600, user: { id: u.id, email: u.email } });
+    }
     if (url.pathname === '/auth/v1/token') {
       const u = (await admin('select id from auth.users where email = $1 and password = $2', [data.email, data.password])).rows[0];
       if (!u) return send(400, { error: 'invalid_grant', error_description: 'Invalid login credentials' });

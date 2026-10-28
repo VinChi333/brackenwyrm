@@ -98,4 +98,60 @@ await t('Ruhmeshalle wird gelesen', async () => {
 await t('ohne Einrichtung ist das Konto abgeschaltet', () => {
   assert.equal(new Cloud('', '', fake as typeof fetch, store).enabled, false);
 });
+
+// Anmeldung läuft nach einer Stunde ab: still erneuern, nie einfach abmelden
+function expiryServer(opts: { refreshOk?: boolean; forbid?: boolean } = {}) {
+  let refreshes = 0;
+  const http = async (url: string | URL | Request, init: RequestInit = {}): Promise<Response> => {
+    const u = String(url); const auth = (init.headers as Record<string, string>)?.Authorization ?? '';
+    const json = (x: unknown, status = 200) => new Response(JSON.stringify(x), { status });
+    if (u.includes('grant_type=refresh_token')) {
+      refreshes++;
+      return opts.refreshOk === false ? json({ error_code: 'refresh_token_not_found' }, 400)
+        : json({ access_token: 'NEU', refresh_token: 'R2', expires_in: 3600, user: { id: 'u1', email: 'a@b.de' } });
+    }
+    if (auth !== 'Bearer NEU') return json({ message: 'JWT expired' }, 401);
+    if (opts.forbid) return json({ code: '42501', message: 'permission denied' }, 403);
+    if (u.endsWith('/rpc/is_admin')) return json(true);
+    return json([]);
+  };
+  const m = new Map<string, string>();
+  const st = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v), removeItem: (k: string) => void m.delete(k) };
+  return { http, st, m, refreshes: () => refreshes };
+}
+const oldSession = (expiresAt: number) => JSON.stringify({ accessToken: 'ALT', refreshToken: 'R', expiresAt, userId: 'u1', email: 'a@b.de' });
+
+await t('abgelaufene Anmeldung wird still erneuert (Wache bleibt sichtbar)', async () => {
+  const x = expiryServer(); x.m.set('brackenwyrm.session', oldSession(Date.now() - 1000));
+  const c = new Cloud('https://x', 'k', x.http as typeof fetch, x.st);
+  assert.equal(await c.isAdmin(), true);
+  assert.equal(c.signedIn, true);
+  assert.equal(JSON.parse(x.m.get('brackenwyrm.session')!).accessToken, 'NEU');
+});
+await t('Server lehnt den Schlüssel ab, obwohl er noch gültig scheint: erneuern und nochmal', async () => {
+  const x = expiryServer(); x.m.set('brackenwyrm.session', oldSession(Date.now() + 3_000_000));
+  const c = new Cloud('https://x', 'k', x.http as typeof fetch, x.st);
+  assert.equal(await c.isAdmin(), true);
+  assert.equal(c.signedIn, true);
+});
+await t('mehrere Anfragen gleichzeitig erneuern nur einmal', async () => {
+  const x = expiryServer(); x.m.set('brackenwyrm.session', oldSession(Date.now() - 1000));
+  const c = new Cloud('https://x', 'k', x.http as typeof fetch, x.st);
+  await Promise.all([c.isAdmin(), c.pull(), c.isAdmin()]);
+  assert.equal(x.refreshes(), 1);
+});
+await t('Erneuern abgelehnt: abmelden und Bescheid geben', async () => {
+  const x = expiryServer({ refreshOk: false }); x.m.set('brackenwyrm.session', oldSession(Date.now() - 1000));
+  const c = new Cloud('https://x', 'k', x.http as typeof fetch, x.st);
+  let told = 0; c.onExpired = () => { told++; };
+  await assert.rejects(c.pull(), (e: { code: string }) => e.code === 'auth');
+  assert.equal(c.signedIn, false);
+  assert.equal(told, 1);
+});
+await t('fehlende Berechtigung (403) meldet nicht ab', async () => {
+  const x = expiryServer({ forbid: true }); x.m.set('brackenwyrm.session', oldSession(Date.now() - 1000));
+  const c = new Cloud('https://x', 'k', x.http as typeof fetch, x.st);
+  await assert.rejects(c.pull(), (e: { code: string }) => e.code === 'server');
+  assert.equal(c.signedIn, true);
+});
 console.log(`\n${n} Tests bestanden`);

@@ -125,6 +125,7 @@ export interface Prefs {
   reducedMotion: boolean;
   dev: boolean;           // Entwicklermodus: Testknöpfe sichtbar
   lastSyncedAt: number;   // savedAt des Stands, der zuletzt mit dem Server übereinstimmte (0 = nie)
+  syncUser?: string;      // Konto, für das lastSyncedAt gilt (anderes Konto: neu abgleichen)
   welcomed: boolean;      // Tester-Begrüßung gesehen
   fightHint: boolean;     // Hinweis "Befehle stehen links" schon gesehen
   musicVol: number;       // 0–1

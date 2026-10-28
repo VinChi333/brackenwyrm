@@ -406,7 +406,10 @@ export class Cloud {
 
   async isAdmin(): Promise<boolean> {
     if (!this.session) return false;
-    try { return !!(await this.call('/rest/v1/rpc/is_admin', { method: 'POST', body: {} })); } catch { return false; }
+    try { return !!(await this.call('/rest/v1/rpc/is_admin', { method: 'POST', body: {} })); } catch (e) {
+      if (e instanceof CloudError && e.code === 'offline') throw e;  // später nochmal fragen
+      return false;
+    }
   }
 
   async modReports(): Promise<ModReport[]> {
@@ -601,17 +604,52 @@ export class Cloud {
 
   // ---------- intern ----------
 
-  private async ensureSession(): Promise<Session> {
-    const s = this.session;
+  private refreshing: Promise<Session> | null = null;
+
+  /** Wird aufgerufen, wenn die Anmeldung abgelaufen ist und nicht erneuert werden konnte. */
+  onExpired: (() => void) | null = null;
+
+  /** Gültige Anmeldung holen. Der Zugangsschlüssel von Supabase gilt nur eine Stunde und wird hier still erneuert. */
+  private async ensureSession(force = false): Promise<Session> {
+    let s = this.session;
     if (!s) throw new CloudError('auth', t('Nicht angemeldet.'));
-    if (Date.now() < s.expiresAt - 60_000) return s;
-    const r = await this.call('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: { refresh_token: s.refreshToken } }, false);
-    this.setSession(r);
-    return this.session!;
+    // Ein anderer Tab (oder die installierte App) hat die Anmeldung vielleicht schon erneuert
+    const stored = this.readSession();
+    if (stored && stored.userId === s.userId && stored.expiresAt > s.expiresAt) { this.session = stored; s = stored; force = false; }
+    if (!force && Date.now() < s.expiresAt - 60_000) return s;
+    if (!this.refreshing) this.refreshing = this.refresh(s).finally(() => { this.refreshing = null; });
+    return this.refreshing;
   }
 
-  private async call(path: string, o: { method: string; body?: unknown; prefer?: string }, auth = true): Promise<any> {
+  private async refresh(s: Session): Promise<Session> {
+    let res: Response;
+    try {
+      res = await this.http(this.url + '/auth/v1/token?grant_type=refresh_token', {
+        method: 'POST', headers: { apikey: this.key, 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh_token: s.refreshToken }),
+      });
+    } catch {
+      throw new CloudError('offline', t('Keine Verbindung. Der Spielstand bleibt auf diesem Gerät und wird später abgeglichen.'));
+    }
+    if (res.ok) { this.setSession(JSON.parse(await res.text())); return this.session!; }
+    // Nur abmelden, wenn der Server die Anmeldung wirklich ablehnt (nicht bei Überlastung oder Serverfehlern)
+    if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+      const stored = this.readSession();
+      if (stored && stored.userId === s.userId && stored.refreshToken !== s.refreshToken) { this.session = stored; return stored; }
+      this.expire();
+      throw new CloudError('auth', t('Anmeldung abgelaufen. Bitte neu anmelden.'));
+    }
+    throw new CloudError('server', t`Server-Fehler ${res.status} bei ${'token'}${''}`);
+  }
+
+  private expire(): void {
+    if (!this.session) return;
+    this.signOut();
+    this.onExpired?.();
+  }
+
+  private async call(path: string, o: { method: string; body?: unknown; prefer?: string }, auth = true, retried = false): Promise<any> {
     if (!this.enabled) throw new CloudError('server', t('Online-Spielstand ist nicht eingerichtet.'));
+    if (auth && this.session) await this.ensureSession();
     const headers: Record<string, string> = { apikey: this.key, 'Content-Type': 'application/json' };
     // Angemeldet: eigener Zugangsschlüssel. Sonst nur der öffentliche Projektschlüssel als apikey
     // (funktioniert mit dem alten anon key und dem neuen publishable key).
@@ -623,10 +661,13 @@ export class Cloud {
     } catch {
       throw new CloudError('offline', t('Keine Verbindung. Der Spielstand bleibt auf diesem Gerät und wird später abgeglichen.'));
     }
-    if (res.status === 401 || res.status === 403) {
-      if (auth) this.signOut();
+    if (auth && this.session && res.status === 401) {
+      // Zugangsschlüssel abgelaufen oder ungültig: einmal erneuern und nochmal versuchen
+      if (!retried) { await this.ensureSession(true); return this.call(path, o, auth, true); }
+      this.expire();
       throw new CloudError('auth', t('Anmeldung abgelaufen. Bitte neu anmelden.'));
     }
+    if (!(auth && this.session) && (res.status === 401 || res.status === 403)) throw new CloudError('auth', t('Anmeldung abgelaufen. Bitte neu anmelden.'));
     if (res.status === 400 && path.startsWith('/auth/v1/verify')) throw new CloudError('auth', t('Code ungültig.'));
     if (!res.ok) {
       // Die genaue Meldung des Servers mitgeben, damit sich Fehler finden lassen.

@@ -2487,4 +2487,5 @@ export const EN: Record<string, string> = {
   "Ein Igel, so groß wie ein Hund, rollt aus dem Farn. Auf seinem Rücken wachsen Moos und kleine Pilze.": "A hedgehog as big as a dog rolls out of the ferns. Moss and tiny mushrooms grow on its back.",
   "rollt sich zusammen und rammt dich mit seinen Stacheln": "curls up and rams you with its spines",
   "Der Moosigel rollt sich ein und kullert beleidigt davon.": "The moss hedgehog curls up and rolls away in a huff.",
+  "Deine Anmeldung ist abgelaufen. Bitte melde dich in den Einstellungen neu an, dein Spielstand bleibt auf diesem Gerät.": "Your sign-in has expired. Please sign in again in the settings. Your save stays on this device.",
 };

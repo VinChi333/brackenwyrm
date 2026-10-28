@@ -51,7 +51,7 @@ import type { CardInfo } from './art/cards';
 import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 import { sound, type TrackId } from './audio';
 
-import { LANGS, lang, missing, switchLang, t } from '../i18n';
+import { LANGS, lang, missing, switchLang, t, tkey, tr } from '../i18n';
 import { showNews } from '../i18n/news';
 import { serverText } from '../i18n/server';
 
@@ -64,7 +64,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = t('Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.');
-const VERSION = t('Testversion {0}', '0.50');
+const VERSION = t('Testversion {0}', '0.51');
 
 interface Ui {
   screen: Screen;
@@ -132,6 +132,11 @@ interface Ui {
 let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
+cloud.onExpired = () => {
+  resetSafety(); ui.full = null; ui.guild.mine = undefined;
+  expiredNote = true;
+  render();
+};
 const ui: Ui = {
   screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '', codes: null, newCodes: [] }, full: null, fullMsg: '', dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' }, gilde: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', guild: { mine: undefined, list: null, err: '', confirmLeave: false, tags: new Map() }, conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
 };
@@ -191,9 +196,14 @@ function navHtml(groups: Group[]): string {
   </section>`).join('');
 }
 
+/** Anmeldung abgelaufen und nicht erneuerbar: Hinweis bleibt stehen, bis man sich neu anmeldet. */
+let expiredNote = false;
+const EXPIRED_TEXT = tkey('Deine Anmeldung ist abgelaufen. Bitte melde dich in den Einstellungen neu an, dein Spielstand bleibt auf diesem Gerät.');
+
 function flashHtml(): string {
-  if (!ui.flash.length) return '';
-  return `<div class="flash log">${ui.flash.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}</div>`;
+  const lines = expiredNote && !cloud.signedIn ? [{ t: tr(EXPIRED_TEXT), k: 'warn' as const }, ...ui.flash] : ui.flash;
+  if (!lines.length) return '';
+  return `<div class="flash log">${lines.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}</div>`;
 }
 
 function say(t: string, k: LogLine['k'] = 'info'): void {
@@ -1156,7 +1166,11 @@ function accountHtml(): string {
 
 /** Nach dem Anmelden (Passwort oder Code): abgleichen und weiter ins Dorf oder Hinweis zeigen. */
 async function afterLogin(done: (m: string) => void, note = ''): Promise<void> {
-  prefs.lastSyncedAt = 0; savePrefs(prefs);
+  // Gleiches Konto wie beim letzten Abgleich: den Stand von damals behalten, sonst käme unnötig "Zwei Spielstände"
+  if (prefs.syncUser !== cloud.userId) prefs.lastSyncedAt = 0;
+  prefs.syncUser = cloud.userId; savePrefs(prefs);
+  expiredNote = false;
+  resetSafety();  // Wache und Blockierliste für dieses Konto neu holen
   ui.full = null; loadFull();
   const m = await syncNow();
   if (ui.screen === 'login') {
@@ -1295,7 +1309,7 @@ let safetyLoaded = false;
 function loadSafety(): void {
   safetyLoaded = true;
   cloud.blocks().then((rows) => { ui.blocksList = rows; ui.blocked = new Set(rows.map((r) => r.blocked)); render(); }, () => { safetyLoaded = false; });
-  cloud.isAdmin().then((a) => { if (a !== ui.isAdmin) { ui.isAdmin = a; render(); } }, () => {});
+  cloud.isAdmin().then((a) => { if (a !== ui.isAdmin) { ui.isAdmin = a; render(); } }, () => { safetyLoaded = false; });
 }
 
 function resetSafety(): void {
@@ -2102,7 +2116,9 @@ async function syncNow(): Promise<string> {
   try {
     const remote = await cloud.pull();
     let local = state;
-    const d = decideSync({ local: local?.savedAt ?? null, remote: remote?.savedAt ?? null, lastSynced: prefs.lastSyncedAt });
+    let d = decideSync({ local: local?.savedAt ?? null, remote: remote?.savedAt ?? null, lastSynced: prefs.lastSyncedAt });
+    // Anderer Held hier als online (z. B. neues Spiel während der Abmeldung): nie still überschreiben
+    if (d === 'push' && remote && local && remote.state.player.name !== local.player.name) d = 'conflict';
     if ((d === 'pull' || d === 'conflict') && local?.fight) {
       scheduleSync(15000);  // nie mitten im Kampf austauschen oder nachfragen: nach dem Kampf erneut versuchen
       return '';
@@ -2300,7 +2316,7 @@ function handle(act: string, el: HTMLElement): void {
       if (typed !== t('LÖSCHEN') && typed !== 'LÖSCHEN' && typed !== 'LOESCHEN') { ui.delMsg = t('Bitte zum Bestätigen LÖSCHEN eintippen.'); render(); return; }
       ui.delMsg = '';
       cloud.deleteAccount().then(() => {
-        resetSafety(); prefs.lastSyncedAt = 0; savePrefs(prefs);
+        resetSafety(); prefs.lastSyncedAt = 0; prefs.syncUser = undefined; savePrefs(prefs);
         deleteGame(); state = null;
         go('title'); say(t('Dein Konto und alle Daten dazu sind gelöscht. Mach’s gut, und danke fürs Spielen.'), 'good'); render();
       }, (e) => { ui.delMsg = e instanceof CloudError ? e.message : t('Das Löschen hat nicht geklappt.'); render(); });
@@ -2481,7 +2497,7 @@ function handle(act: string, el: HTMLElement): void {
         done(t('Gleiche ab …'));
         syncNow().then(done);
       } else if (a === 'out') {
-        cloud.signOut(); prefs.lastSyncedAt = 0; savePrefs(prefs); resetSafety(); ui.full = null; ui.guild.mine = undefined; done(t('Abgemeldet. Der Spielstand bleibt auf diesem Gerät.'));
+        cloud.signOut(); expiredNote = false; resetSafety(); ui.full = null; ui.guild.mine = undefined; done(t('Abgemeldet. Der Spielstand bleibt auf diesem Gerät.'));
       }
       return;
     }
