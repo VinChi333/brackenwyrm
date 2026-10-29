@@ -69,7 +69,7 @@ export const SCREEN_HINTS: Record<string, string> = {
   inn: t('Frieda kennt jeden Klatsch, am Tresen gibt es Getränke mit Wirkung, und mit einem Zimmer bist du nachts vor Überfällen sicher.'),
   shadows: t('Du bist gestorben. Halb so schlimm: Am nächsten Morgen bist du wieder im Dorf. Weg sind nur das Gold, das du dabeihattest, und ein Teil der Erfahrung. Wer nicht warten will, sammelt hier Gunst bei Morwen.'),
   stable: t('Ein Reittier bringt dir jeden Tag mehr Waldkämpfe. Bezahlt wird mit Edelsteinen.'),
-  quirin: t('Quirin braut aus Edelsteinen Tränke: für Charme, für mehr Lebenspunkte oder um Rasse und Fähigkeit zu wechseln.'),
+  quirin: t('Quirin braut aus Edelsteinen Tränke: für Charme, für mehr Lebenspunkte oder um Volk und Fähigkeit zu wechseln.'),
   fields: t('Hier schlafen Helden, die sich kein Zimmer leisten. Du kannst sie im Schlaf überfallen und Gold erbeuten. Dasselbe kann dir passieren.'),
   lager: t('Ein Söldner kämpft im Wald und in der Feste an deiner Seite.'),
   ambros: t('Ein kleines Ratespiel um Gold. Ambros schläft schnell ein, also nur ein paar Runden am Tag.'),

@@ -139,7 +139,7 @@ export const MONSTERS: MonsterDef[] = [
     intro: t('Ein blasser Riesenmolch kriecht aus einer Höhle. Seine roten Kiemen zittern, als er dich wittert.'),
     hits: t('schnappt mit seinem breiten Maul zu'), falls: t('Der Höhlenmolch gleitet zurück in die Dunkelheit.') },
   { id: 'schwarzschuetzin', name: t('Schwarzschützin'), level: 8, shape: 'humanoid', prop: 'bow', scale: 1.0, eyes: '#ff8a6a',
-    intro: t('Eine Schützin in schwarzem Leder lässt ihren Bogen sinken. „Zu langsam“, sagt sie, und spannt ihn wieder.'),
+    intro: t('Eine Schützin in schwarzem Leder lässt ihren Bogen sinken. „Zu langsam“, sagt sie und spannt ihn wieder.'),
     hits: t('trifft dich mit einem schwarz gefiederten Pfeil'), falls: t('Die Schwarzschützin verschwindet zwischen den Bäumen, so lautlos, wie sie kam.') },
 
   // Stufe 9

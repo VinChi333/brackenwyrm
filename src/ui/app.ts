@@ -31,7 +31,7 @@ import {
 import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
-import type { AushangRow, BountyRow, CodeRow, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
+import type { AushangRow, BountyRow, CodeRow, FeedbackRow, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
 import { censor, isClean } from '../content/badwords';
 import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
 import { DIR_NAME, FESTE_COST, FESTE_MIN_LEVEL, SIZE as FESTE_SIZE, afterFesteFight, canEnterFeste, enterFeste, festeLight, exits, heirloomNames, leaveFeste, mazeFor, moveFeste, treasureNews, type Dir } from '../game/feste';
@@ -64,7 +64,11 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = t('Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.');
-const VERSION = t('Testversion {0}', '0.51');
+const VERSION = t('Version {0}', '0.52');
+
+/** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
+function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
+function devOn(): boolean { return prefs.dev && devAllowed(); }
 
 interface Ui {
   screen: Screen;
@@ -97,7 +101,7 @@ interface Ui {
   aushang: AushangRow[] | null;
   fameCat: FameCat;
   fameRows: FameCatRow[] | null | undefined;
-  wache: { tab: 'reports' | 'banned' | 'cheats' | 'aushang' | 'vollversion'; reports: ModReport[] | null; banned: ModBanned[] | null; cheats: ModCheat[] | null; err: string; codes: CodeRow[] | null; newCodes: string[] };
+  wache: { tab: 'reports' | 'banned' | 'cheats' | 'aushang' | 'vollversion' | 'rueck'; reports: ModReport[] | null; banned: ModBanned[] | null; cheats: ModCheat[] | null; err: string; codes: CodeRow[] | null; newCodes: string[]; feedback: FeedbackRow[] | null; fbAll: boolean };
   full: boolean | null;     // Vollversion: true/false, null = noch nicht geprüft
   fullMsg: string;
   unreadAt: number;            // Handy: Fähigkeiten statt Kampfbefehlen in der Leiste
@@ -138,7 +142,7 @@ cloud.onExpired = () => {
   render();
 };
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '', codes: null, newCodes: [] }, full: null, fullMsg: '', dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' }, gilde: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', guild: { mine: undefined, list: null, err: '', confirmLeave: false, tags: new Map() }, conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '', codes: null, newCodes: [], feedback: null, fbAll: false }, full: null, fullMsg: '', dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' }, gilde: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', guild: { mine: undefined, list: null, err: '', confirmLeave: false, tags: new Map() }, conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
 };
 let root: HTMLElement;
 
@@ -159,7 +163,7 @@ interface Group { title: string; items: Item[]; dock?: boolean }
 function hotLabel(label: string, key?: string): string {
   if (!key) return esc(label);
   const i = label.toLowerCase().indexOf(key.toLowerCase());
-  if (i < 0) return `<b class="hk">${key.toUpperCase()}</b> · ${esc(label)}`;
+  if (i < 0) return `<span class="hk-pre"><b class="hk">${key.toUpperCase()}</b> · </span>${esc(label)}`;
   return `${esc(label.slice(0, i))}<b class="hk">${esc(label[i])}</b>${esc(label.slice(i + 1))}`;
 }
 
@@ -219,24 +223,26 @@ function vital(s: GameState): string {
   const sp = SPECIALTIES[p.specialty];
   const prev = p.level > 1 ? expNeeded(p.level - 1, p.dragonKills) : 0;
   const need = expNeeded(p.level, p.dragonKills);
-  return `<aside class="vital" aria-label="${t`Charakter`}">
+  const open = !!prefs.vitalOpen;
+  return `<aside class="vital ${open ? 'vital-open' : ''}" aria-label="${t`Charakter`}">
     <div class="vital-head">
       <div class="portrait">${heroPortrait(p.race, p.specialty, p.gender)}</div>
       <div>${t`<span class="v-title">${esc(titleFor(p.dragonKills, p.gender))}</span><strong class="v-name">${esc(p.name)}</strong><span class="v-sub">Stufe ${p.level} · ${raceName(p.race, p.gender)} · ${sp.name}</span>`}
         ${p.dragonKills ? `${t`<span class="v-dk">Drachentöter ${p.dragonKills}×</span>`}` : ''}
         ${p.marriedTo ? `${t`<span class="v-wed">♥ verheiratet mit ${PARTNERS[p.marriedTo].name}</span>`}` : ''}</div>
+      <button type="button" class="v-more" data-act="vitalmore" aria-expanded="${open}" aria-label="${open ? t('Weniger Werte zeigen') : t('Alle Werte zeigen')}">${open ? '▴' : '▾'}</button>
     </div>
     <dl class="vital-list">
       ${p.alive
-        ? `<div class="v-row wide"><dt>${t`Lebenspunkte`}</dt><dd>${p.hp} / ${maxHp(p)}</dd>${bar(p.hp, maxHp(p), 'hp')}</div>`
-        : `<div class="v-row wide"><dt>${t`Seelenkraft`}</dt><dd>${p.soul} / ${maxSoul(p)}</dd>${bar(p.soul, maxSoul(p), 'soul')}</div>
-           <div class="v-row"><dt>${t`Gunst`}</dt><dd class="gem">${p.favor} / ${RESURRECT_FAVOR}</dd></div>
+        ? `<div class="v-row wide v-key"><dt>${t`Lebenspunkte`}</dt><dd>${p.hp} / ${maxHp(p)}</dd>${bar(p.hp, maxHp(p), 'hp')}</div>`
+        : `<div class="v-row wide v-key"><dt>${t`Seelenkraft`}</dt><dd>${p.soul} / ${maxSoul(p)}</dd>${bar(p.soul, maxSoul(p), 'soul')}</div>
+           <div class="v-row v-key"><dt>${t`Gunst`}</dt><dd class="gem">${p.favor} / ${RESURRECT_FAVOR}</dd></div>
            <div class="v-row"><dt>${t`Schattenkämpfe`}</dt><dd>${p.graveFights}</dd></div>`}
       <div class="v-row wide"><dt>${t`Erfahrung`}</dt><dd>${p.level >= MAX_LEVEL ? t('max.') : `${p.exp} / ${need}`}</dd>${bar(p.exp - prev, need - prev, 'xp')}</div>
       <div class="v-row"><dt>${t`Angriff`}</dt><dd>${attack(p)}</dd></div>
       <div class="v-row"><dt>${t`Verteidigung`}</dt><dd>${defense(p)}</dd></div>
-      <div class="v-row"><dt>${t`Gold`}</dt><dd class="gold">${p.gold}</dd></div>
-      <div class="v-row"><dt>${t`Edelsteine`}</dt><dd class="gem">${p.gems}</dd></div>
+      <div class="v-row v-key"><dt>${t`Gold`}</dt><dd class="gold">${p.gold}</dd></div>
+      <div class="v-row v-key"><dt>${t`Edelsteine`}</dt><dd class="gem">${p.gems}</dd></div>
       <div class="v-row"><dt>${t`Waldkämpfe`}</dt><dd>${p.forestFights}</dd></div>
       <div class="v-row"><dt>${sp.name}</dt><dd>${p.specialUses} ${p.specialUses === 1 ? t('Punkt') : t('Punkte')}</dd></div>
       <div class="v-row wide v-gear"><dt>${t`Waffe`}</dt><dd>${WEAPONS[p.weaponTier].name}</dd></div>
@@ -389,11 +395,11 @@ function titleScreen(): string {
       <p class="tagline">${TITLE_SPRUCH}</p>
       ${flashHtml()}
       <div class="solo-nav">${navHtml(localKeys([{ title: t('Willkommen'), items: [
-        ...(p ? [{ act: 'continue', label: t`Weiterspielen: ${titleFor(p.dragonKills, p.gender)} ${p.name}`, key: 'w', hint: t`Stufe ${p.level} · Spieltag ${state!.day}` }] : []),
-        { act: 'new', label: p && ui.confirmNew ? t('Wirklich neu beginnen? Der alte Spielstand geht verloren.') : t('Neues Spiel beginnen'), key: 'n' },
+        ...(p ? [{ act: 'continue', label: t`Weiterspielen: ${titleFor(p.dragonKills, p.gender)} ${p.name}`, key: 'w', hint: t`Stufe ${p.level} · Spieltag ${state!.day}`, primary: true }] : []),
+        { act: 'new', label: p && ui.confirmNew ? t('Wirklich neu beginnen? Der alte Spielstand geht verloren.') : t('Neues Spiel beginnen'), key: 'n', primary: !p },
         ...(cloud.enabled && !cloud.signedIn ? [{ act: 'go:login', label: t('Mit Spielerkonto anmelden'), key: 'k', hint: t('auf einem anderen Gerät weiterspielen') }] : []),
       ] }]))}</div>
-      <p class="fine" data-act="devtap">${t`${VERSION} · Tastenkürzel am Computer, Tippen am Handy${prefs.dev ? t(' · Entwicklermodus') : ''}`}</p>
+      <p class="fine" data-act="devtap">${t`${VERSION} · Tastenkürzel am Computer, Tippen am Handy${devOn() ? t(' · Entwicklermodus') : ''}`}</p>
       <p class="fine legal-links"><button type="button" class="linkish" data-act="legal:impressum">${t`Impressum`}</button> · <button type="button" class="linkish" data-act="legal:datenschutz">${t`Datenschutz`}</button>${LANGS.filter((l) => l.id !== lang).map((l) => ` · <button type="button" class="linkish" data-act="lang:${l.id}" lang="${l.id}">${l.name}</button>`).join('')}</p>
     </div>
   </div>`;
@@ -422,9 +428,9 @@ function loginScreen(): string {
 
 /** Rassenwahl mit Bild (zeigt die gerade gewählte Fähigkeit), für Erstellung und Neuanfang. */
 function raceChoices(sel: RaceId, spec: SpecialtyId, g: Gender, act: string): string {
-  return `<div class="choices race-choices" role="radiogroup" aria-label="${t`Rasse`}">${RACE_ORDER.map((id) => {
+  return `<div class="choices race-choices" role="radiogroup" aria-label="${t`Volk`}">${RACE_ORDER.map((id) => {
     const r = RACES[id];
-    return `<button type="button" class="choice ${sel === id ? 'on' : ''}" role="radio" aria-checked="${sel === id}" data-act="${act}:${id}">
+    return `<button type="button" class="choice has-art ${sel === id ? 'on' : ''}" role="radio" aria-checked="${sel === id}" data-act="${act}:${id}">
       <span class="choice-art">${heroArt(id, spec, g)}</span><strong>${raceName(id, g)}</strong><span class="gold">${r.bonus}</span><small>${r.blurb}</small></button>`;
   }).join('')}</div>`;
 }
@@ -452,7 +458,7 @@ function createScreen(): string {
     ${raceChoices(ui.createRace, ui.createSpec, ui.createGender, 'race')}
     <h2>${t`Was hast du als Kind gemacht?`}</h2>
     ${specChoices(ui.createSpec, 'spec')}
-    <p class="guide-tip">${t`Keine Sorge, hier kannst du nichts falsch machen. Rasse und Fähigkeit lassen sich später noch ändern.`}</p>
+    <p class="guide-tip">${t`Keine Sorge, hier kannst du nichts falsch machen. Volk und Fähigkeit lassen sich später noch ändern.`}</p>
     <p class="muted">${t`Jeden Tag hast du einen Punkt für deine Fähigkeit. Mit jedem Meister, den du besiegst, wirst du besser darin, und jede dritte Stufe bringt einen Punkt mehr pro Tag.`}</p>
     <div class="row"><button type="button" class="btn" data-act="create">${t`Nach Moosgrund aufbrechen`}</button>
       <button type="button" class="btn ghost" data-act="go:title">${t`Zurück`}</button></div>
@@ -467,10 +473,10 @@ function villageScreen(s: GameState): string {
   const main = `<h1>${t`Moosgrund`}</h1>
     <p class="lead">${t`Du stehst auf dem Dorfplatz von <span class="place">Moosgrund</span>. Rauch steigt aus den Kaminen, aus dem Gasthaus <span class="place">Zum Schlafenden Wurm</span> klingt Gelächter. Im Norden rauscht der <span class="place">Brackenwald</span>, und irgendwo dahinter schläft der Wyrm.`}</p>
     ${prefs.welcomed ? '' : `<section class="welcome">
-      <h2>${t`Danke, dass du testest!`}</h2>
-      <p>${t`Brackenwyrm ist noch in Arbeit. Am meisten Spaß macht es, wenn du <strong>jeden Tag ein bisschen</strong> spielst. Zweimal am Tag, um ${dayStarts()[0]} und um ${dayStarts()[1]} Uhr, beginnt ein neuer Spieltag mit frischen Waldkämpfen.`}</p>
-      <p>${t`Wenn dir etwas auffällt, ob Fehler, Langeweile, zu schwer oder eine Idee, drück auf <strong>Rückmeldung geben</strong>. Dein Spielstand wird automatisch mitgeschickt, du musst nichts erklären.`}</p>
-      <p class="muted">${t`Der Spielstand liegt in diesem Browser. Nicht im privaten Fenster spielen, sonst ist er weg.`}</p>
+      <h2>${t`Willkommen in Moosgrund!`}</h2>
+      <p>${t`Am meisten Spaß macht Brackenwyrm, wenn du <strong>jeden Tag ein bisschen</strong> spielst. Zweimal am Tag, um ${dayStarts()[0]} und um ${dayStarts()[1]} Uhr, beginnt ein neuer Spieltag mit frischen Waldkämpfen.`}</p>
+      ${cloud.signedIn ? '' : `<p>${t`Leg in den <strong>Einstellungen</strong> ein Spielerkonto an. Dann ist dein Held sicher, und du kannst auf Handy und Computer weiterspielen.`}</p>`}
+      <p class="muted">${t`Fehler gefunden oder eine Idee? Drück auf <strong>Rückmeldung geben</strong>, das liest jemand.`}</p>
       <button type="button" class="btn" data-act="welcome">${t`Los geht’s`}</button>
     </section>`}
     ${guideCardHtml(s)}
@@ -515,6 +521,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:chronicle', label: t('Kampfchronik'), key: 'c', hint: s.chronicle.length ? t`${s.chronicle.length} Kämpfe` : '' },
       { act: 'go:settings', label: t('Einstellungen'), key: 'e' },
       { act: 'feedback', label: t('Rückmeldung geben'), key: 'm' },
+      { act: 'invite', label: t('Freunde einladen'), key: 'd' },
     ] },
   ]);
 }
@@ -1114,19 +1121,21 @@ function buildFeedback(s: GameState): string {
 function feedbackScreen(s: GameState): string {
   const msg = buildFeedback(s);
   const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+  const selfSend = `<div class="row send-row">
+      <button type="button" class="btn ${cloud.enabled ? 'ghost' : ''}" data-act="fbsend:wa">${t`Per WhatsApp senden`}</button>
+      ${canShare ? `<button type="button" class="btn alt" data-act="fbsend:share">${t`Teilen …`}</button>` : ''}
+      <button type="button" class="btn ghost" data-act="fbsend:mail">${t`Per E-Mail`}</button>
+      <button type="button" class="btn ghost" data-act="fbsend:copy">${t`Text kopieren`}</button>
+    </div>`;
   const main = `<h1>${t`Rückmeldung geben`}</h1>
     <p class="lead">${t`Was ist dir aufgefallen? Ein Satz reicht. Dein Spielstand wird unten automatisch angehängt.`}</p>
     <div class="chips" role="group" aria-label="${t`Art der Rückmeldung`}">
       ${FEEDBACK_KINDS.map((k) => `<button type="button" class="chip ${ui.fbKinds.includes(k.id) ? 'on' : ''}" aria-pressed="${ui.fbKinds.includes(k.id)}" data-act="fbkind:${k.id}">${k.label}</button>`).join('')}
     </div>
     <label class="field">${t`Deine Nachricht`}<textarea id="fbtext" rows="5" placeholder="${t`z. B. Ab Stufe 6 sterbe ich ständig, oder: Ich hätte gern ein Haustier.`}">${esc(ui.fbText)}</textarea></label>
-    <div class="row send-row">
-      <button type="button" class="btn" data-act="fbsend:wa">${t`Per WhatsApp senden`}</button>
-      ${canShare ? `<button type="button" class="btn alt" data-act="fbsend:share">${t`Teilen …`}</button>` : ''}
-      <button type="button" class="btn ghost" data-act="fbsend:mail">${t`Per E-Mail`}</button>
-      <button type="button" class="btn ghost" data-act="fbsend:copy">${t`Text kopieren`}</button>
-    </div>
+    ${cloud.enabled ? `<div class="row send-row"><button type="button" class="btn" data-act="fbsend:server">${t`Absenden`}</button></div>` : ''}
     ${ui.fbMsg ? `<p class="flash">${esc(ui.fbMsg)}</p>` : ''}
+    ${cloud.enabled ? `<details class="fb-self"><summary>${t`Lieber selbst verschicken`}</summary>${selfSend}</details>` : selfSend}
     <details class="fb-preview"><summary>${t`So sieht die Nachricht aus`}</summary><textarea id="fbpreview" readonly rows="11" aria-label="${t`Fertige Nachricht`}">${esc(msg)}</textarea></details>`;
   return layout(s, main, [{ title: t('Zurück'), items: [{ act: `go:${ui.fbFrom === 'fight' ? 'village' : ui.fbFrom}`, label: t('Zurück'), key: 'd' }] }]);
 }
@@ -1381,7 +1390,7 @@ function bioScreen(s: GameState): string {
     ${flashHtml()}
     <div class="records bio-facts">
       ${row(t('Stufe'), String(w.level))}
-      ${row(t('Rasse'), raceName(w.race, w.gender))}
+      ${row(t('Volk'), raceName(w.race, w.gender))}
       ${row(t('Fähigkeit'), SPECIALTIES[w.specialty].name)}
       ${row(t('Drachenkills'), String(w.dragonKills))}
       ${row(t('Spieltage'), String(w.daysPlayed))}
@@ -1740,9 +1749,11 @@ function settingsScreen(s: GameState): string {
     <textarea id="importcode" placeholder="${t`Code hier einfügen (beginnt mit BW1:)`}" aria-label="${t`Code einfügen`}"></textarea>
     <div class="row"><button type="button" class="tbtn" data-act="importcode">${t`Spielstand laden`}</button><span class="muted">${esc(ui.importMsg)}</span></div>`;
   return layout(s, main, [
+    { title: t('Zurück'), items: [back] },
     { title: t('Spielstand'), items: [
-      ...(prefs.dev ? [{ act: 'testday', label: t('Neuer Tag (Testmodus)'), key: 'n', hint: t`sonst in ${waitText()}` }] : []),
+      ...(devOn() ? [{ act: 'testday', label: t('Neuer Tag (Testmodus)'), key: 'n', hint: t`sonst in ${waitText()}` }] : []),
       { act: 'feedback', label: t('Rückmeldung geben'), key: 'm' },
+      { act: 'invite', label: t('Freunde einladen'), key: 'u' },
       ...(s.guide && !guideFinished(s.guide) ? [{ act: 'guide:skip', label: ui.confirmGuide ? t('Wirklich? Nochmal drücken.') : t('Einführung beenden'), key: 'f', hint: t('alle Orte sofort zeigen') }] : []),
       { act: 'delete', label: ui.confirmDelete ? t('Wirklich löschen? Nochmal drücken.') : t('Spielstand löschen'), key: 'x', hint: t('nur auf diesem Gerät') },
     ] },
@@ -1756,7 +1767,6 @@ function settingsScreen(s: GameState): string {
       { act: 'legal:datenschutz', label: t('Datenschutz'), key: 'p' },
       { act: 'legal:impressum', label: t('Impressum'), key: 'i' },
     ] },
-    { title: t('Zurück'), items: [back] },
   ]);
 }
 
@@ -1791,6 +1801,7 @@ function loadWache(): void {
   if (w.tab === 'banned') { w.banned = null; cloud.modBanned().then((r) => { w.banned = r; }, fail).finally(render); }
   if (w.tab === 'cheats') { w.cheats = null; cloud.modCheats().then((r) => { w.cheats = r; }, fail).finally(render); }
   if (w.tab === 'vollversion') { w.codes = null; cloud.modCodes().then((r) => { w.codes = r; }, fail).finally(render); }
+  if (w.tab === 'rueck') { w.feedback = null; cloud.modFeedback(!w.fbAll).then((r) => { w.feedback = r; }, fail).finally(render); }
   render();
 }
 
@@ -1827,6 +1838,15 @@ function wacheScreen(s: GameState): string {
       <h2>${t`Alle Codes`}</h2>
       ${w.codes === null ? '<p class="muted">…</p>' : !w.codes.length ? `<p class="muted">${t`Noch keine Codes.`}</p>`
         : `<table class="mod-table"><thead><tr><th>${t`Code`}</th><th>${t`Notiz`}</th><th>${t`eingelöst von`}</th></tr></thead><tbody>${w.codes.map((c) => `<tr><td><code>${esc(c.code)}</code></td><td>${esc(c.note)}</td><td>${c.redeemed_by ? `${esc(c.redeemed_by)} <span class="muted">${c.redeemed_at ? when(c.redeemed_at) : ''}</span>` : '<span class="muted">–</span>'}</td></tr>`).join('')}</tbody></table>`}`;
+  } else if (w.tab === 'rueck') {
+    const open = (w.feedback ?? []).filter((f) => !f.done).length;
+    body = `<div class="row"><button type="button" class="tbtn" data-act="modfb:all">${w.fbAll ? t('Nur offene zeigen') : t('Auch erledigte zeigen')}</button></div>`
+      + (w.feedback === null ? '<p class="muted">…</p>' : !w.feedback.length ? `<p class="muted">${t`Keine offenen Rückmeldungen.`}</p>`
+      : `<p class="muted">${t`${open} offen`}</p><ul class="mod-list">${w.feedback.map((f) => `<li class="mod-item ${f.done ? 'done' : ''}">
+          <div class="mod-head"><strong>${esc(f.kinds || t('Rückmeldung'))}</strong> ${t`von`} <strong>${esc(f.account || f.hero || t('Gast'))}</strong>${f.account ? '' : ` <span class="muted">(${t`ohne Konto`})</span>`} <span class="muted">· ${when(f.created_at)}</span></div>
+          <blockquote>${esc(f.body).replace(/\n/g, '<br>')}</blockquote>
+          ${f.meta ? `<details><summary>${t`Spielstand und Gerät`}</summary><pre class="fb-meta">${esc(f.meta)}</pre></details>` : ''}
+          <div class="row"><button type="button" class="tbtn" data-act="modfb:${f.done ? 'open' : 'done'}:${f.id}">${f.done ? t('Wieder öffnen') : t('Erledigt')}</button></div></li>`).join('')}</ul>`);
   } else if (w.tab === 'banned') {
     body = w.banned === null ? '<p class="muted">…</p>' : !w.banned.length ? `<p class="muted">${t`Niemand ist gesperrt.`}</p>`
       : `<ul class="warriors">${w.banned.map((b) => `<li class="warrior">${t`<span></span><span class="t-info"><strong>${esc(b.name)}</strong><small>Stufe ${b.level} · ${b.dragon_kills} Drachenkills</small></span>`}
@@ -1849,6 +1869,7 @@ function wacheScreen(s: GameState): string {
       { act: 'wache:cheats', label: t('Auffällige Spielstände'), key: 'a', primary: w.tab === 'cheats' },
       { act: 'wache:banned', label: t('Gesperrte'), key: 'g', primary: w.tab === 'banned' },
       { act: 'wache:vollversion', label: t('Vollversion und Codes'), key: 'v', primary: w.tab === 'vollversion' },
+      { act: 'wache:rueck', label: t('Rückmeldungen'), key: 'r', primary: w.tab === 'rueck' },
     ] },
     { title: t('Zurück'), items: [{ act: 'go:settings', label: t('Einstellungen'), key: 'e' }, back] },
   ]);
@@ -1873,7 +1894,7 @@ function shadowsScreen(s: GameState): string {
     { act: 'soul', label: t('Seelenkraft stärken'), key: 's', hint: p.soul >= maxSoul(p) ? t('voll') : t`${cost} Gunst`, disabled: p.soul >= maxSoul(p) || p.favor < cost },
     ...(cloud.enabled ? [{ act: 'go:haunt', label: t('Einen Lebenden heimsuchen'), key: 'h', hint: !cloud.signedIn ? t('nur mit Spielerkonto') : t`${HAUNT_FAVOR} Gunst`, disabled: !cloud.signedIn || p.favor < HAUNT_FAVOR }] : []),
   ] }, { title: t('Sonstiges'), items: [
-    ...(prefs.dev ? [{ act: 'testday', label: t('Neuer Tag (Testmodus)'), key: 'n' }] : []),
+    ...(devOn() ? [{ act: 'testday', label: t('Neuer Tag (Testmodus)'), key: 'n' }] : []),
     { act: 'feedback', label: t('Rückmeldung geben'), key: 'm' },
     { act: 'go:settings', label: t('Einstellungen'), key: 'e' },
   ] }]);
@@ -1950,7 +1971,7 @@ function dragonBonusScreen(s: GameState): string {
         <strong>${d.name}</strong><span>${d.text}</span>${counts(d.id) ? `${t`<small>Bisher ${counts(d.id)}× gewählt</small>`}` : ''}</button>`).join('')}
     </div>
     <h2>${t`2. Wer wirst du in deinem neuen Leben?`}</h2>
-    <p class="muted">${t`Mit dem neuen Leben darfst du Rasse und Fähigkeit neu wählen. Du kannst auch alles so lassen.`}</p>
+    <p class="muted">${t`Mit dem neuen Leben darfst du Volk und Fähigkeit neu wählen. Du kannst auch alles so lassen.`}</p>
     ${raceChoices(race, spec, p.gender, 'dkrace')}
     <h2>${t`3. Was hast du als Kind gemacht?`}</h2>
     ${specChoices(spec, 'dkspec')}
@@ -2296,7 +2317,16 @@ function handle(act: string, el: HTMLElement): void {
       }
       return;
     }
-    case 'wache': ui.wache.tab = a as 'reports' | 'banned' | 'cheats' | 'aushang' | 'vollversion'; ui.flash = []; loadWache(); return;
+    case 'wache': ui.wache.tab = a as 'reports' | 'banned' | 'cheats' | 'aushang' | 'vollversion' | 'rueck'; ui.flash = []; loadWache(); return;
+    case 'modfb': {
+      const w = ui.wache;
+      if (a === 'all') { w.fbAll = !w.fbAll; loadWache(); return; }
+      const id = Number(b);
+      cloud.modFeedbackDone(id, a === 'done').then(() => {
+        if (w.feedback) w.feedback = w.fbAll ? w.feedback.map((f) => (f.id === id ? { ...f, done: a === 'done' } : f)) : w.feedback.filter((f) => f.id !== id);
+      }, (e) => { w.err = e instanceof CloudError ? e.message : t('Das hat nicht geklappt.'); }).finally(render);
+      return;
+    }
     case 'mod': {
       const r = ui.wache.reports?.[Number(b)];
       if (!r) return;
@@ -2426,8 +2456,9 @@ function handle(act: string, el: HTMLElement): void {
       if (a === 'fame' && cloud.enabled) cloud.hallOfFame().then((rows) => { ui.fame = rows; if (ui.screen === 'fame') render(); }, () => {});
       go(a as Screen);
       return;
+    case 'vitalmore': prefs.vitalOpen = !prefs.vitalOpen; savePrefs(prefs); render(); return;
     case 'devtap':
-      if (++ui.devTaps >= 5) { ui.devTaps = 0; prefs.dev = !prefs.dev; savePrefs(prefs); render(); }
+      if (devAllowed() && ++ui.devTaps >= 5) { ui.devTaps = 0; prefs.dev = !prefs.dev; savePrefs(prefs); render(); }
       return;
     case 'continue': if (s) { const newDay = checkRealDay(s); saveGame(s, !newDay); go('village'); scheduleSync(500); } return;
     case 'new':
@@ -2603,6 +2634,18 @@ function handle(act: string, el: HTMLElement): void {
       return;
     }
     case 'welcome': prefs.welcomed = true; savePrefs(prefs); render(); return;
+    case 'invite': {
+      // Link zum Spiel teilen (Handy: Teilen-Menü, sonst kopieren)
+      const url = location.href.split(/[?#]/)[0].replace(/index\.html$/, '');
+      const text = t('Komm mit nach Moosgrund! Brackenwyrm ist ein Rollenspiel im Farnwald, im Browser oder am Handy.');
+      const done = (m: string) => { say(m, 'good'); render(); };
+      if (typeof navigator.share === 'function') {
+        navigator.share({ title: 'Brackenwyrm', text, url }).then(() => done(t('Danke fürs Weitersagen!')), () => {}); // i18n-ignore
+      } else {
+        navigator.clipboard?.writeText(`${text} ${url}`).then(() => done(t('Einladung kopiert. Jetzt in WhatsApp, Instagram oder eine E-Mail einfügen.')), () => done(url));
+      }
+      return;
+    }
     case 'feedback': {
       const from = currentScreen();
       ui.fbFrom = from === 'feedback' ? ui.fbFrom : from;
@@ -2621,7 +2664,16 @@ function handle(act: string, el: HTMLElement): void {
       readFbText();
       const msg = buildFeedback(s);
       const done = (t: string) => { ui.fbMsg = t; render(); };
-      if (a === 'wa' || a === 'mail') {
+      if (a === 'server') {
+        if (!ui.fbText.trim()) { done(t('Schreib noch kurz, was dir aufgefallen ist.')); return; }
+        const kinds = FEEDBACK_KINDS.filter((k) => ui.fbKinds.includes(k.id)).map((k) => k.label).join(', ');
+        done(t('Sende …'));
+        cloud.sendFeedback(kinds, ui.fbText.trim(), msg, s.player.name).then((ok) => {
+          if (!ok) { done(t('Absenden geht gerade nicht. Nimm „Text kopieren“ und schick ihn per WhatsApp oder E-Mail.')); return; }
+          ui.fbText = ''; ui.fbKinds = [];
+          done(t('Danke! Deine Rückmeldung ist angekommen.'));
+        }, (e) => done(e instanceof CloudError ? e.message : t('Das hat nicht geklappt.')));
+      } else if (a === 'wa' || a === 'mail') {
         const url = a === 'wa' ? `https://wa.me/?text=${encodeURIComponent(msg)}` : `mailto:?subject=${encodeURIComponent(t('Brackenwyrm-Rückmeldung'))}&body=${encodeURIComponent(msg)}`;
         const w = window.open(url, '_blank', 'noopener');
         done(w || a === 'mail' ? t('Danke! Falls sich nichts geöffnet hat, nimm „Text kopieren“ und schick ihn selbst.') : t('Das Fenster wurde blockiert. Nimm „Text kopieren“ und schick den Text selbst.'));
@@ -2850,6 +2902,7 @@ function handle(act: string, el: HTMLElement): void {
       return;
     }
     case 'testday':
+      if (!devOn()) return;
       startNewDay(s);
       ui.flash = [{ t: t('Testmodus: Ein neuer Tag beginnt.'), k: 'info' }];
       saveGame(s);
@@ -2925,10 +2978,13 @@ function dayStarts(): [string, string] {
   return dayStartsLocal(new Date(), lang === 'de' ? 'de-DE' : undefined); // i18n-ignore
 }
 
-/** Restzeit bis zum nächsten Spieltag, z. B. "3 Std. 12 Min." */
+/** Restzeit bis zum nächsten Spieltag, ausgeschrieben ("3 Stunden und 12 Minuten"), damit am Satzende kein Doppelpunkt entsteht. */
 function waitText(): string {
   const { h, m } = untilNextDay();
-  return h > 0 ? t`${h} Std. ${m} Min.` : t`${m} Min.`;
+  const ms = m === 1 ? t('1 Minute') : t`${m} Minuten`;
+  if (h <= 0) return ms;
+  const hs = h === 1 ? t('1 Stunde') : t`${h} Stunden`;
+  return m > 0 ? t`${hs} und ${ms}` : hs;
 }
 
 function checkDayTick(): void {

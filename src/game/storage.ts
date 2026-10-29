@@ -132,7 +132,8 @@ export interface Prefs {
   sfxVol: number;         // 0–1
   muted: boolean;
   aushangSeen?: number;   // zuletzt gelesener Aushang am Rathaus
-  full?: { uid: string; ok: boolean };   // zuletzt bekannter Stand der Vollversion (für offline)
+  full?: { uid: string; ok: boolean };
+  vitalOpen?: boolean;    // Handy: alle Heldenwerte aufgeklappt   // zuletzt bekannter Stand der Vollversion (für offline)
 }
 
 const PREFS_KEY = 'brackenwyrm.prefs';

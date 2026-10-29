@@ -31,7 +31,7 @@ export const DRINKS: Drink[] = [
   { id: 'kraeuterschnaps', name: t('Mirlas Kräuterschnaps'), costPerLevel: 12, drunk: 30, blurb: t('Mit etwas Glück ein zusätzlicher Waldkampf.'),
     serve: t('Frieda holt eine Flasche mit Mirlas Etikett unter dem Tresen hervor. „Medizin“, sagt sie und zwinkert.') },
   { id: 'drachenfeuer', name: t('Drachenfeuer'), costPerLevel: 15, drunk: 45, hard: true, blurb: t('Hart. Brennende Fäuste: viel mehr Schaden, weniger Deckung.'),
-    serve: t('Frieda nimmt eine Flasche mit drei Kreuzen und einem Wyrm darauf und gießt ein winziges Gläschen ein. Du kippst es und Rauch steigt dir aus den Ohren.') },
+    serve: t('Frieda nimmt eine Flasche mit drei Kreuzen und einem Wyrm darauf und gießt ein winziges Gläschen ein. Du kippst es, und Rauch steigt dir aus den Ohren.') },
   { id: 'quellwasser', name: t('Quellwasser'), costPerLevel: 0, drunk: -35, blurb: t('Kostenlos. Macht wieder klar im Kopf.'),
     serve: t('Frieda stellt dir einen Krug kaltes Quellwasser hin. „Geht aufs Haus.“') },
 ];

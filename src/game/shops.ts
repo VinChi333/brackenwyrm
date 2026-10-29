@@ -19,7 +19,7 @@ export const POTIONS: Potion[] = [
   { id: 'leben', name: t('Lebenstrank'), gems: 2, effect: t('+1 Lebenspunkt, für immer'), blurb: t('Dick wie Honig. Bleibt dir auch nach dem Drachen.') },
   { id: 'heil', name: t('Heiltrank'), gems: 2, effect: t('volle Lebenspunkte und 20 obendrauf'), blurb: t('Die 20 Extrapunkte halten, bis sie im Kampf verbraucht sind.') },
   { id: 'vergessen', name: t('Trank des Vergessens'), gems: 2, effect: t('neue Fähigkeit wählen'), blurb: t('Du vergisst, was du als Kind gelernt hast, und lernst etwas anderes.') },
-  { id: 'verwandlung', name: t('Verwandlungstrank'), gems: 2, effect: t('neue Rasse wählen'), blurb: t('Danach ist dir eine Weile schlecht (10 Runden schwächer im Kampf).') },
+  { id: 'verwandlung', name: t('Verwandlungstrank'), gems: 2, effect: t('neues Volk wählen'), blurb: t('Danach ist dir eine Weile schlecht (10 Runden schwächer im Kampf).') },
 ];
 
 export const HEAL_BONUS = 20;

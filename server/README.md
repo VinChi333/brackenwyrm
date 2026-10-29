@@ -56,6 +56,12 @@ um weiterzuspielen. Freischalten: im Spiel als Wache unter **Einstellungen → D
 (einzelne Helden freischalten oder Codes erzeugen). Ohne Teil 8 gibt es keine Sperre.
 Den Kauflink trägt man später in `src/content/shop.ts` bei `buyUrl` ein.
 
+## Teil 9: Rückmeldungen (ab 0.52)
+
+`supabase-9-rueckmeldungen.sql` nach Teil 8 ausführen. Spieler schicken Rückmeldungen dann direkt aus dem Spiel
+(„Rückmeldung geben → Absenden“), auch ohne Spielerkonto. Lesen und abhaken: **Einstellungen → Die Wache → Rückmeldungen**.
+Ohne Teil 9 bietet das Spiel nur WhatsApp, E-Mail und Kopieren an.
+
 ## E-Mails: Passwort vergessen (ab 0.44)
 
 „Passwort vergessen?“ schickt einen Code per E-Mail. Der eingebaute Mailversand von Supabase schickt nur an

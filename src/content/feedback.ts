@@ -1,10 +1,11 @@
 import { SPECIALTIES } from './specialties';
+import { MONSTERS } from './monsters';
 import type { GameState } from '../game/types';
 
 import { t } from '../i18n';
 
-// Rückmeldungen von Testern. Ohne Server: Das Spiel baut eine fertige Nachricht,
-// die der Tester per WhatsApp, E-Mail oder Kopieren an Chris schickt.
+// Rückmeldungen. Normal gehen sie an den Server (Teil 9) und landen in der Wache.
+// Als Ausweichweg baut das Spiel eine fertige Nachricht zum Verschicken per WhatsApp, E-Mail oder Kopieren.
 
 export const FEEDBACK_KINDS = [
   { id: 'fehler', label: t('Fehler') },
@@ -33,7 +34,7 @@ export function feedbackMessage(s: GameState, version: string, kinds: FeedbackKi
     t`${p.name}, Stufe ${p.level}, ${SPECIALTIES[p.specialty].name}`,
     t`Spieltag ${s.day}, ${st.realDays} Spieltage gespielt (seit ${st.firstPlayed || 'unbekannt'})`,
     t`Drachenkills ${p.dragonKills}, Siege ${st.kills}, Tode ${st.deaths}, Meister ${st.masters}`,
-    t`Bestiarium ${found}/45, Waffe Stufe ${p.weaponTier}, Rüstung Stufe ${p.armorTier}`,
+    t`Bestiarium ${found}/${MONSTERS.length}, Waffe Stufe ${p.weaponTier}, Rüstung Stufe ${p.armorTier}`,
     t`Bildschirm: ${screen}, Gerät: ${device}`,
   ].filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
 }

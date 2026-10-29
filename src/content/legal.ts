@@ -61,7 +61,7 @@ export function datenschutzHtml(): string {
 <ul class="plain">
   <li>${t`<strong>Konto:</strong> E-Mail-Adresse und Passwort (das Passwort wird nur verschlüsselt als Prüfwert gespeichert, niemand kann es lesen). Im Browser bleibt ein Anmeldeschlüssel gespeichert, bis du dich abmeldest.`}</li>
   <li>${t`<strong>Spielstand:</strong> dein kompletter Spielstand, damit er auf allen Geräten gleich ist.`}</li>
-  <li>${t`<strong>Öffentliche Heldendaten</strong>, die andere Spieler sehen: Heldenname, Titel, Geschlecht des Helden, Stufe, Rasse, Fähigkeit, Drachenkills, Spieltage, Reittier, Ehe im Spiel, Steckbrief, ob du gerade spielst oder schläfst.`}</li>
+  <li>${t`<strong>Öffentliche Heldendaten</strong>, die andere Spieler sehen: Heldenname, Titel, Geschlecht des Helden, Stufe, Volk, Fähigkeit, Drachenkills, Spieltage, Reittier, Ehe im Spiel, Steckbrief, ob du gerade spielst oder schläfst.`}</li>
   <li>${t`<strong>Was du im Spiel schreibst:</strong> Gespräche (für alle sichtbar), Briefe (nur für den Empfänger), Tagesneuigkeiten über deinen Helden.`}</li>
   <li>${t`<strong>Spieler gegen Spieler:</strong> Kampfwerte, Gold und Erfahrung für Überfälle und Spuken, sowie die Nachrichten darüber.`}</li>
   <li>${t`<strong>Schutz und Sicherheit:</strong> Meldungen, die du abgibst oder die über dich abgegeben werden (mit dem gemeldeten Text), deine Blockierliste, und ein Protokoll, wenn der Server unplausible Spielwerte korrigiert.`}</li>

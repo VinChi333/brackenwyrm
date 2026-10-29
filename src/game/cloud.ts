@@ -44,6 +44,7 @@ export interface GuildMine {
   members: GuildMember[];
   applicants: GuildMember[];
 }
+export interface FeedbackRow { id: number; created_at: string; hero: string; account: string; kinds: string; body: string; meta: string; done: boolean }
 export interface CodeRow { code: string; created_at: string; note: string; redeemed_by: string | null; redeemed_at: string | null }
 export interface AushangRow { id: number; created_at: string; title: string; body: string; author: string }
 export type FameCat = 'drachen' | 'reich' | 'charme' | 'schnell' | 'erben' | 'furcht' | 'schatz' | 'veteran';
@@ -549,6 +550,32 @@ export class Cloud {
     const rows = await this.rpcPart8<CodeRow[]>('mod_codes', {});
     return Array.isArray(rows) ? rows : [];
   }
+  /** Rückmeldung an den Server (Teil 9). Geht auch ohne Spielerkonto. false = Server kennt Teil 9 noch nicht. */
+  async sendFeedback(kinds: string, body: string, meta: string, hero: string): Promise<boolean> {
+    if (this.session) await this.ensureSession();
+    try {
+      await this.call('/rest/v1/rpc/send_feedback', { method: 'POST', body: { kinds, body, meta, hero } }, !!this.session);
+      return true;
+    } catch (e) {
+      if (this.missingPart5(e)) return false;
+      throw e;
+    }
+  }
+  async modFeedback(onlyOpen: boolean): Promise<FeedbackRow[]> {
+    await this.ensureSession();
+    try {
+      const rows = await this.call('/rest/v1/rpc/mod_feedback', { method: 'POST', body: { only_open: onlyOpen } });
+      return Array.isArray(rows) ? rows : [];
+    } catch (e) {
+      if (this.missingPart5(e)) throw new CloudError('server', t('Rückmeldungen sind auf dem Server noch nicht eingerichtet (Teil 9).'));
+      throw e;
+    }
+  }
+  async modFeedbackDone(id: number, done: boolean): Promise<void> {
+    await this.ensureSession();
+    await this.call('/rest/v1/rpc/mod_feedback_done', { method: 'POST', body: { fid: id, flag: done } });
+  }
+
   private async rpcPart8<T>(name: string, body: object): Promise<T> {
     await this.ensureSession();
     try {

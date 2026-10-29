@@ -30,6 +30,8 @@ await db.exec(readFileSync(new URL('../server/supabase-7-gilden.sql', import.met
 await db.exec(readFileSync(new URL('../server/supabase-7-gilden.sql', import.meta.url), 'utf8')); // wiederholbar
 await db.exec(readFileSync(new URL('../server/supabase-8-vollversion.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-8-vollversion.sql', import.meta.url), 'utf8')); // wiederholbar
+await db.exec(readFileSync(new URL('../server/supabase-9-rueckmeldungen.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-9-rueckmeldungen.sql', import.meta.url), 'utf8')); // wiederholbar
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c', N = '00000000-0000-0000-0000-00000000000d';
 await db.exec(`insert into auth.users values ('${A}','a@x'),('${B}','b@x'),('${C}','c@x'),('${N}','n@x')`);
 // Testhelden haben die Vollversion (Teil 8), sonst zählt online nur ein Drachenkill
@@ -597,6 +599,25 @@ await db.exec(`update public.fighters set banned = false where user_id = '${A}'`
   await as(C, `update public.fighters set dragon_kills = 2 where user_id = '${C}'`);
   r = await db.query(`select dragon_kills from public.fighters where user_id = '${C}'`);
   ok(r.rows[0].dragon_kills === 1, 'ohne Vollversion bleibt es online bei einem Drachenkill');
+  // Teil 9: Rückmeldungen
+  await as(B, `select public.send_feedback('Fehler', 'Der Wald ist zu dunkel.', 'Version 0.52', 'Bruno')`);
+  await asAnon(`select public.send_feedback('Idee', 'Ich will ein Haustier.', '', 'Gast')`);
+  e = await fail(B, `select public.send_feedback('', ' ', '', '')`);
+  ok(/ein paar Worte/.test(e), 'leere Rückmeldung wird abgelehnt');
+  let tableHidden = false; try { await as(B, `select * from public.feedback`); } catch { tableHidden = true; }
+  ok(tableHidden, 'Spieler können fremde Rückmeldungen nicht lesen');
+  e = await fail(B, `select * from public.mod_feedback(true)`);
+  ok(/Wache/.test(e), 'nur die Wache liest Rückmeldungen');
+  r = await as(A, `select * from public.mod_feedback(true)`);
+  ok(r.rows.length === 2 && r.rows.some((x) => x.body === 'Ich will ein Haustier.' && x.account === '') && r.rows.some((x) => x.kinds === 'Fehler' && x.account !== ''), 'Wache sieht beide Rückmeldungen, mit und ohne Konto');
+  await as(A, `select public.mod_feedback_done(${r.rows[0].id}, true)`);
+  r = await as(A, `select * from public.mod_feedback(true)`);
+  ok(r.rows.length === 1, 'abgehakte Rückmeldung verschwindet aus den offenen');
+  r = await as(A, `select * from public.mod_feedback(false)`);
+  ok(r.rows.length === 2 && r.rows.at(-1).done === true, 'unter allen steht sie abgehakt am Ende');
+  for (let i = 0; i < 10; i++) await as(C, `select public.send_feedback('', 'Nachricht ${i}', '', '')`);
+  e = await fail(C, `select public.send_feedback('', 'Noch eine', '', '')`);
+  ok(/viele Rückmeldungen/.test(e), 'mit Konto höchstens 10 pro Stunde');
   await db.exec(`delete from public.admins; delete from public.code_attempts`);
 }
 
