@@ -521,7 +521,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:chronicle', label: t('Kampfchronik'), key: 'c', hint: s.chronicle.length ? t`${s.chronicle.length} Kämpfe` : '' },
       { act: 'go:settings', label: t('Einstellungen'), key: 'e' },
       { act: 'feedback', label: t('Rückmeldung geben'), key: 'm' },
-      { act: 'invite', label: t('Freunde einladen'), key: 'd' },
+      { act: 'invite', label: t('Freunde einladen') },
     ] },
   ]);
 }
