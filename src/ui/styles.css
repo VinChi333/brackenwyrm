@@ -810,3 +810,11 @@ h1 .g-tag { font-size: 0.7em; }
   .npc-speaker .card.mini .card-name { font-size: 11px; }
   .npc-speaker .card.mini .card-tier { font-size: 9px; letter-spacing: 0.06em; }
 }
+
+/* Startseite: wer gerade unterwegs ist, wer zuletzt den Wyrm bezwungen hat */
+.title-live { margin: 2px auto 6px; max-width: 560px; text-align: center; font-size: 16px; color: var(--muted); line-height: 1.55;
+  border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 10px 8px; }
+.title-live strong { color: var(--text); font-weight: 700; }
+.title-live .who { color: var(--cyan); }
+.title-live .slayer { color: var(--gold-hi); font-family: var(--display); letter-spacing: 0.03em; }
+.title-live .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); margin-right: 7px; vertical-align: 1px; }

@@ -62,6 +62,11 @@ Den Kauflink trägt man später in `src/content/shop.ts` bei `buyUrl` ein.
 („Rückmeldung geben → Absenden“), auch ohne Spielerkonto. Lesen und abhaken: **Einstellungen → Die Wache → Rückmeldungen**.
 Ohne Teil 9 bietet das Spiel nur WhatsApp, E-Mail und Kopieren an.
 
+## Teil 10: Startseite (ab 0.54)
+
+`supabase-10-startseite.sql` nach Teil 9 ausführen. Die Startseite zeigt dann, wie viele Helden gerade unterwegs sind
+(mit bis zu drei Namen) und wer zuletzt den Wyrm bezwungen hat, mit Datum. Ohne Teil 10 steht dort nur der letzte Drachentöter.
+
 ## E-Mails: Passwort vergessen (ab 0.44)
 
 „Passwort vergessen?“ schickt einen Code per E-Mail. Der eingebaute Mailversand von Supabase schickt nur an

@@ -32,6 +32,8 @@ await db.exec(readFileSync(new URL('../server/supabase-8-vollversion.sql', impor
 await db.exec(readFileSync(new URL('../server/supabase-8-vollversion.sql', import.meta.url), 'utf8')); // wiederholbar
 await db.exec(readFileSync(new URL('../server/supabase-9-rueckmeldungen.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-9-rueckmeldungen.sql', import.meta.url), 'utf8')); // wiederholbar
+await db.exec(readFileSync(new URL('../server/supabase-10-startseite.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-10-startseite.sql', import.meta.url), 'utf8')); // wiederholbar
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c', N = '00000000-0000-0000-0000-00000000000d';
 await db.exec(`insert into auth.users values ('${A}','a@x'),('${B}','b@x'),('${C}','c@x'),('${N}','n@x')`);
 // Testhelden haben die Vollversion (Teil 8), sonst zählt online nur ein Drachenkill
@@ -618,6 +620,17 @@ await db.exec(`update public.fighters set banned = false where user_id = '${A}'`
   for (let i = 0; i < 10; i++) await as(C, `select public.send_feedback('', 'Nachricht ${i}', '', '')`);
   e = await fail(C, `select public.send_feedback('', 'Noch eine', '', '')`);
   ok(/viele Rückmeldungen/.test(e), 'mit Konto höchstens 10 pro Stunde');
+  // Teil 10: Startseite (auch ohne Konto)
+  await db.exec(`update public.fighters set last_seen = now() - interval '1 hour'`);
+  await db.exec(`update public.fighters set last_seen = now() where user_id in ('${A}', '${B}', '${C}')`);
+  await db.exec(`update public.fighters set banned = true where user_id = '${C}'`);
+  await db.exec(`update public.fighters set dragon_kills = 3, last_dk_at = now() - interval '2 days' where user_id = '${B}'`);
+  r = await asAnon(`select * from public.title_info()`);
+  const ti = r.rows[0];
+  ok(ti.online === 2 && ti.names.length === 2 && !ti.names.includes('Wach'), 'Startseite: zwei unterwegs, Gesperrte zählen nicht: ' + JSON.stringify(ti.names));
+  const bName = (await db.query(`select name from public.fighters where user_id = '${B}'`)).rows[0].name;
+  ok(ti.slayer === bName && ti.slayer_at, 'Startseite: letzter Drachentöter mit Zeitpunkt: ' + ti.slayer);
+  await db.exec(`update public.fighters set banned = false where user_id = '${C}'`);
   await db.exec(`delete from public.admins; delete from public.code_attempts`);
 }
 

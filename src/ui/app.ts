@@ -31,7 +31,7 @@ import {
 import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
-import type { AushangRow, BountyRow, CodeRow, FeedbackRow, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
+import type { AushangRow, BountyRow, CodeRow, FeedbackRow, TitleInfo, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
 import { censor, isClean } from '../content/badwords';
 import { COLOR_CODES, colorize } from './colors';
 import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
@@ -64,8 +64,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const TITLE_SPRUCH = t('Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.');
-const VERSION = t('Version {0}', '0.53');
+const VERSION = t('Version {0}', '0.54');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -383,6 +382,49 @@ function fightLogHtml(log: LogLine[]): string {
 
 // ---------- Bildschirme ----------
 
+/** Startseite wie die Anmeldeseite von damals: wer gerade unterwegs ist, wer zuletzt den Wyrm bezwungen hat. */
+const titleLive: { data: TitleInfo | null; at: number; loading: boolean } = { data: null, at: 0, loading: false };
+
+function loadTitleLive(): void {
+  titleLive.loading = true;
+  cloud.titleInfo().then(async (d) => {
+    if (d === undefined) {
+      // Server ohne Teil 10: wenigstens den letzten Drachentöter zeigen
+      const sl = await cloud.lastDragonSlayer().catch(() => undefined);
+      titleLive.data = sl === undefined ? null : { online: -1, names: [], slayer: sl ? { name: sl.name, at: null } : null };
+    } else titleLive.data = d;
+  }).catch(() => {}).finally(() => {
+    titleLive.loading = false; titleLive.at = Date.now();
+    if (currentScreen() === 'title') render();
+  });
+}
+
+function agoText(iso: string): string {
+  const then = new Date(iso), now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(then.getFullYear(), then.getMonth(), then.getDate()).getTime()) / 864e5);
+  if (days <= 0) return t('heute');
+  if (days === 1) return t('gestern');
+  if (days < 14) return t`vor ${days} Tagen`;
+  return t`vor ${Math.floor(days / 7)} Wochen`;
+}
+
+function titleLiveHtml(): string {
+  if (!cloud.enabled) return '';
+  if (!titleLive.loading && Date.now() - titleLive.at > 60_000) loadTitleLive();
+  const d = titleLive.data;
+  if (!d) return '';
+  const n = d.online;
+  const who = d.names.map((x) => esc(x)).join(', ');
+  const more = Math.max(0, n - d.names.length);
+  const online = n < 0 ? ''
+    : n === 0 ? `<div>${t`Gerade ist niemand in Moosgrund unterwegs. Der Wald gehört dir.`}</div>`
+    : `<div><span class="dot" aria-hidden="true"></span>${n === 1 ? t`<strong>1 Held</strong> ist gerade in Moosgrund unterwegs: <span class="who">${who}</span>` : t`<strong>${n} Helden</strong> sind gerade in Moosgrund unterwegs: <span class="who">${who}</span>`}${more === 1 ? t(' und ein weiterer') : more ? t` und ${more} weitere` : ''}</div>`;
+  const slayer = d.slayer
+    ? `<div>${t`Zuletzt bezwang den Wyrm: <span class="slayer">${esc(d.slayer.name)}</span>`}${d.slayer.at ? ` · ${agoText(d.slayer.at)}` : ''}</div>`
+    : `<div>${t`Den Wyrm hat noch niemand bezwungen. Noch nicht.`}</div>`;
+  return `<div class="title-live">${online}${slayer}</div>`;
+}
+
 function titleScreen(): string {
   const p = state?.player;
   const art = TITLE_ART
@@ -393,7 +435,7 @@ function titleScreen(): string {
       <h1 class="title-logo">${t`Brackenwyrm`}</h1>
       <p class="title-def">${t`<span><b>Bracken</b> – Farn, so weit das Auge reicht.</span> <span><b>Wyrm</b> – ein Drache, der darin schläft.</span>`}</p>
       ${art}
-      <p class="tagline">${TITLE_SPRUCH}</p>
+      ${titleLiveHtml()}
       ${flashHtml()}
       <div class="solo-nav">${navHtml(localKeys([{ title: t('Willkommen'), items: [
         ...(p ? [{ act: 'continue', label: t`Weiterspielen: ${titleFor(p.dragonKills, p.gender)} ${p.name}`, key: 'w', hint: t`Stufe ${p.level} · Spieltag ${state!.day}`, primary: true }] : []),

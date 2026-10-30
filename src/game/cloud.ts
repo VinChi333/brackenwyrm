@@ -45,6 +45,7 @@ export interface GuildMine {
   applicants: GuildMember[];
 }
 export interface FeedbackRow { id: number; created_at: string; hero: string; account: string; kinds: string; body: string; meta: string; done: boolean }
+export interface TitleInfo { online: number; names: string[]; slayer: { name: string; at: string | null } | null }
 export interface CodeRow { code: string; created_at: string; note: string; redeemed_by: string | null; redeemed_at: string | null }
 export interface AushangRow { id: number; created_at: string; title: string; body: string; author: string }
 export type FameCat = 'drachen' | 'reich' | 'charme' | 'schnell' | 'erben' | 'furcht' | 'schatz' | 'veteran';
@@ -355,6 +356,23 @@ export class Cloud {
 
   private missingPart4(e: unknown): boolean {
     return e instanceof CloudError && e.code === 'server' && /404|PGRST202|42883|42P01|PGRST205/.test(e.message);
+  }
+
+  /** Startseite (Teil 10): wer gerade unterwegs ist und wer zuletzt den Wyrm bezwungen hat. undefined = Teil 10 fehlt. */
+  async titleInfo(): Promise<TitleInfo | undefined> {
+    try {
+      const rows = await this.call('/rest/v1/rpc/title_info', { method: 'POST', body: {} }, !!this.session);
+      const r = Array.isArray(rows) ? rows[0] : rows;
+      if (!r) return { online: 0, names: [], slayer: null };
+      return {
+        online: Number(r.online) || 0,
+        names: Array.isArray(r.names) ? r.names.map(String) : [],
+        slayer: r.slayer ? { name: String(r.slayer), at: r.slayer_at ? String(r.slayer_at) : null } : null,
+      };
+    } catch (e) {
+      if (this.missingPart5(e)) return undefined;
+      throw e;
+    }
   }
 
   /** Wer zuletzt den Drachen erschlagen hat (geprüft vom Server). null = niemand; undefined = Server kennt das noch nicht. */
