@@ -101,9 +101,9 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'raeuberhauptmann', name: t('Räuberhauptmann'), level: 6, shape: 'humanoid', prop: 'axe', scale: 1.05, eyes: '#f3c06a',
     intro: t('„Gold oder Leben!“ ruft der Räuberhauptmann. Du entscheidest dich für ein Drittes.'),
     hits: t('schwingt seine Axt'), falls: t('Der Räuberhauptmann flieht und lässt seinen Hut zurück.') },
-  { id: 'ertrunkener', name: t('Ertrunkener'), level: 6, shape: 'ghost', scale: 1.0, eyes: '#bfe3ff',
-    intro: t('Ein Ertrunkener steigt aus dem Moorloch, Algen im Haar.'),
-    hits: t('packt dich mit eiskalten, nassen Händen'), falls: t('Der Ertrunkene sinkt zurück ins Moor, diesmal für immer.') },
+  { id: 'ertrunkener', name: t('Moorleiche'), level: 6, shape: 'ghost', scale: 1.0, eyes: '#bfe3ff',
+    intro: t('Eine Moorleiche steigt aus dem Moorloch, Algen im Haar.'),
+    hits: t('packt dich mit eiskalten, nassen Händen'), falls: t('Die Moorleiche sinkt zurück ins Moor, diesmal für immer.') },
   { id: 'elchbulle', name: t('Elchbulle'), level: 6, shape: 'stag', scale: 1.15, eyes: '#f3c06a',
     intro: t('Ein riesiger Elchbulle senkt das Geweih. Du stehst in seinem Revier.'),
     hits: t('rammt dich mit seinem Schaufelgeweih'), falls: t('Der Elchbulle knickt in die Knie und bleibt liegen.') },
@@ -294,7 +294,7 @@ const GENDER: Record<string, 'm' | 'f' | 'n'> = {
   harpyie: 'f', knochenritter: 'm', dornengolem: 'm', wyrmling: 'm', sturmrabe: 'm', waldhexe: 'f',
   eichenhueter: 'm', schattenwolf: 'm', steinwurm: 'm', farngeist: 'm', trollkoenig: 'm', wyrmwaechter: 'm',
   // neue Gegner ab 0.45
-  'moosigel': 'm', 'eichelbold': 'm', 'krallenmarder': 'm', 'riesenzecke': 'f', 'moorhund': 'm', 'raubwels': 'm', 'dornenfuchs': 'm', 'vogelscheuche': 'f', 'schreckreiher': 'm', 'pilzschamane': 'm', 'ertrunkener': 'm', 'elchbulle': 'm', 'moorschmuggler': 'm', 'hornissenschwarm': 'm', 'hoehlenmolch': 'm', 'schwarzschuetzin': 'f', 'schlickhydra': 'f', 'borkenoger': 'm', 'wiedergaenger': 'm', 'kristallspinne': 'f', 'nachtgreif': 'm', 'dornendruide': 'm', 'steinblickechse': 'f', 'frostbaer': 'm', 'schattenreiter': 'm', 'moorriese': 'm', 'glutgeweih': 'm', 'wyrmpriesterin': 'f', 'urkeiler': 'm', 'nachtkoenigin': 'f',
+  'moosigel': 'm', 'eichelbold': 'm', 'krallenmarder': 'm', 'riesenzecke': 'f', 'moorhund': 'm', 'raubwels': 'm', 'dornenfuchs': 'm', 'vogelscheuche': 'f', 'schreckreiher': 'm', 'pilzschamane': 'm', 'ertrunkener': 'f', 'elchbulle': 'm', 'moorschmuggler': 'm', 'hornissenschwarm': 'm', 'hoehlenmolch': 'm', 'schwarzschuetzin': 'f', 'schlickhydra': 'f', 'borkenoger': 'm', 'wiedergaenger': 'm', 'kristallspinne': 'f', 'nachtgreif': 'm', 'dornendruide': 'm', 'steinblickechse': 'f', 'frostbaer': 'm', 'schattenreiter': 'm', 'moorriese': 'm', 'glutgeweih': 'm', 'wyrmpriesterin': 'f', 'urkeiler': 'm', 'nachtkoenigin': 'f',
   dragon: 'm',
   // Schattenreich
   'verirrte-seele': 'f', faehrmann: 'm', schattenhund: 'm', knochenkraehe: 'f', 'klagende-witwe': 'f', nebelschlund: 'm',
