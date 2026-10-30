@@ -126,6 +126,8 @@ export function startNewDay(s: GameState): void {
     p.bank -= debt;
     s.news.push(t`Deine Schulden im Kontor wachsen über Nacht um ${debt} Gold Zinsen (jetzt ${-p.bank} Gold).`);
   }
+  // Für den Kasten auf dem Dorfplatz: alles, was über Nacht passiert ist (wie die Seite "Ein neuer Tag" im Original)
+  s.newDayNote = { day: s.day, lines: [...s.news] };
   s.news.push(t`Ein neuer Tag bricht an. Tag ${s.day}. Du hast ${p.forestFights} Waldkämpfe.`);
 }
 
@@ -295,7 +297,7 @@ const HAUNT_FAILS = [
   t('Du schwebst durch die Wand, aber leider in den Schrank nebenan. Bis du herausfindest, ist {n} längst wach und frühstückt.'),
   t('{n} blinzelt dich an, murmelt „Nicht schon wieder, Oma“ und schläft weiter.'),
   t('{n} wacht auf, bietet dir höflich einen Stuhl an und fragt, ob du Tee möchtest. So macht Spuken keinen Spaß.'),
-  t('Eine Katze faucht dich an, und du flüchtest schneller zurück ins Schattenreich, als du gekommen bist.'),
+  t('Die Katze von {n} faucht dich an, und du flüchtest schneller zurück ins Schattenreich, als du gekommen bist.'),
 ];
 
 /** Ergebnis vom Server übernehmen: Gunst abziehen, Text erzählen. */

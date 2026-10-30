@@ -257,6 +257,7 @@ export interface GameState {
   chronicle: ChronicleEntry[];  // die letzten Kämpfe, neuester zuerst
   outbox: string[];             // Tagesneuigkeiten, die noch an den Server gehen
   pendingEvent: PendingEvent | null;
+  newDayNote?: { day: number; lines: string[] } | null;  // Kasten "Ein neuer Tag bricht an!" auf dem Dorfplatz, bis er weggeklickt wird
   feste?: FesteRun | null;      // laufender Ausflug in die versunkene Feste
   guide?: Guide | null;         // Einstieg für Neulinge (nur bei neu angelegten Helden)
   settings: { retro: boolean; reducedMotion: boolean };

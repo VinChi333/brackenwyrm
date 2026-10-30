@@ -33,6 +33,7 @@ import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, save
 import { Cloud, CloudError } from '../game/cloud';
 import type { AushangRow, BountyRow, CodeRow, FeedbackRow, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
 import { censor, isClean } from '../content/badwords';
+import { COLOR_CODES, colorize } from './colors';
 import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
 import { DIR_NAME, FESTE_COST, FESTE_MIN_LEVEL, SIZE as FESTE_SIZE, afterFesteFight, canEnterFeste, enterFeste, festeLight, exits, heirloomNames, leaveFeste, mazeFor, moveFeste, treasureNews, type Dir } from '../game/feste';
 import { FESTE_FOES, FESTE_NAME, FESTE_TEXT, HEIRLOOMS, SCROLLS, heirloom } from '../content/feste';
@@ -46,8 +47,8 @@ import { AMBROS_GAMES_PER_DAY, AMBROS_TRIES, ambrosBets, guessAmbros, startAmbro
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
 import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, MountId, RaceId, SpecialtyId } from '../game/types';
-import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard, mountCard, tierFor } from './art/cards';
-import type { CardInfo } from './art/cards';
+import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard, mountCard, npcCard, tierFor } from './art/cards';
+import type { CardInfo, NpcId } from './art/cards';
 import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 import { sound, type TrackId } from './audio';
 
@@ -64,7 +65,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
 const TITLE_SPRUCH = t('Hier gibt’s nicht viel zu schnacken – such lieber den Wyrm in den Bracken.');
-const VERSION = t('Version {0}', '0.52');
+const VERSION = t('Version {0}', '0.53');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -465,6 +466,29 @@ function createScreen(): string {
   </div></div>`;
 }
 
+/** Begrüßung eines Dorfbewohners, mit seiner Karte daneben, sobald es ein Bild gibt. */
+function withNpc(id: NpcId | '', html: string): string {
+  const c = id ? npcCard(id) : null;
+  if (!c) return html;
+  return `<div class="speaker npc-speaker">${cardHtml(c, { cls: 'mini npc-card', fx: true })}<div>${html}</div></div>`;
+}
+
+/** Wie die Seite "Ein neuer Tag" von damals: was über Nacht geschah, und womit du in den Tag gehst. */
+function newDayHtml(s: GameState): string {
+  const note = s.newDayNote;
+  if (!note || note.day !== s.day) return '';
+  const p = s.player;
+  const evening = s.lastRealDate.endsWith('b');
+  const lines = note.lines;  // was über Nacht geschah; Waldkämpfe und Co. stehen unten zusammengefasst
+  return `<section class="newday" aria-live="polite">
+    <h2>${evening ? t('Der Abend bricht an!') : t('Ein neuer Tag bricht an!')}</h2>
+    <p class="muted">${evening ? t('Die Dorfuhr schlägt sechs Mal. Laternen werden angezündet, und aus dem Wald ruft ein Kauz.') : t('Die Sonne steigt über den Brackenwald. Irgendwo kräht ein Hahn, und du fühlst dich erholt.')}</p>
+    ${lines.length ? `<ul>${lines.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
+    <p class="newday-stats">${t`Spieltag ${s.day}`} · ${t`${p.forestFights} Waldkämpfe`} · ${t('volle Lebenspunkte')} · ${p.specialUses} ${p.specialUses === 1 ? t('Punkt') : t('Punkte')} ${t`für ${SPECIALTIES[p.specialty].name}`}</p>
+    <button type="button" class="btn" data-act="newday">${evening ? t('Auf in den Abend') : t('Auf in den Tag')}</button>
+  </section>`;
+}
+
 function villageScreen(s: GameState): string {
   const p = s.player;
   const m = masterForLevel(p.level);
@@ -479,12 +503,13 @@ function villageScreen(s: GameState): string {
       <p class="muted">${t`Fehler gefunden oder eine Idee? Drück auf <strong>Rückmeldung geben</strong>, das liest jemand.`}</p>
       <button type="button" class="btn" data-act="welcome">${t`Los geht’s`}</button>
     </section>`}
+    ${newDayHtml(s)}
     ${guideCardHtml(s)}
     <p class="statue">${statueText(s)}</p>
     <p class="clock"><span aria-hidden="true">🕰</span> ${t`Die Dorfuhr: Der nächste Spieltag beginnt in ${waitText()}.`}</p>
     ${(() => { const a = ui.aushang?.[0]; return a && a.id > (prefs.aushangSeen ?? 0) ? `<section class="notice new"><h2>${t`Neu am Rathaus: ${esc(a.title)}`}</h2><p>${esc(a.body).replace(/\n/g, '<br>')}</p><div class="row"><button type="button" class="tbtn" data-act="aushangseen:${a.id}">${t`Gelesen`}</button><button type="button" class="tbtn ghost" data-act="go:aushang">${t`Alle Aushänge`}</button></div></section>` : ''; })()}
     ${flashHtml()}
-    ${s.news.length ? `<section class="news"><h2>${t`Neuigkeiten`}</h2>${s.news.slice(-4).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}
+    ${s.news.length && !s.newDayNote ? `<section class="news"><h2>${t`Neuigkeiten`}</h2>${s.news.slice(-4).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}
     ${cloud.enabled ? squareHtml() : ''}`;
   return layout(s, main, [
     { title: t('Stadttor'), items: [
@@ -672,7 +697,7 @@ function healerScreen(s: GameState): string {
   const full = healCost(p, missing);
   const half = healCost(p, Math.ceil(missing / 2));
   const main = `<h1>${t`Mirlas Kräuterhütte`}</h1>
-    <p class="lead">${missing <= 0 ? t('Mirla mustert dich. „Dir fehlt nichts. Raus mit dir, ich hab zu tun.“') : `${t`Mirla schnalzt mit der Zunge. „${missing} Lebenspunkte fehlen dir. Wenn ich alles heile, macht das <span class="gold">${full} Gold</span>.“`}`}</p>
+    ${withNpc('mirla', `<p class="lead">${missing <= 0 ? t('Mirla mustert dich. „Dir fehlt nichts. Raus mit dir, ich hab zu tun.“') : `${t`Mirla schnalzt mit der Zunge. „${missing} Lebenspunkte fehlen dir. Wenn ich alles heile, macht das <span class="gold">${full} Gold</span>.“`}`}</p>`)}
     <p class="muted">${t`Preis auf deiner Stufe: ${healCostPerHp(p.level).toFixed(2).replace('.', ',')} Gold pro Lebenspunkt.`}</p>
     ${flashHtml()}`;
   return layout(s, main, [
@@ -700,7 +725,7 @@ function smithScreen(s: GameState): string {
     return `<div class="scroll-x"><table><thead><tr><th>${kind === 'weapon' ? t('Waffe') : t('Rüstung')}</th><th class="num">${kind === 'weapon' ? t('Angriff') : t('Schutz')}</th><th class="num">${t`Gold*`}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
   };
   const main = `<h1>${t`Alriks Schmiede`}</h1>
-    <p class="lead">${t`Funken stieben. „Gutes Eisen rettet Leben“, brummt Alrik. „Dein altes Zeug nehm ich in Zahlung, halber Preis.“`}</p>
+    ${withNpc('alrik', `<p class="lead">${t`Funken stieben. „Gutes Eisen rettet Leben“, brummt Alrik. „Dein altes Zeug nehm ich in Zahlung, halber Preis.“`}</p>`)}
     ${flashHtml()}${table('weapon')}${table('armor')}
     <p class="muted small">${t`* Preis nach Eintausch deiner jetzigen Ausrüstung.`}</p>`;
   return layout(s, main, [{ title: t('Zurück'), items: [back] }]);
@@ -709,7 +734,7 @@ function smithScreen(s: GameState): string {
 function bankScreen(s: GameState): string {
   const p = s.player;
   const main = `<h1>${t`Das Kontor`}</h1>
-    <p class="lead">${t`Ansgar zählt Münzen, die nicht ihm gehören. „Was hier liegt, verlierst du nicht im Wald. Und über Nacht gibt’s Zinsen.“`}</p>
+    ${withNpc('ansgar', `<p class="lead">${t`Ansgar zählt Münzen, die nicht ihm gehören. „Was hier liegt, verlierst du nicht im Wald. Und über Nacht gibt’s Zinsen.“`}</p>`)}
     ${flashHtml()}
     <p>${p.bank >= 0 ? `${t`Im Kontor: <span class="gold">${p.bank} Gold</span>`}` : `${t`<span class="bad">Schulden: ${-p.bank} Gold</span> (wachsen über Nacht mit dem Zins)`}`} ${t`· Dabei: <span class="gold">${p.gold} Gold</span>`}</p>
     <div class="row"><input type="number" id="amount" min="1" inputmode="numeric" placeholder="${t`Betrag`}" aria-label="${t`Betrag`}">
@@ -754,7 +779,7 @@ const RUMORS = [
 function innScreen(s: GameState): string {
   const p = s.player;
   const main = `<h1>${t`Zum Schlafenden Wurm`}</h1>
-    <p class="lead">${t`Das Feuer knistert. Wirtin <span class="npc">Frieda</span> poliert ein Glas, das davon nicht sauberer wird. In der Ecke stimmt Barde <span class="npc">Florian</span> seine Laute.`}</p>
+    ${withNpc('frieda', `<p class="lead">${t`Das Feuer knistert. Wirtin <span class="npc">Frieda</span> poliert ein Glas, das davon nicht sauberer wird. In der Ecke stimmt Barde <span class="npc">Florian</span> seine Laute.`}</p>`)}
     <p class="rumor">${esc(RUMORS[s.day % RUMORS.length])}</p>
     ${flashHtml()}
     ${cloud.enabled && p.innRoom ? `<p class="muted">${t`Du hast für heute ein Zimmer. Wenn du jetzt aufhörst zu spielen, schläfst du hier sicherer als draußen auf den Feldern.`}</p>` : ''}
@@ -787,7 +812,7 @@ function tresenScreen(s: GameState): string {
   const p = s.player;
   const drunk = p.drunk ?? 0;
   const main = `<h1>${t`Am Tresen`}</h1>
-    <p class="lead">${t`Frieda wischt den Tresen ab und schaut dich über den Rand ihres Glases an. „Was darf’s sein?“`}</p>
+    ${withNpc('frieda', `<p class="lead">${t`Frieda wischt den Tresen ab und schaut dich über den Rand ihres Glases an. „Was darf’s sein?“`}</p>`)}
     ${flashHtml()}
     <div class="drunk-meter">${t`<span>Du bist ${drunkWord(drunk)}</span>`}<div class="progress">${bar(drunk, 100, drunk >= MAX_DRUNK ? 'hp low' : 'favor')}</div></div>
     <ul class="potions">${DRINKS.map((d) => `<li><strong>${d.name}</strong> <span class="gold">${d.costPerLevel ? t`${drinkCost(d, p.level)} Gold` : t('umsonst')}</span>${d.hard ? ` <span class="tag">${t('hart')}</span>` : ''}<br><small class="muted">${d.blurb}</small></li>`).join('')}</ul>
@@ -807,7 +832,7 @@ function dagScreen(s: GameState): string {
   const onMe = list?.find((b) => b.target === cloud.userId);
   const others = (ui.warriors ?? []).filter((w) => w.userId !== cloud.userId && w.level >= 3);
   const main = `<h1>${t`Veit Galgenstrick`}</h1>
-    <p class="lead">${t`In der dunkelsten Ecke des Gasthauses sitzt Veit Galgenstrick, Kopfgeldjäger, und raucht eine Pfeife, die nach nassem Hund riecht. „Du willst, dass jemandem etwas zustößt?“, brummt er. „Gegen Gold lässt sich das einrichten. Wer den Kopf bringt, kassiert. Ich behalte zehn Prozent.“`}</p>
+    ${withNpc('veit', `<p class="lead">${t`In der dunkelsten Ecke des Gasthauses sitzt Veit Galgenstrick, Kopfgeldjäger, und raucht eine Pfeife, die nach nassem Hund riecht. „Du willst, dass jemandem etwas zustößt?“, brummt er. „Gegen Gold lässt sich das einrichten. Wer den Kopf bringt, kassiert. Ich behalte zehn Prozent.“`}</p>`)}
     ${flashHtml()}
     ${onMe ? `<p class="warn-box">${t`Veit mustert dich. „Auf deinen Kopf sind übrigens ${onMe.total} Gold ausgesetzt. Schlaf lieber im Gasthaus.“`}</p>` : ''}
     <h2>${t`Offene Kopfgelder`}</h2>
@@ -942,7 +967,7 @@ function lagerScreen(s: GameState): string {
   const cp = p.companion;
   const cd = cp ? companionDef(cp.id) : undefined;
   const main = `<h1>${t`Das Söldnerlager`}</h1>
-    <p class="lead">${COMPANION_TEXT.intro}</p>
+    ${withNpc('hagen', `<p class="lead">${COMPANION_TEXT.intro}</p>`)}
     ${flashHtml()}
     ${cp && cd ? `<section class="good-box"><h2>${esc(cd.name)}, ${cd.role}</h2><p>${cp.hp <= 0 ? t('Liegt k. o. im Zelt.') : t`${cp.hp} von ${cp.maxHp} Lebenspunkten.`} ${esc(cd.blurb)}</p></section>` : ''}
     <ul class="potions">${COMPANIONS.map((c) => `<li>${t`<strong>${esc(c.name)}</strong> · ${c.role} <span class="gold">${companionCost(c.id, p.level)} Gold</span><br><small class="muted">${esc(c.blurb)} ${companionMaxHp(c.id, p.level)} Lebenspunkte.</small>`}</li>`).join('')}</ul>
@@ -960,7 +985,7 @@ function stableScreen(s: GameState): string {
   const own = p.mount ? MOUNTS[p.mount] : null;
   const ownBuff = p.buffs.find((b) => b.id === 'mount');
   const main = `<h1>${t`Mertens Pferdestall`}</h1>
-    <p class="lead">${esc(MERTEN.greeting)}</p>
+    ${withNpc('merten', `<p class="lead">${esc(MERTEN.greeting)}</p>`)}
     ${flashHtml()}
     ${own ? `<p>${t`Im Stall steht ${esc(own.yourNom.replace(/^./, (c) => c.toLowerCase()))}.`} ${ownBuff ? t`${esc(own.buffName)}: noch ${ownBuff.rounds} Runden.` : t('Es ist müde vom Tag.')}</p>` : ''}
     <div class="card-grid mount-grid">${MOUNT_ORDER.map((id) => {
@@ -992,7 +1017,7 @@ function flirtScreen(s: GameState): string {
   if (p.marriedTo) {
     const spouse = PARTNERS[p.marriedTo];
     const main = `<h1>${esc(spouse.name)}</h1>
-      <p class="lead">${t`${p.marriedTo === 'frieda' ? t('Frieda wischt sich die Hände an der Schürze ab, als sie dich sieht.') : t('Florian legt die Laute weg, als er dich sieht.')} Ihr seid verheiratet. Einmal am Tag habt ihr Zeit füreinander.`}</p>
+      ${withNpc(p.marriedTo as NpcId, `<p class="lead">${t`${p.marriedTo === 'frieda' ? t('Frieda wischt sich die Hände an der Schürze ab, als sie dich sieht.') : t('Florian legt die Laute weg, als er dich sieht.')} Ihr seid verheiratet. Einmal am Tag habt ihr Zeit füreinander.`}</p>`)}
       ${flashHtml()}
       <p class="muted">${t`Verheiratete müssen nicht mehr so auf ihr Äußeres achten. Jeden Tag geht etwas Charme verloren. Wenn er ganz aufgebraucht ist, geht ${esc(spouse.name)}.`}</p>`;
     return layout(s, main, [
@@ -1001,7 +1026,7 @@ function flirtScreen(s: GameState): string {
     ]);
   }
   const main = `<h1>${t`${esc(pt.name)} umwerben`}</h1>
-    <p class="lead">${esc(pt.intro)}</p>
+    ${withNpc(id as NpcId, `<p class="lead">${esc(pt.intro)}</p>`)}
     ${flashHtml()}
     <p class="muted">${t`Je kühner der Versuch, desto mehr Charme brauchst du. Ein Versuch pro Tag. ${p.seenLover ? esc(pt.notToday) : ''}`}</p>`;
   const keys = ['z', 'h', 'k', 's', 'c', 't', 'a'];
@@ -1295,12 +1320,13 @@ function squareHtml(section: ChatSection = 'dorfplatz'): string {
     : sq.comments.length ? sq.comments.filter((x) => !(x.user_id && ui.blocked.has(x.user_id))).reverse().map((x) => {
         const act = emoteOf(x.body);
         return act !== null
-          ? `<p class="say emote"><span class="muted">${when(x.created_at)}</span>${reportBtn('chat', x.id, x.user_id)}<br><em><span class="npc">${esc(titledLocal(x.name))}</span> ${esc(act)}</em></p>`
-          : `<p class="say"><span class="npc">${esc(titledLocal(x.name))}</span> <span class="muted">${when(x.created_at)}</span>${reportBtn('chat', x.id, x.user_id)}<br>${esc(x.body)}</p>`;
+          ? `<p class="say emote"><span class="muted">${when(x.created_at)}</span>${reportBtn('chat', x.id, x.user_id)}<br><em><span class="npc">${esc(titledLocal(x.name))}</span> ${colorize(act, esc)}</em></p>`
+          : `<p class="say"><span class="npc">${esc(titledLocal(x.name))}</span> <span class="muted">${when(x.created_at)}</span>${reportBtn('chat', x.id, x.user_id)}<br>${colorize(x.body, esc)}</p>`;
       }).join('')
     : `<p class="muted">${c.empty}</p>`;
   const input = cloud.signedIn
-    ? `<div class="row say-row"><input type="text" id="say" data-section="${section}" maxlength="200" placeholder="${c.hint ?? (section === 'schattenreich' ? t('Flüstere etwas …') : t('Sag etwas …'))}" value="${esc(ui.sayText)}" aria-label="${t`Spruch für ${c.place}`}"><button type="button" class="tbtn" data-act="say:${section}">${section === 'schattenreich' ? t('Flüstern') : t('Sagen')}</button></div><p class="fine">${t`Tipp: Mit <code>/me winkt</code> oder <code>:winkt</code> beschreibst du, was dein Held tut.`}</p>`
+    ? `<div class="row say-row"><input type="text" id="say" data-section="${section}" maxlength="200" placeholder="${c.hint ?? (section === 'schattenreich' ? t('Flüstere etwas …') : t('Sag etwas …'))}" value="${esc(ui.sayText)}" aria-label="${t`Spruch für ${c.place}`}"><button type="button" class="tbtn" data-act="say:${section}">${section === 'schattenreich' ? t('Flüstern') : t('Sagen')}</button></div><p class="fine">${t`Tipp: Mit <code>/me winkt</code> oder <code>:winkt</code> beschreibst du, was dein Held tut.`}</p>
+      <p class="fine color-help">${t`Farben wie damals: Tippe eine Farbe an, dann schreib weiter. <code>\`0</code> macht wieder normal.`}<br>${COLOR_CODES.map((c) => `<button type="button" class="swatch c${c}" data-act="saycolor:${c}" aria-label="${t`Farbe ${c}`}">\`${c}</button>`).join('')}<button type="button" class="swatch" data-act="saycolor:0" aria-label="${t`Farbe aus`}">\`0</button></p>`
     : `<p class="muted">${t`Mit einem Spielerkonto kannst du hier mitreden (Einstellungen).`}</p>`;
   return `<section class="square ${section}"><h2>${c.title}</h2>${list}${sq.error ? `<p class="warn">${esc(sq.error)}</p>` : ''}${input}</section>`;
 }
@@ -1537,7 +1563,7 @@ function quirinScreen(s: GameState): string {
       ? `<section class="good-box"><h2>${t`Was wirst du?`}</h2><p>${t`Wähle deine neue Gestalt.`}</p>${raceChoices(p.race, p.specialty, p.gender, 'newrace')}</section>`
       : '';
   const main = `<h1>${t`Quirins Tränke`}</h1>
-    <p class="lead">${t`Im schiefen Häuschen hinter dem Brunnen blubbert es aus hundert Kolben. Der Alchemist <span class="npc">Quirin</span> schiebt die Brille hoch. „Edelsteine gegen Tränke, so läuft das hier. Zwei pro Fläschchen. Nebenwirkungen auf eigene Gefahr.“`}</p>
+    ${withNpc('quirin', `<p class="lead">${t`Im schiefen Häuschen hinter dem Brunnen blubbert es aus hundert Kolben. Der Alchemist <span class="npc">Quirin</span> schiebt die Brille hoch. „Edelsteine gegen Tränke, so läuft das hier. Zwei pro Fläschchen. Nebenwirkungen auf eigene Gefahr.“`}</p>`)}
     ${flashHtml()}
     ${choice}
     <ul class="potions">${POTIONS.map((pt) => `<li>${t`<strong>${pt.name}</strong> <span class="gem">${pt.gems} Edelsteine</span><br><span class="gold">${pt.effect}</span><br><small class="muted">${pt.blurb}</small>`}</li>`).join('')}</ul>
@@ -1560,7 +1586,7 @@ function seerScreen(s: GameState): string {
       ${flashHtml()}
       ${squareHtml('schattenreich')}`
     : `<h1>${t`Das Zelt der Seherin`}</h1>
-      <p class="lead">${t`Du duckst dich in ein buntes Zelt am Dorfrand. Hinter einer ziemlich fleckigen Kristallkugel sitzt die alte <span class="npc">Oda</span>. Man sagt, sie kann mit den Toten sprechen, und erstaunlich oft stimmt das sogar.`}</p>
+      ${withNpc('oda', `<p class="lead">${t`Du duckst dich in ein buntes Zelt am Dorfrand. Hinter einer ziemlich fleckigen Kristallkugel sitzt die alte <span class="npc">Oda</span>. Man sagt, sie kann mit den Toten sprechen, und erstaunlich oft stimmt das sogar.`}</p>`)}
       <p>${t`„Die Toten reden nur mit denen, die zahlen“, krächzt sie. „Für dich, ${p.gender === 'f' ? t('meine Hübsche') : t('mein Hübscher')}, nur lächerliche <span class="gold">${cost} Gold</span>. Für den ganzen Tag.“`}</p>
       ${flashHtml()}`;
   return layout(s, main, [
@@ -1603,7 +1629,7 @@ function ambrosScreen(s: GameState): string {
   const left = AMBROS_GAMES_PER_DAY - (p.ambrosGames ?? 0);
   const last = g ? g.hints.length - 1 : -1;
   const main = `<h1>${t`Der alte Ambros`}</h1>
-    <p class="lead">${t`Auf der Bank am Brunnen sitzt der alte Ambros und schnitzt an einem Stock. „Ich denk mir eine Zahl zwischen 1 und 100“, sagt er. „Du hast ${AMBROS_TRIES} Versuche. Errätst du sie, zahle ich dir deinen Einsatz doppelt. Wenn nicht, gehört er mir.“`}</p>
+    ${withNpc('ambros', `<p class="lead">${t`Auf der Bank am Brunnen sitzt der alte Ambros und schnitzt an einem Stock. „Ich denk mir eine Zahl zwischen 1 und 100“, sagt er. „Du hast ${AMBROS_TRIES} Versuche. Errätst du sie, zahle ich dir deinen Einsatz doppelt. Wenn nicht, gehört er mir.“`}</p>`)}
     ${flashHtml()}
     ${g ? `<div class="event-box log">${g.hints.length ? g.hints.map((h, i) => `<p class="${i === last && g.over === 'win' ? 'gold' : i === last && g.over === 'lose' ? 'bad' : 'info'}">${esc(h)}</p>`).join('') : `<p class="info">${t`Einsatz: ${g.bet} Gold. Ambros kneift ein Auge zu. „Na los.“`}</p>`}</div>
       ${g.over ? '' : `<div class="row say-row"><input type="number" id="guess" min="1" max="100" inputmode="numeric" placeholder="1–100" aria-label="${t`Deine Zahl`}"><button type="button" class="tbtn" data-act="guess">${t`Raten`}</button></div>`}` : ''}
@@ -1881,7 +1907,7 @@ function shadowsScreen(s: GameState): string {
   const canBack = p.favor >= RESURRECT_FAVOR;
   const main = `<h1 class="shadow-title">${t`Das Schattenreich`}</h1>
     ${s.news.length ? `<section class="news"><h2>${t`Neuigkeiten`}</h2>${s.news.slice(-3).map((n) => `<p>${esc(n)}</p>`).join('')}</section>` : ''}
-    <p class="lead">${t`Grauer Nebel, ein stiller Fluss. <span class="npc">Morwen</span> stakt ihr Boot heran. „Du schon wieder“, sagt sie. „Setz dich. Wenn die Dorfuhr den nächsten Tag schlägt, bringe ich dich zurück.“`}</p>
+    ${withNpc('morwen', `<p class="lead">${t`Grauer Nebel, ein stiller Fluss. <span class="npc">Morwen</span> stakt ihr Boot heran. „Du schon wieder“, sagt sie. „Setz dich. Wenn die Dorfuhr den nächsten Tag schlägt, bringe ich dich zurück.“`}</p>`)}
     <p>${t`Am Ufer treiben verirrte Seelen. „Wenn du mir ein paar davon vom Hals schaffst“, sagt Morwen, „fahre ich dich vielleicht früher zurück.“`}
       ${canBack ? `${t`<span class="place">Du hast genug Gunst für die Rückkehr.</span>`}` : `${t`Dafür brauchst du <span class="gem">${RESURRECT_FAVOR} Gunst</span>, du hast ${p.favor}.`}`}</p>
     <div class="progress">${bar(p.favor, RESURRECT_FAVOR, 'favor')}</div>
@@ -2589,6 +2615,18 @@ function handle(act: string, el: HTMLElement): void {
       })();
       return;
     }
+    case 'saycolor': {
+      // Farbcode an der Schreibstelle einfügen, ohne neu zu zeichnen (sonst springt das Handy-Tastenfeld weg)
+      const inp = document.getElementById('say') as HTMLInputElement | null;
+      if (!inp) return;
+      const code = '`' + a;
+      const at = inp.selectionStart ?? inp.value.length;
+      inp.value = (inp.value.slice(0, at) + code + inp.value.slice(inp.selectionEnd ?? at)).slice(0, 200);
+      inp.focus();
+      inp.setSelectionRange(at + code.length, at + code.length);
+      ui.sayText = inp.value;
+      return;
+    }
     case 'say': {
       const inp = document.getElementById('say') as HTMLInputElement | null;
       const section = ((a || inp?.dataset.section || 'dorfplatz') as ChatSection);
@@ -2634,6 +2672,7 @@ function handle(act: string, el: HTMLElement): void {
       return;
     }
     case 'welcome': prefs.welcomed = true; savePrefs(prefs); render(); return;
+    case 'newday': if (s) { s.newDayNote = null; saveGame(s); } render(); return;
     case 'invite': {
       // Link zum Spiel teilen (Handy: Teilen-Menü, sonst kopieren)
       const url = location.href.split(/[?#]/)[0].replace(/index\.html$/, '');
@@ -2991,7 +3030,7 @@ function checkDayTick(): void {
   if (!state || state.fight) return;
   if (checkRealDay(state)) {
     saveGame(state);
-    say(gameDayKey().endsWith('a') ? t('Die Sonne geht auf. Ein neuer Tag in Moosgrund!') : t('Die Dorfuhr schlägt sechs Mal. Der Abend bricht an, ein neuer Spieltag in Moosgrund!'), 'good');
+    // Auf dem Dorfplatz erzählt der Kasten "Ein neuer Tag bricht an!" alles Weitere
     if (ui.screen !== 'title' && ui.screen !== 'create') ui.screen = 'village';
     render();
   }

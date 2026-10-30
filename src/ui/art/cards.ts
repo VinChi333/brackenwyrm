@@ -162,6 +162,29 @@ export function mountCard(id: MountId): CardInfo {
   return { key: `mount-${id}`, name: m.name, level: m.rank, tier: m.rank === 3 ? 'gold' : m.rank === 2 ? 'silver' : 'bronze', art: a.art, hasIllustration: a.real, flavor: m.blurb, glow, fx: 'motes', tierLabel: t('Reittier') };
 }
 
+/** Die Dorfbewohner. Bild: src/assets/monsters/npc-<id>.webp — ohne Bild erscheint keine Karte (kein Platzhalter). */
+export type NpcId = 'frieda' | 'florian' | 'alrik' | 'mirla' | 'ansgar' | 'merten' | 'quirin' | 'oda' | 'morwen' | 'ambros' | 'veit' | 'hagen';
+const NPCS: Record<NpcId, { name: string; role: string }> = {
+  frieda: { name: t('Frieda'), role: t('Wirtin') },
+  florian: { name: t('Florian'), role: t('Barde') },
+  alrik: { name: t('Alrik'), role: t('Schmied') },
+  mirla: { name: t('Mirla'), role: t('Kräuterfrau') },
+  ansgar: { name: t('Ansgar'), role: t('Kontor') },
+  merten: { name: t('Merten'), role: t('Rosshändler') },
+  quirin: { name: t('Quirin'), role: t('Alchemist') },
+  oda: { name: t('Oda'), role: t('Seherin') },
+  morwen: { name: t('Morwen'), role: t('Fährfrau') },
+  ambros: { name: t('Ambros'), role: t('Der alte Mann') },
+  veit: { name: t('Veit Galgenstrick'), role: t('Kopfgeldjäger') },
+  hagen: { name: t('Hagen'), role: t('Lagermeister') },
+};
+export function npcCard(id: NpcId): CardInfo | null {
+  const n = NPCS[id];
+  if (!n || !MONSTER_ART[`npc-${id}`]) return null;
+  const a = artFor(`npc-${id}`, () => '');
+  return { key: `npc-${id}`, name: n.name, level: 0, tier: 'silver', art: a.art, hasIllustration: true, flavor: '', glow: '#d9b26a', fx: 'motes', tierLabel: n.role };
+}
+
 export function cardFor(key: string): CardInfo | null {
   if (key === 'dragon') return dragonCard();
   if (key.startsWith('master-')) return masterCard(Number(key.slice(7)));

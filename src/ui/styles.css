@@ -780,3 +780,33 @@ h1 .g-tag { font-size: 0.7em; }
   .hk, :is(.nav-link, .dock-btn, .btn, .nav-link.primary, .dock-btn.primary, .btn.ghost) .hk { color: inherit; font-weight: inherit; text-decoration: none; }
   .hk-pre { display: none; }
 }
+
+/* Farbcodes im Gespräch (`1 … `8), wie im Original */
+.c1 { color: var(--gold-hi); } .c2 { color: var(--green); } .c3 { color: var(--cyan); } .c4 { color: var(--violet); }
+.c5 { color: var(--red); } .c6 { color: var(--bronze); } .c7 { color: var(--silver); } .c8 { color: #e88aa8; }
+.color-help { text-align: left; }
+.swatch { font: inherit; font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700; min-width: 40px; min-height: 36px; margin: 6px 6px 0 0;
+  padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); cursor: pointer; }
+.swatch:hover { border-color: var(--gold); }
+
+/* Ein neuer Tag bricht an */
+.newday { border: 1px solid var(--gold); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
+  background: linear-gradient(180deg, rgba(232, 184, 90, 0.10), rgba(232, 184, 90, 0.02)); }
+.newday h2 { color: var(--gold-hi); }
+.newday ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.newday-stats { color: var(--green); font-size: 16px; }
+.newday .btn { align-self: flex-start; }
+
+/* Dorfbewohner: Karte ohne Stufen-Münze */
+.npc-card .card-level { display: none; }
+.npc-speaker { align-items: center; }
+.npc-speaker .card.mini { width: 170px; }
+@media (max-width: 640px) {
+  /* Handy: kleine Karte links, der Text fließt daneben und darunter weiter */
+  .npc-speaker { display: block; }
+  .npc-speaker > div { display: block; }
+  .npc-speaker::after { content: ''; display: block; clear: both; }
+  .npc-speaker .card.mini { float: left; width: 112px; margin: 4px 14px 6px 0; }
+  .npc-speaker .card.mini .card-name { font-size: 11px; }
+  .npc-speaker .card.mini .card-tier { font-size: 9px; letter-spacing: 0.06em; }
+}
