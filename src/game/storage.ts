@@ -79,6 +79,15 @@ export function validate(x: unknown): GameState | null {
   s.player.festeFound = !!s.player.festeFound;
   s.player.drunk = Math.max(0, Math.min(100, Number(s.player.drunk) || 0));
   s.player.hardDrinks = Math.max(0, Number(s.player.hardDrinks) || 0);
+  s.player.waterToday = Math.max(0, Number(s.player.waterToday) || 0);
+  s.player.schnapsFight = !!s.player.schnapsFight;
+  const hs = s.player.house;
+  s.player.house = hs && typeof hs === 'object' && typeof hs.name === 'string' && Number.isFinite(hs.stage)
+    ? { name: hs.name.slice(0, 30), stage: Math.max(0, Math.min(4, Math.floor(hs.stage))), stageDay: typeof hs.stageDay === 'string' ? hs.stageDay : '' }
+    : null;
+  s.player.atHome = !!s.player.atHome && !!s.player.house || (!!s.player.atHome && !!s.player.homeOf);
+  s.player.homeOf = typeof s.player.homeOf === 'string' ? s.player.homeOf : '';
+  s.player.jumped = !!s.player.jumped;
   const cp = s.player.companion;
   s.player.companion = cp && typeof cp === 'object' && typeof cp.id === 'string' && Number.isFinite(cp.hp) && Number.isFinite(cp.maxHp) ? cp : null;
   s.player.festeDay = typeof s.player.festeDay === 'string' ? s.player.festeDay : '';

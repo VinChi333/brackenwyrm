@@ -163,7 +163,7 @@ export function mountCard(id: MountId): CardInfo {
 }
 
 /** Die Dorfbewohner. Bild: src/assets/monsters/npc-<id>.webp — ohne Bild erscheint keine Karte (kein Platzhalter). */
-export type NpcId = 'frieda' | 'florian' | 'alrik' | 'mirla' | 'ansgar' | 'merten' | 'quirin' | 'oda' | 'morwen' | 'ambros' | 'veit' | 'hagen';
+export type NpcId = 'frieda' | 'florian' | 'alrik' | 'mirla' | 'ansgar' | 'merten' | 'quirin' | 'oda' | 'morwen' | 'ambros' | 'veit' | 'hagen' | 'holm';
 const NPCS: Record<NpcId, { name: string; role: string }> = {
   frieda: { name: t('Frieda'), role: t('Wirtin') },
   florian: { name: t('Florian'), role: t('Barde') },
@@ -177,6 +177,7 @@ const NPCS: Record<NpcId, { name: string; role: string }> = {
   ambros: { name: t('Ambros'), role: t('Der alte Mann') },
   veit: { name: t('Veit Galgenstrick'), role: t('Kopfgeldjäger') },
   hagen: { name: t('Hagen'), role: t('Lagermeister') },
+  holm: { name: t('Holm'), role: t('Baumeister') },
 };
 export function npcCard(id: NpcId): CardInfo | null {
   const n = NPCS[id];

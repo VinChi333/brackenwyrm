@@ -818,3 +818,14 @@ h1 .g-tag { font-size: 0.7em; }
 .title-live .who { color: var(--cyan); }
 .title-live .slayer { color: var(--gold-hi); font-family: var(--display); letter-spacing: 0.03em; }
 .title-live .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); margin-right: 7px; vertical-align: 1px; }
+
+/* Wohnviertel: Baustufen und Truhenbuch */
+.house-stages { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 6px; }
+.house-stages li { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.house-stages li.done { border-color: #3f6b46; color: #9fd8a5; }
+.house-stages li.next { border-color: var(--gold); }
+.house-log { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 4px; }
+.house-log li { line-height: 1.4; }
+.house-keys { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.house-keys li { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px 6px 12px; }
+.house-keys .row { margin: 0; }

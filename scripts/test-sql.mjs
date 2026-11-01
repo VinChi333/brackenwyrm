@@ -34,6 +34,8 @@ await db.exec(readFileSync(new URL('../server/supabase-9-rueckmeldungen.sql', im
 await db.exec(readFileSync(new URL('../server/supabase-9-rueckmeldungen.sql', import.meta.url), 'utf8')); // wiederholbar
 await db.exec(readFileSync(new URL('../server/supabase-10-startseite.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-10-startseite.sql', import.meta.url), 'utf8')); // wiederholbar
+await db.exec(readFileSync(new URL('../server/supabase-11-haeuser.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-11-haeuser.sql', import.meta.url), 'utf8')); // wiederholbar
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c', N = '00000000-0000-0000-0000-00000000000d';
 await db.exec(`insert into auth.users values ('${A}','a@x'),('${B}','b@x'),('${C}','c@x'),('${N}','n@x')`);
 // Testhelden haben die Vollversion (Teil 8), sonst zählt online nur ein Drachenkill
@@ -632,6 +634,95 @@ await db.exec(`update public.fighters set banned = false where user_id = '${A}'`
   ok(ti.slayer === bName && ti.slayer_at, 'Startseite: letzter Drachentöter mit Zeitpunkt: ' + ti.slayer);
   await db.exec(`update public.fighters set banned = false where user_id = '${C}'`);
   await db.exec(`delete from public.admins; delete from public.code_attempts`);
+}
+
+// Teil 11: Häuser, Schlüssel, Truhe, Einbruch
+{
+  await db.exec(`update public.fighters set alive = true, hp = 200, banned = false, pvp_used = 0, pvp_flag = null, gold = 300, level = 5, in_inn = false where user_id in ('${A}', '${B}', '${C}')`);
+  await db.exec(`update public.fighters set last_seen = now() - interval '1 hour' where user_id = '${B}'`);
+  await db.exec(`update public.fighters set last_seen = now() where user_id in ('${A}', '${C}')`);
+  const nameOf = async (u) => (await db.query(`select name from public.fighters where user_id = '${u}'`)).rows[0].name;
+  const aName = await nameOf(A), bName = await nameOf(B), cName = await nameOf(C);
+  await as(B, `select public.house_save('Rosenhaus', 4, true)`);
+  await as(A, `select public.house_save('Hütte', 2, false)`);
+  await as(B, `select public.house_save('Rosenhaus', 4, true)`); // nochmal: ändert nichts
+  let L = (await as(A, `select * from public.houses_list()`)).rows;
+  ok(L.length === 2 && L[0].mine && L[0].name === 'Hütte' && L.some((x) => x.name === 'Rosenhaus' && x.done && !x.has_key), 'Häuser: beide in der Liste, eigenes zuerst');
+  let e = '';
+  try { await as(A, `select * from public.houses`); } catch (x) { e = x.message; }
+  ok(/permission denied/.test(e), 'Häuser: Tabelle nicht direkt lesbar');
+  // Schlafen: nur im fertigen Haus
+  await as(B, `update public.fighters set in_house = true, in_inn = true where user_id = '${B}'`);
+  r = await db.query(`select in_house, in_inn, home_of from public.fighters where user_id = '${B}'`);
+  ok(r.rows[0].in_house && !r.rows[0].in_inn && r.rows[0].home_of === B, 'Haus: wer daheim schläft, ist nicht im Gasthaus');
+  await as(A, `update public.fighters set in_house = true where user_id = '${A}'`);
+  r = await db.query(`select in_house from public.fighters where user_id = '${A}'`);
+  ok(!r.rows[0].in_house, 'Haus: halbfertiges Haus zählt nicht');
+  await as(A, `update public.fighters set in_house = true, home_of = '${B}' where user_id = '${A}'`);
+  r = await db.query(`select in_house from public.fighters where user_id = '${A}'`);
+  ok(!r.rows[0].in_house, 'Haus: ohne Schlüssel nicht bei Fremden schlafen');
+  // Schlüssel
+  e = ''; try { await as(B, `select public.house_give_key('${bName}')`); } catch (x) { e = x.message; }
+  ok(/eigenen Schlüssel/.test(e), 'Schlüssel: nicht an sich selbst');
+  e = ''; try { await as(A, `select public.house_give_key('${bName}')`); } catch (x) { e = x.message; }
+  ok(/fertig/.test(e), 'Schlüssel: erst wenn das Haus fertig ist');
+  r = await as(B, `select public.house_give_key($1) as n`, [aName.toUpperCase()]);
+  ok(r.rows[0].n === aName, 'Schlüssel: an Namen vergeben (Groß/klein egal)');
+  e = ''; try { await as(B, `select public.house_give_key('${aName}')`); } catch (x) { e = x.message; }
+  ok(/schon einen Schlüssel/.test(e), 'Schlüssel: nicht doppelt');
+  e = ''; try { await as(C, `select public.house_detail('${B}')`); } catch (x) { e = x.message; }
+  ok(/keinen Schlüssel/.test(e), 'Haus: ohne Schlüssel kein Blick hinein');
+  r = await as(A, `select public.house_detail('${B}') as d`);
+  ok(r.rows[0].d.name === 'Rosenhaus' && r.rows[0].d.keys.length === 0 && !r.rows[0].d.mine, 'Haus: mit Schlüssel hinein, Schlüsselliste sieht nur der Besitzer');
+  r = await as(B, `select public.house_detail('${B}') as d`);
+  ok(r.rows[0].d.keys.length === 1 && r.rows[0].d.keys[0].name === aName, 'Haus: Besitzer sieht, wer einen Schlüssel hat');
+  // Truhe
+  r = await as(A, `select public.house_chest('${B}', 30) as c`);
+  ok(r.rows[0].c.chest === 30, 'Truhe: Gast legt Edelsteine hinein');
+  e = ''; try { await as(B, `select public.house_chest('${B}', -40)`); } catch (x) { e = x.message; }
+  ok(/nur 30 Edelsteine/.test(e), 'Truhe: nicht mehr herausnehmen als drin ist');
+  e = ''; try { await as(C, `select public.house_chest('${B}', -1)`); } catch (x) { e = x.message; }
+  ok(/keinen Schlüssel/.test(e), 'Truhe: Fremde kommen nicht dran');
+  await as(B, `select public.house_chest('${B}', -5)`);
+  r = await as(B, `select public.house_detail('${B}') as d`);
+  ok(r.rows[0].d.chest === 25 && r.rows[0].d.log.length === 2 && r.rows[0].d.log[0].delta === -5, 'Truhe: Truhenbuch schreibt mit');
+  // Gast schläft beim Freund
+  await as(A, `update public.fighters set in_house = true, home_of = '${B}' where user_id = '${A}'`);
+  r = await db.query(`select in_house, home_of from public.fighters where user_id = '${A}'`);
+  ok(r.rows[0].in_house && r.rows[0].home_of === B, 'Haus: mit Schlüssel beim Freund schlafen');
+  await as(B, `select public.house_take_key('${A}')`);
+  r = await db.query(`select in_house from public.fighters where user_id = '${A}'`);
+  ok(!r.rows[0].in_house, 'Schlüssel zurückgefordert: Gast fliegt raus');
+  // Einbruch: C bricht bei B ein (B schläft schon eine Weile)
+  await db.exec(`update public.fighters set last_seen = now() - interval '1 hour' where user_id = '${B}'`);
+  r = await as(C, `select user_id from public.pvp_targets('felder')`);
+  ok(!r.rows.some((x) => x.user_id === B), 'Felder: wer daheim schläft, liegt nicht auf den Feldern');
+  r = await as(C, `select user_id from public.pvp_targets('haus')`);
+  ok(r.rows.some((x) => x.user_id === B), 'Wohnviertel: Schlafende im Haus sind Ziele für Einbrecher');
+  e = ''; try { await as(C, `select public.pvp_attack('${B}', 'felder')`); } catch (x) { e = x.message; }
+  ok(/schläft woanders/.test(e), 'Angriff auf den Feldern trifft niemanden, der daheim schläft');
+  let won = null;
+  for (let i = 0; i < 40 && !won; i++) {
+    await db.exec(`update public.fighters set alive = true, hp = 200, pvp_used = 0, pvp_flag = null, gold = 300, in_house = true, home_of = '${B}' where user_id = '${B}';
+      update public.fighters set alive = true, hp = 400, pvp_used = 0, pvp_flag = null, last_seen = now() where user_id = '${C}';
+      update public.fighters set last_seen = now() - interval '1 hour' where user_id = '${B}'`);
+    const res = (await as(C, `select public.pvp_attack('${B}', 'haus') as r`)).rows[0].r;
+    if (res.won) won = res;
+  }
+  ok(won && won.gems === 2 && won.gold === 300, 'Einbruch gewonnen: Gold und ein Zehntel der Truhe (2 von 25): ' + JSON.stringify(won && { gems: won.gems, gold: won.gold }));
+  r = await as(B, `select public.house_detail('${B}') as d`);
+  ok(r.rows[0].d.chest === 23 && r.rows[0].d.log[0].kind === 'einbruch' && r.rows[0].d.log[0].who === cName, 'Einbruch steht im Truhenbuch');
+  r = await db.query(`select body from public.news order by id desc limit 1`);
+  ok(/im Wohnviertel eingebrochen/.test(r.rows[0].body), 'Einbruch in den Neuigkeiten');
+  r = await db.query(`select place from public.pvp_events where user_id = '${B}' order by id desc limit 1`);
+  ok(r.rows[0].place === 'haus', 'Opfer erfährt, dass es daheim überfallen wurde');
+  r = await as(A, `select * from public.warriors() where user_id = '${B}'`);
+  ok('in_house' in r.rows[0], 'Kriegerliste kennt "schläft daheim"');
+  // Abriss
+  await as(B, `select public.house_save(null, 0, false)`);
+  L = (await as(A, `select * from public.houses_list()`)).rows;
+  ok(L.length === 1 && L[0].mine, 'neuer Held ohne Haus: altes Haus verschwindet');
+  await db.exec(`delete from public.houses; update public.fighters set in_house = false, home_of = null, alive = true, hp = 200`);
 }
 
 // Aktualisierung einer Datenbank mit dem alten Teil 2 (ohne Rassen)

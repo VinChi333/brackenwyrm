@@ -125,7 +125,7 @@ export interface Fight {
   foeSpec?: SpecialtyId;
   foeRace?: RaceId;  // nur Spieler gegen Spieler: Fähigkeit und Geschlecht des anderen Helden (für sein Bild)
   foeGender?: Gender;
-  pvpPlace?: 'felder' | 'gasthaus';
+  pvpPlace?: 'felder' | 'gasthaus' | 'haus';
   autoWarned?: boolean; // "Kämpfen bis zum Ende" hat in diesem Kampf schon einmal angehalten
   heroHurt?: boolean;   // Held hat in diesem Kampf Schaden genommen (für den makellosen Drachensieg)
 }
@@ -181,7 +181,20 @@ export interface Player {
   heirlooms?: string[];        // Erbstücke der Wyrmjäger (bleiben für immer)
   drunk?: number;              // Rausch 0–100 (Getränke am Tresen)
   hardDrinks?: number;         // harte Getränke heute
+  waterToday?: number;         // Quellwasser heute (höchstens 3)
+  schnapsFight?: boolean;      // der Schnaps hat heute schon einen Waldkampf gebracht
   companion?: Companion | null; // angeheuerter Begleiter aus dem Söldnerlager
+  jumped?: boolean;            // heute freiwillig von der Rabenklippe gesprungen (Morwen gibt dann keine Waldkämpfe)
+  house?: House | null;        // eigenes Haus im Wohnviertel (bleibt auch nach dem Drachen)
+  atHome?: boolean;            // schläft heute Nacht im eigenen Haus (oder bei Freunden mit Schlüssel)
+  homeOf?: string;             // bei wem: leer = eigenes Haus, sonst die Spieler-ID des Besitzers
+}
+
+/** Ein Haus im Wohnviertel (Regeln in game/house.ts). */
+export interface House {
+  name: string;
+  stage: number;               // 0 = Bauplatz gekauft … HOUSE_STAGES.length = fertig
+  stageDay: string;            // an welchem Spieltag zuletzt gebaut wurde (eine Baustufe pro Spieltag)
 }
 
 export type DragonPoint = 'atk' | 'def' | 'hp' | 'ff';

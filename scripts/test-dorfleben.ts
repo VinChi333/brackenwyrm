@@ -42,6 +42,27 @@ t('Tresen: höchstens zwei harte Getränke, Kater am nächsten Morgen', () => {
   assert.equal(s.player.hardDrinks, 0);
   assert.ok(s.news.some((x) => x.includes('Kater')));
 });
+t('Tresen: Schnaps bringt höchstens einen Waldkampf am Tag, Wasser höchstens dreimal', () => {
+  seedRng(11);
+  const s = newGame('Spieler', 'dunkel');
+  s.player.gold = 100000; s.player.level = 15;
+  const ff = s.player.forestFights;
+  let water = 0;
+  for (let i = 0; i < 40; i++) {
+    orderDrink(s, 'kraeuterschnaps');
+    if (orderDrink(s, 'quellwasser').ok) water++;
+  }
+  assert.equal(water, 3, 'nur dreimal Wasser');
+  assert.ok(s.player.forestFights - ff <= 1, `höchstens ein Waldkampf mehr (${s.player.forestFights - ff})`);
+  assert.equal(!!s.player.schnapsFight, s.player.forestFights - ff === 1);
+  s.player.drunk = 50;
+  forestSearch(s, 'easy');
+  assert.equal(s.player.drunk, 45, 'im Wald wird man nüchterner');
+  startNewDay(s);
+  assert.equal(s.player.waterToday, 0);
+  assert.equal(s.player.schnapsFight, false);
+  assert.equal(orderDrink(s, 'quellwasser').ok, true, 'am neuen Tag wieder Wasser');
+});
 t('Lallen verändert den Text, nüchtern bleibt er gleich', () => {
   seedRng(5);
   assert.equal(slur('Hallo zusammen', 0), 'Hallo zusammen');

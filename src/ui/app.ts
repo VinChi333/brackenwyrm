@@ -25,13 +25,13 @@ import { MAX_LEVEL, healCostPerHp } from '../game/balance';
 import {
   announce, applyHaunt, HAUNT_FAVOR, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
   CHRONICLE_SIZE, closeFight, defense, bankBorrow, LOAN_PER_LEVEL, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
-  graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost,
+  graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost, jumpCliff,
   newGame, rentRoom, roomCost, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
 } from '../game/engine';
 import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
-import type { AushangRow, BountyRow, CodeRow, FeedbackRow, TitleInfo, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
+import type { AushangRow, HouseDetail, HouseRow, PvpPlace, BountyRow, CodeRow, FeedbackRow, TitleInfo, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
 import { censor, isClean } from '../content/badwords';
 import { COLOR_CODES, colorize } from './colors';
 import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
@@ -41,7 +41,8 @@ import { COMPANION_TEXT, companionDef, type CompanionId } from '../content/compa
 import { COMPANIONS, companionCost, companionHealCost, companionMaxHp, dismissCompanion, healCompanion, hireCompanion } from '../game/engine';
 import { GUIDE_END, GUIDE_STEPS, SCREEN_HINTS, type GuideStep } from '../content/guide';
 import { closeGuide, currentStep, guideFinished, guideUpdate, guideVisit, placeOpen, skipGuide } from '../game/guide';
-import { DRINKS, MAX_DRUNK, drinkCost, drunkWord, orderDrink, slur, type DrinkId } from '../game/tavern';
+import { HOUSE_NAME_MAX, HOUSE_STAGES, PLOT_COST, buildStage, buyPlot, canBuild, houseDone, sleepAtHome } from '../game/house';
+import { DRINKS, MAX_DRUNK, MAX_WATER, drinkCost, drunkWord, orderDrink, slur, type DrinkId } from '../game/tavern';
 import { POTIONS, chooseNewRace, chooseNewSpecialty, drinkPotion, paySeer, seerCost, type PotionId } from '../game/shops';
 import { AMBROS_GAMES_PER_DAY, AMBROS_TRIES, ambrosBets, guessAmbros, startAmbros, type AmbrosGame } from '../game/ambros';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
@@ -53,18 +54,18 @@ import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 import { sound, type TrackId } from './audio';
 
 import { LANGS, lang, missing, switchLang, t, tkey, tr } from '../i18n';
-import { showNews } from '../i18n/news';
+import { news, showNews } from '../i18n/news';
 import { serverText } from '../i18n/server';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros'
   | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount'
   | 'quirin' | 'seer' | 'felsen' | 'garten' | 'feste' | 'heirlooms'
-  | 'tresen' | 'dag' | 'fivesix' | 'aushang' | 'lager' | 'gilde' | 'vollversion';
+  | 'tresen' | 'dag' | 'fivesix' | 'aushang' | 'lager' | 'gilde' | 'vollversion' | 'cliff' | 'houses' | 'house';
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const VERSION = t('Version {0}', '0.54');
+const VERSION = t('Version {0}', '0.55');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -108,6 +109,8 @@ interface Ui {
   dkPoint: DragonPoint | null;   // Auswahl nach dem Drachenkill
   dkSpec: SpecialtyId | null;
   confirmDelete: boolean;
+  confirmDragon: boolean;
+  houses: { list: HouseRow[] | null; err: string; detail: HouseDetail | null; of: string; burgle: boolean; busy: boolean };
   confirmNew: boolean;
   importMsg: string;
   newCard: string | null;   // Karte, die gerade neu ins Bestiarium kam
@@ -142,7 +145,7 @@ cloud.onExpired = () => {
   render();
 };
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '', codes: null, newCodes: [], feedback: null, fbAll: false }, full: null, fullMsg: '', dkPoint: null, dkSpec: null, confirmDelete: false, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' }, gilde: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', guild: { mine: undefined, list: null, err: '', confirmLeave: false, tags: new Map() }, conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '', codes: null, newCodes: [], feedback: null, fbAll: false }, full: null, fullMsg: '', dkPoint: null, dkSpec: null, confirmDelete: false, confirmDragon: false, houses: { list: null, err: '', detail: null, of: '', burgle: false, busy: false }, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' }, gilde: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', guild: { mine: undefined, list: null, err: '', confirmLeave: false, tags: new Map() }, conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
 };
 let root: HTMLElement;
 
@@ -568,6 +571,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:quirin', label: t('Quirins Tränke'), key: 'q', hint: p.pendingChoice ? t('du musst dich entscheiden') : p.gems ? (p.gems === 1 ? t('1 Edelstein') : t`${p.gems} Edelsteine`) : '' },
     ] },
     { title: t('Am Dorfrand'), items: [
+      { act: 'go:houses', label: t('Wohnviertel'), key: 'v', hint: houseHint(p) },
       { act: 'go:lager', label: t('Söldnerlager'), key: 'ö', hint: p.companion ? `${companionDef(p.companion.id)?.name ?? ''}${p.companion.hp <= 0 ? t(' (k. o.)') : ''}` : t('Begleiter anheuern') },
       ...(cloud.enabled ? [{ act: 'go:seer', label: t('Das Zelt der Seherin'), key: 'z', hint: p.seerPaid ? t('bezahlt') : t('mit den Toten reden') }] : []),
       { act: 'go:ambros', label: t('Der alte Ambros'), key: 'a', hint: (p.ambrosGames ?? 0) >= AMBROS_GAMES_PER_DAY ? t('schläft') : t('Zahlenraten') },
@@ -605,6 +609,138 @@ function eventScreen(s: GameState): string {
   })) }], 'in-fight');
 }
 
+// ---------- Wohnviertel und Häuser ----------
+
+function houseHint(p: GameState['player']): string {
+  const h = p.house;
+  if (!h) return t('Bauplatz kaufen');
+  if (houseDone(h)) return p.atHome ? t('du schläfst daheim') : esc(h.name);
+  return t`Baustelle ${h.stage} / ${HOUSE_STAGES.length}`;
+}
+
+function stagesHtml(p: GameState['player']): string {
+  const at = p.house?.stage ?? -1;
+  return `<ol class="house-stages">${HOUSE_STAGES.map((st, i) => `<li class="${i < at ? 'done' : i === at ? 'next' : ''}"><span>${i < at ? '✓ ' : ''}${st.name}</span> <small class="muted">${t`${st.gold} Gold`} · ${st.gems === 1 ? t('1 Edelstein') : t`${st.gems} Edelsteine`}</small></li>`).join('')}</ol>`;
+}
+
+function housesScreen(s: GameState): string {
+  const p = s.player;
+  const h = p.house;
+  const hs = ui.houses;
+  const check = canBuild(s);
+  let own: string;
+  if (!h) {
+    own = `<p>${t`Holm tippt auf eine zerknitterte Karte voller Kreuze. „Ein Bauplatz kostet <span class="gold">${PLOT_COST} Gold</span>. Gebaut wird in vier Stufen, eine pro Spieltag, bezahlt wird jede Stufe für sich. Was dir im Beutel fehlt, hol ich mir bei Ansgar aus dem Kontor. Und das Beste: Ein Haus überlebt sogar den Wyrm.“`}</p>
+      ${stagesHtml(p)}
+      <div class="row"><input type="text" id="house-name" maxlength="${HOUSE_NAME_MAX}" placeholder="${t`Name deines Hauses`}" aria-label="${t`Name deines Hauses`}"></div>`;
+  } else if (!houseDone(h)) {
+    const st = HOUSE_STAGES[h.stage];
+    const why = check === 'today' ? t('Heute wird nicht mehr gebaut, der Mörtel muss trocknen.') : check === 'gold' ? t`Dir fehlt noch Gold: ${st.gold} braucht Holm, Beutel und Kontor zusammen.` : check === 'gems' ? t`Dir fehlen Edelsteine: ${st.gems} braucht Holm.` : '';
+    own = `<p>${t`Deine Baustelle: <span class="place">${esc(h.name)}</span>. Als Nächstes kommt: <strong>${st.name}</strong>.`}</p>
+      ${stagesHtml(p)}${why ? `<p class="muted">${why}</p>` : ''}`;
+  } else {
+    own = `<p>${t`Dein Haus <span class="place">${esc(h.name)}</span> steht. Aus dem Kamin steigt Rauch.`}${p.atHome && !p.homeOf ? ` ${t('Heute Nacht schläfst du hier.')}` : ''}</p>`;
+  }
+  const list = !cloud.signedIn ? '' : hs.err ? `<p class="warn-box">${esc(hs.err)}</p>` : hs.list === null ? `<p class="muted">${t`Du schaust die Gassen entlang …`}</p>`
+    : `<h2>${t`Häuser in Moosgrund`}</h2>${hs.list.filter((x) => !x.mine).length ? `<ul class="house-keys">${hs.list.filter((x) => !x.mine).map((x) => `<li><span><strong>${esc(x.name || t('Ohne Namen'))}</strong><br><small>${t`von ${esc(x.ownerName)}`} · ${x.done ? t('fertig') : t`Baustelle ${x.stage} / ${HOUSE_STAGES.length}`}${x.hasKey ? ` · <span class="good">${t`du hast einen Schlüssel`}</span>` : ''}</small></span>${x.hasKey && x.done ? `<span class="row"><button type="button" class="tbtn" data-act="house:enter:${x.owner}">${t`Aufschließen`}</button></span>` : ''}</li>`).join('')}</ul>` : `<p class="muted">${t`Noch hat niemand sonst hier gebaut.`}</p>`}`;
+  const burgle = hs.burgle ? `<h2>${t`Einbrechen`}</h2><p class="muted">${t`Wer daheim schläft, wehrt sich besser als auf den Feldern. Gewinnst du, nimmst du sein Gold und ein paar Edelsteine aus der Truhe mit.`}</p>${pvpIntro()}${targetsHtml('haus')}` : '';
+  const main = `<h1>${t`Das Wohnviertel`}</h1>
+    ${withNpc('holm', `<p class="lead">${t`Hinter der Mühle ziehen sich schmale Gassen den Farnhang hinauf. Zwischen Gärten und Holzzäunen stehen die Häuser derer, die in Moosgrund geblieben sind. Am Eingang lehnt <span class="npc">Baumeister Holm</span> an einem Stapel Bretter.`}</p>`)}
+    ${flashHtml()}<h2>${t`Dein Haus`}</h2>${own}${burgle}${list}`;
+  const items: Item[] = [];
+  if (!h) items.push({ act: 'house:plot', label: t('Bauplatz kaufen'), key: 'b', hint: t`${PLOT_COST} Gold`, disabled: p.gold + Math.max(0, p.bank) < PLOT_COST || !p.alive, primary: true });
+  if (h && !houseDone(h)) items.push({ act: 'house:build', label: t`${HOUSE_STAGES[h.stage].name} bezahlen`, key: 'b', hint: t`${HOUSE_STAGES[h.stage].gold} Gold · ${HOUSE_STAGES[h.stage].gems} ${HOUSE_STAGES[h.stage].gems === 1 ? t('Edelstein') : t('Edelsteine')}`, disabled: check !== 'ok', primary: check === 'ok' });
+  if (houseDone(h)) items.push({ act: 'house:enter:', label: t('Dein Haus betreten'), key: 'h', primary: true });
+  if (cloud.enabled) items.push({ act: 'house:burgle', label: hs.burgle ? t('Doch nicht einbrechen') : t('Einbrechen'), key: 'e', hint: !cloud.signedIn ? t('nur mit Spielerkonto') : t('Spielerkampf'), disabled: !cloud.signedIn || !p.alive, primary: false });
+  return layout(s, main, [{ title: t('Wohnviertel'), items }, { title: t('Zurück'), items: [back] }]);
+}
+
+function houseScreen(s: GameState): string {
+  const p = s.player;
+  const hs = ui.houses;
+  const own = !hs.of;
+  const d = hs.detail;
+  if (own && !houseDone(p.house)) return housesScreen(s);
+  const name = own ? p.house!.name : d?.name ?? '';
+  const sleepingHere = !!p.atHome && (p.homeOf ?? '') === hs.of;
+  const lead = own
+    ? t`Du schließt die Tür von <span class="place">${esc(name)}</span> auf. Im Kamin glimmt noch Glut, auf dem Tisch steht ein Krug, und die schwere Truhe mit den drei Schlössern wartet in der Ecke.`
+    : t`Mit dem Schlüssel von ${esc(d?.ownerName ?? '')} schließt du die Tür von <span class="place">${esc(name)}</span> auf. Es riecht nach Holzrauch und fremdem Brot.`;
+  let chest = '';
+  if (cloud.signedIn) {
+    if (hs.err) chest = `<p class="warn-box">${esc(hs.err)}</p>`;
+    else if (!d) chest = `<p class="muted">${t`Du suchst den Schlüssel für die Truhe …`}</p>`;
+    else {
+      chest = `<h2>${t`Die Truhe`}</h2>
+        <p>${t`In der Truhe: <span class="gem">${d.chest} ${d.chest === 1 ? t('Edelstein') : t('Edelsteine')}</span>. Du trägst ${p.gems} bei dir.`}</p>
+        <p class="muted">${own ? t('Wer einen Schlüssel hat, kann Edelsteine hineinlegen und herausnehmen. Einbrecher nehmen auch welche mit.') : t('Was du hineinlegst, gehört allen, die einen Schlüssel haben.')}</p>
+        <div class="row"><input type="number" id="chest-n" min="1" inputmode="numeric" placeholder="${t`Anzahl`}" aria-label="${t`Anzahl`}">
+          <button type="button" class="tbtn" data-act="house:put" ${hs.busy || p.gems <= 0 ? 'disabled' : ''}>${t`Hineinlegen`}</button>
+          <button type="button" class="tbtn" data-act="house:take" ${hs.busy || d.chest <= 0 ? 'disabled' : ''}>${t`Herausnehmen`}</button></div>
+        ${d.log.length ? `<h3>${t`Truhenbuch`}</h3><ul class="house-log">${d.log.map((l) => `<li><small class="muted">${when(l.at)}</small> ${l.kind === 'einbruch' ? t`<span class="bad">Einbruch: ${esc(l.who)} hat ${-l.delta} mitgenommen.</span>` : l.delta > 0 ? t`${esc(l.who)} hat ${l.delta} hineingelegt.` : t`${esc(l.who)} hat ${-l.delta} herausgenommen.`}</li>`).join('')}</ul>` : ''}`;
+      if (own) {
+        chest += `<h2>${t`Schlüssel`}</h2>
+          ${d.keys.length ? `<ul class="house-keys">${d.keys.map((k) => `<li><strong>${esc(k.name)}</strong><span class="row"><button type="button" class="tbtn ghost" data-act="house:takekey:${k.userId}">${t`zurückfordern`}</button></span></li>`).join('')}</ul>` : `<p class="muted">${t`Noch hat niemand außer dir einen Schlüssel.`}</p>`}
+          ${d.keys.length < 5 ? `<div class="row"><input type="text" id="key-name" maxlength="20" placeholder="${t`Name des Helden`}" aria-label="${t`Name des Helden`}"><button type="button" class="tbtn" data-act="house:give" ${hs.busy ? 'disabled' : ''}>${t`Schlüssel geben`}</button></div>` : ''}
+          <p class="muted">${t`Bis zu fünf Freunde können einen Schlüssel bekommen. Sie dürfen hier schlafen und an die Truhe.`}</p>`;
+      }
+    }
+  } else if (cloud.enabled) chest = `<p class="muted">${t`Truhe und Schlüssel für Freunde gibt es mit Spielerkonto.`}</p>`;
+  const main = `<h1>${esc(name)}</h1>
+    <p class="lead">${lead}</p>
+    ${flashHtml()}
+    <p>${sleepingHere ? t('Du hast dich hier schlafen gelegt. Wenn du jetzt aufhörst, bist du vor Überfällen auf den Feldern und im Gasthaus sicher. Nur Einbrecher kommen herein, und gegen die wehrst du dich daheim besser. Morgen wachst du ausgeschlafen auf.') : t('Hier schläfst du umsonst und sicherer als im Gasthaus, und morgen wachst du ausgeschlafen auf.')}</p>
+    ${chest}`;
+  return layout(s, main, [
+    { title: t('Im Haus'), items: [
+      { act: 'house:sleep', label: sleepingHere ? t('Du schläfst hier') : t('Schlafen gehen'), key: 's', disabled: sleepingHere || !p.alive, primary: !sleepingHere },
+      ...(!own && cloud.signedIn ? [{ act: 'house:return', label: ui.confirmDelete ? t('Wirklich zurückgeben? Nochmal drücken.') : t('Schlüssel zurückgeben'), key: 'z' }] : []),
+    ] },
+    { title: t('Zurück'), items: [{ act: 'go:houses', label: t('Zurück ins Wohnviertel'), key: 'v' }, back] },
+  ]);
+}
+
+function loadHouses(): void {
+  const hs = ui.houses;
+  if (!cloud.signedIn) return;
+  hs.err = '';
+  cloud.housesList().then((r) => { hs.list = r; }, (e) => { hs.list = []; hs.err = e instanceof CloudError ? e.message : t('Das Wohnviertel liegt im Nebel.'); })
+    .finally(() => { if (currentScreen() === 'houses') render(); });
+}
+
+function loadHouseDetail(): void {
+  const hs = ui.houses;
+  if (!cloud.signedIn || !cloud.userId) return;
+  hs.err = '';
+  // Erst das eigene Haus melden, falls die letzte Baustufe noch nicht auf dem Server ist.
+  const first = state ? cloud.syncHouse(state).catch(() => {}) : Promise.resolve();
+  first.then(() => cloud.houseDetail(hs.of || cloud.userId!)).then((d) => { hs.detail = d; }, (e) => { hs.detail = null; hs.err = e instanceof CloudError ? e.message : t('Die Truhe klemmt.'); })
+    .finally(() => { if (currentScreen() === 'house') render(); });
+}
+
+/** Ab wie viel Gold das Spiel vor dem Drachen noch einmal nachfragt. */
+const DRAGON_CONFIRM_GOLD = 1000;
+
+/** Was beim Sieg über den Wyrm verloren geht und was bleibt. */
+function dragonWarning(p: GameState['player']): string {
+  const wealth = Math.max(0, p.gold) + Math.max(0, p.bank);
+  const keeps = p.house ? t('Edelsteine, Reittier, Erbstücke und dein Haus bleiben dir.') : t('Edelsteine, Reittier und Erbstücke bleiben dir.');
+  return (wealth > 0 ? t`Wer den Wyrm besiegt, fängt von vorn an: Deine <span class="gold">${wealth} Gold</span> im Beutel und im Kontor, Waffe und Rüstung sind dann weg.` : t('Wer den Wyrm besiegt, fängt von vorn an: Gold im Beutel und im Kontor, Waffe und Rüstung sind dann weg.')) + ' ' + keeps;
+}
+
+function cliffScreen(s: GameState): string {
+  const p = s.player;
+  const main = `<h1>${t`Die Rabenklippe`}</h1>
+    <p class="lead">${t`Am Rand des Brackenwalds bricht der Fels jäh ab. Tief unten liegt der Nebelfluss, und auf einem knorrigen Ast sitzt ein Rabe, der dich ansieht, als hätte er schon viele hier stehen sehen.`}</p>
+    ${flashHtml()}
+    <p>${t`Wer springt, landet bei Morwen im Schattenreich. Dort kannst du spuken, Seelen jagen und Gunst sammeln.`}</p>
+    <p class="warn-box">${p.gold > 0 ? t`Das Gold in deinem Beutel (<span class="gold">${p.gold} Gold</span>) bleibt unten im Farn liegen. Was im Kontor ist, bleibt sicher.` : t('Gold hast du keines dabei, das du verlieren könntest.')} ${t`Holt Morwen dich vorzeitig zurück, gibt es dafür keine neuen Waldkämpfe. Sonst bist du am nächsten Morgen wieder im Dorf.`}</p>`;
+  return layout(s, main, [
+    { title: t('Rabenklippe'), items: [{ act: 'cliff:jump', label: ui.confirmDelete ? t('Wirklich springen? Nochmal drücken.') : t('Springen'), key: 's' }] },
+    { title: t('Zurück'), items: [{ act: 'go:forest', label: t('Zurück in den Wald'), key: 'w', primary: true }, back] },
+  ]);
+}
+
 function forestScreen(s: GameState): string {
   const p = s.player;
   if (s.pendingEvent) return eventScreen(s);
@@ -613,14 +749,16 @@ function forestScreen(s: GameState): string {
     <p class="lead">${t`Zwischen den Stämmen ist es still. Farne reichen dir bis zur Hüfte, und irgendwo knackt ein Ast.`}</p>
     ${flashHtml()}
     ${low ? `<p class="warn-box">${t`Du bist angeschlagen (${p.hp} von ${maxHp(p)} Lebenspunkten). Mirla in der Kräuterhütte könnte helfen.`}</p>` : ''}
-    ${p.forestFights <= 0 ? `<p class="warn-box">${t`Du bist zu müde für weitere Abenteuer. Der nächste Spieltag beginnt in ${waitText()}.`}</p>` : ''}`;
+    ${p.forestFights <= 0 ? `<p class="warn-box">${t`Du bist zu müde für weitere Abenteuer. Der nächste Spieltag beginnt in ${waitText()}.`}</p>` : ''}
+    ${p.level >= MAX_LEVEL ? `<p class="warn-box">${dragonWarning(p)}</p>` : ''}`;
   const none = p.forestFights <= 0;
   return layout(s, main, [
     { title: t('Wald'), items: [
       { act: 'forest:normal', label: t('Herumstreifen'), key: 'h', hint: t('Gegner deiner Stufe'), disabled: none, primary: true },
       { act: 'forest:easy', label: t('Leichte Beute suchen'), key: 'l', hint: t('schwächer, weniger Lohn'), disabled: none },
       { act: 'forest:hard', label: t('Nervenkitzel suchen'), key: 'n', hint: t('stärker, mehr Lohn'), disabled: none },
-      ...(p.level >= MAX_LEVEL ? [{ act: 'dragon', label: t('Den Brackenwyrm suchen'), key: 'b', hint: t('Endkampf'), disabled: !canSeekDragon(p) }] : []),
+      ...(p.level >= MAX_LEVEL ? [{ act: 'dragon', label: ui.confirmDragon ? t('Wirklich? Nochmal drücken.') : t('Den Brackenwyrm suchen'), key: 'b', hint: t('Endkampf'), disabled: !canSeekDragon(p) }] : []),
+      { act: 'go:cliff', label: t('Zur Rabenklippe'), key: 'r', hint: t('ins Schattenreich') },
       ...(p.festeFound ? [{ act: 'go:feste', label: t('Zur versunkenen Feste'), key: 'f', hint: p.level < FESTE_MIN_LEVEL ? t`ab Stufe ${FESTE_MIN_LEVEL}` : p.festeDay === gameDayKey() ? (s.feste && !s.feste.over ? t('du bist drin') : t('heute schon')) : t`${FESTE_COST} Waldkämpfe` }] : []),
     ] },
     { title: t('Zurück'), items: [back] },
@@ -671,7 +809,7 @@ function fightScreen(s: GameState): string {
     const items: Item[] = [];
     if (f.kind === 'pvp') {
       if (f.over === 'win') {
-        items.push(f.pvpPlace === 'gasthaus' ? { act: 'after:inn', label: t('Zurück in die Gaststube'), key: 'g' } : { act: 'after:fields', label: t('Zurück auf die Felder'), key: 'f' });
+        items.push(f.pvpPlace === 'haus' ? { act: 'after:houses', label: t('Zurück ins Wohnviertel'), key: 'f' } : f.pvpPlace === 'gasthaus' ? { act: 'after:inn', label: t('Zurück in die Gaststube'), key: 'g' } : { act: 'after:fields', label: t('Zurück auf die Felder'), key: 'f' });
         items.push({ act: 'after:village', label: t('Zurück ins Dorf'), key: 'd' });
       } else {
         items.push({ act: 'after:shadows', label: t('Ins Schattenreich'), key: 'w' });
@@ -778,6 +916,7 @@ function bankScreen(s: GameState): string {
   const main = `<h1>${t`Das Kontor`}</h1>
     ${withNpc('ansgar', `<p class="lead">${t`Ansgar zählt Münzen, die nicht ihm gehören. „Was hier liegt, verlierst du nicht im Wald. Und über Nacht gibt’s Zinsen.“`}</p>`)}
     ${flashHtml()}
+    ${p.level >= 10 || p.bank >= 3000 ? `<p class="warn-box">${t`Ansgar beugt sich vor. „Ein Rat unter uns: Den Wyrm überlebt kein Kontostand. Wer ihn besiegt, fängt bei null an. Gib dein Gold vorher aus, für Ausrüstung oder ein eigenes Haus im Wohnviertel.“`}</p>` : ''}
     <p>${p.bank >= 0 ? `${t`Im Kontor: <span class="gold">${p.bank} Gold</span>`}` : `${t`<span class="bad">Schulden: ${-p.bank} Gold</span> (wachsen über Nacht mit dem Zins)`}`} ${t`· Dabei: <span class="gold">${p.gold} Gold</span>`}</p>
     <div class="row"><input type="number" id="amount" min="1" inputmode="numeric" placeholder="${t`Betrag`}" aria-label="${t`Betrag`}">
       <button type="button" class="tbtn" data-act="bank:dep:input">${t`Einzahlen`}</button>
@@ -858,11 +997,11 @@ function tresenScreen(s: GameState): string {
     ${flashHtml()}
     <div class="drunk-meter">${t`<span>Du bist ${drunkWord(drunk)}</span>`}<div class="progress">${bar(drunk, 100, drunk >= MAX_DRUNK ? 'hp low' : 'favor')}</div></div>
     <ul class="potions">${DRINKS.map((d) => `<li><strong>${d.name}</strong> <span class="gold">${d.costPerLevel ? t`${drinkCost(d, p.level)} Gold` : t('umsonst')}</span>${d.hard ? ` <span class="tag">${t('hart')}</span>` : ''}<br><small class="muted">${d.blurb}</small></li>`).join('')}</ul>
-    <p class="muted">${t`Ab „sturzbetrunken“ schenkt Frieda nichts mehr aus, und wer so ins Bett geht, hat morgen einen Kater. Betrunken lallst du auch in den Gesprächen.`}</p>`;
+    <p class="muted">${t`Ab „sturzbetrunken“ schenkt Frieda nichts mehr aus, und wer so ins Bett geht, hat morgen einen Kater. Betrunken lallst du auch in den Gesprächen. Jeder Gang in den Wald macht dich wieder etwas nüchterner.`}</p>`;
   return layout(s, main, [
     { title: t('Bestellen'), items: DRINKS.map((d, i) => ({
-      act: `drink:${d.id}`, label: d.name, key: String(i + 1), hint: d.costPerLevel ? t`${drinkCost(d, p.level)} Gold` : t('umsonst'),
-      disabled: (d.drunk > 0 && drunk >= MAX_DRUNK) || p.gold < drinkCost(d, p.level) || (!!d.hard && (p.hardDrinks ?? 0) >= 2) || (d.id === 'quellwasser' && drunk <= 0),
+      act: `drink:${d.id}`, label: d.name, key: String(i + 1), hint: d.costPerLevel ? t`${drinkCost(d, p.level)} Gold` : t`umsonst, noch ${Math.max(0, MAX_WATER - (p.waterToday ?? 0))}×`,
+      disabled: (d.drunk > 0 && drunk >= MAX_DRUNK) || p.gold < drinkCost(d, p.level) || (!!d.hard && (p.hardDrinks ?? 0) >= 2) || (d.id === 'quellwasser' && (drunk <= 0 || (p.waterToday ?? 0) >= MAX_WATER)),
     })) },
     { title: t('Zurück'), items: [{ act: 'go:inn', label: t('Zurück in die Gaststube'), key: 'g' }, back] },
   ]);
@@ -1177,7 +1316,7 @@ function chronicleScreen(s: GameState): string {
 const SCREEN_NAMES: Partial<Record<Screen, string>> = {
   village: t('Dorfplatz'), forest: t('Wald'), fight: t('Kampf'), training: t('Trainingsplatz'), healer: t('Kräuterhütte'), smith: t('Schmiede'),
   bank: t('Kontor'), inn: t('Gasthaus'), bestiary: t('Bestiarium'), fame: t('Ruhmeshalle'), chronicle: t('Kampfchronik'), settings: t('Einstellungen'),
-  shadows: t('Schattenreich'), dragonBonus: t('Drachenkill'), quirin: t('Quirins Tränke'), tresen: t('Tresen'), lager: t('Söldnerlager'), gilde: t('Gildenhalle'), dag: t('Veit Galgenstrick'), fivesix: t('Sechserjagd'), aushang: t('Aushang'), feste: t('Versunkene Feste'), heirlooms: t('Erbstücke'), seer: t('Seherin'), felsen: t('Wyrmstein'), garten: t('Rosengarten'),
+  shadows: t('Schattenreich'), dragonBonus: t('Drachenkill'), quirin: t('Quirins Tränke'), tresen: t('Tresen'), lager: t('Söldnerlager'), gilde: t('Gildenhalle'), dag: t('Veit Galgenstrick'), fivesix: t('Sechserjagd'), aushang: t('Aushang'), feste: t('Versunkene Feste'), heirlooms: t('Erbstücke'), seer: t('Seherin'), cliff: t('Rabenklippe'), houses: t('Wohnviertel'), house: t('Dein Haus'), felsen: t('Wyrmstein'), garten: t('Rosengarten'),
   stable: t('Pferdestall'), ambros: t('Ambros'), warriors: t('Kriegerliste'), mail: t('Briefe'), bio: t('Steckbrief'),
 };
 
@@ -1280,12 +1419,12 @@ function syncConflictScreen(s: GameState): string {
 // ---------- Spieler gegen Spieler, Dorfplatz, Neuigkeiten ----------
 
 
-function targetsHtml(place: 'felder' | 'gasthaus'): string {
+function targetsHtml(place: PvpPlace): string {
   const pv = ui.pvp;
   if (pv.loading) return `<p class="muted">${t`Du schaust dich um …`}</p>`;
   if (pv.error) return `<p class="warn-box">${esc(pv.error)}</p>`;
   if (!pv.targets) return '';
-  if (!pv.targets.length) return `<p class="muted">${place === 'gasthaus' ? t('Frieda zuckt mit den Schultern. Heute Nacht schläft hier niemand, an den du herankommst.') : t('Auf den Feldern schläft gerade niemand in deiner Reichweite.')}</p>`;
+  if (!pv.targets.length) return `<p class="muted">${place === 'haus' ? t('In allen Fenstern brennt Licht oder es schläft niemand in deiner Reichweite. Heute Nacht wird hier nicht eingebrochen.') : place === 'gasthaus' ? t('Frieda zuckt mit den Schultern. Heute Nacht schläft hier niemand, an den du herankommst.') : t('Auf den Feldern schläft gerade niemand in deiner Reichweite.')}</p>`;
   const none = (pv.fightsLeft ?? 1) <= 0 || pv.busy;
   return `<ul class="targets">${pv.targets.map((tg) => `<li class="target">
       <span class="t-portrait">${heroPortrait(tg.race, tg.specialty, tg.gender)}${t`</span> <span class="t-info"><strong><span class="t-title">${esc(titleFor(tg.dragonKills, tg.gender))}</span> ${esc(tg.name)}</strong><small>Stufe ${tg.level} · ${raceName(tg.race, tg.gender)} · ${SPECIALTIES[tg.specialty]?.name ?? ''}`}${tg.dragonKills ? t` · Drachentöter ${tg.dragonKills}×` : ''}${tg.note ? ` · ${esc(tg.note)}` : ''}</small></span>
@@ -1401,7 +1540,7 @@ function loadSquare(section: ChatSection = 'dorfplatz', force = false): void {
     .finally(() => { sq.loading = false; sq.at = Date.now(); if (CHAT[section].screens.includes(currentScreen())) render(); });
 }
 
-function loadTargets(place: 'felder' | 'gasthaus'): void {
+function loadTargets(place: PvpPlace): void {
   const pv = ui.pvp;
   pv.loading = true; pv.error = ''; pv.targets = null;
   render();
@@ -1420,7 +1559,7 @@ function pvpCard(name: string, level: number, race: RaceId, spec: SpecialtyId, g
 function statusOf(w: WarriorRow): string {
   if (w.online) return '<span class="on-dot"></span> unterwegs';
   if (!w.alive) return t('bei Morwen');
-  return w.inInn ? t('schläft im Gasthaus') : t('schläft auf den Feldern');
+  return w.inHouse ? t('schläft daheim') : w.inInn ? t('schläft im Gasthaus') : t('schläft auf den Feldern');
 }
 
 /** Denkmal wie die Statue im Original: der letzte Drachentöter des Dorfes. */
@@ -1953,6 +2092,7 @@ function shadowsScreen(s: GameState): string {
     <p>${t`Am Ufer treiben verirrte Seelen. „Wenn du mir ein paar davon vom Hals schaffst“, sagt Morwen, „fahre ich dich vielleicht früher zurück.“`}
       ${canBack ? `${t`<span class="place">Du hast genug Gunst für die Rückkehr.</span>`}` : `${t`Dafür brauchst du <span class="gem">${RESURRECT_FAVOR} Gunst</span>, du hast ${p.favor}.`}`}</p>
     <div class="progress">${bar(p.favor, RESURRECT_FAVOR, 'favor')}</div>
+    ${p.jumped ? `<p class="muted">${t`Morwen mustert dich. „Von der Klippe, was? Wer selbst springt, kriegt bei der Rückfahrt keine neuen Waldkämpfe.“`}</p>` : ''}
     <p class="muted">${t`Neuer Tag in ${waitText()}. Gold im Kontor ist sicher.`}</p>
     ${flashHtml()}
     ${cloud.enabled ? squareHtml('schattenreich') : ''}`;
@@ -2089,7 +2229,7 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), vollversion: () => vollversionScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), tresen: () => tresenScreen(s!), dag: () => dagScreen(s!), fivesix: () => fivesixScreen(s!), aushang: () => aushangScreen(s!), lager: () => lagerScreen(s!), gilde: () => gildeScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), vollversion: () => vollversionScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), tresen: () => tresenScreen(s!), dag: () => dagScreen(s!), fivesix: () => fivesixScreen(s!), aushang: () => aushangScreen(s!), lager: () => lagerScreen(s!), gilde: () => gildeScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!), cliff: () => cliffScreen(s!), houses: () => housesScreen(s!), house: () => houseScreen(s!),
     impressum: () => legalScreen('impressum'), datenschutz: () => legalScreen('datenschutz'), wache: () => wacheScreen(s!), blocks: () => blocksScreen(s!), deleteAccount: () => deleteAccountScreen(s!),
   };
   root.innerHTML = views[scr]();
@@ -2120,7 +2260,7 @@ function trackFor(scr: Screen): TrackId {
   if (scr === 'fight' && s.fight?.monsterId === 'hueter') return 'kampf';
   if (!s.player.alive || scr === 'shadows' || scr === 'haunt' || (scr === 'seer' && s.player.seerPaid)) return 'schattenreich';
   if (scr === 'feste' || scr === 'heirlooms' || (scr === 'fight' && s.fight?.kind === 'feste')) return FESTE_MUSIC ? 'feste' : 'schattenreich';
-  if (scr === 'forest') return 'wald';
+  if (scr === 'forest' || scr === 'cliff') return 'wald';
   if (scr === 'inn' || scr === 'flirt' || scr === 'innGuests' || scr === 'tresen' || scr === 'dag' || scr === 'fivesix') return 'gasthaus';
   return 'dorf';
 }
@@ -2166,6 +2306,7 @@ function go(screen: Screen): void {
   ui.menuOpen = false;
   ui.flash = [];
   ui.confirmDelete = false;
+  ui.confirmDragon = false;
   ui.confirmNew = false;
   render();
   window.scrollTo(0, 0);
@@ -2262,6 +2403,89 @@ function localSaveWithoutTouch(st: GameState): void {
   saveGame(st, true);
 }
 
+/** Alles, was im Wohnviertel und im Haus passiert. */
+function handleHouse(s: GameState, a: string, b: string): void {
+  const hs = ui.houses;
+  const p = s.player;
+  const fail = (e: unknown, fallback: string) => { say(e instanceof CloudError ? e.message : fallback, 'warn'); };
+  const num = (id: string) => Math.floor(Number((document.getElementById(id) as HTMLInputElement | null)?.value ?? 0));
+  if (a !== 'return') ui.confirmDelete = false;
+  switch (a) {
+    case 'plot': {
+      const why = buyPlot(s, (document.getElementById('house-name') as HTMLInputElement | null)?.value ?? '');
+      if (why) { say(why, 'warn'); render(); return; }
+      say(t`Holm schlägt einen Pflock in den Boden und malt mit Kreide „${p.house!.name}“ darauf. „Morgen fangen wir an. Oder heute, wenn du das Fundament gleich bezahlst.“`, 'good');
+      commit(); scheduleSync(300); return;
+    }
+    case 'build': {
+      const r = buildStage(s);
+      if (!r.ok) { say(r.why, 'warn'); render(); return; }
+      ui.flash = r.lines.map((x) => ({ t: x, k: 'good' as const }));
+      if (r.done) {
+        ui.flash.push({ t: t`Dein Haus „${p.house!.name}“ ist fertig! Ab jetzt kannst du hier schlafen.`, k: 'gold' });
+        announce(s, news('houseDone', p.name, p.house!.name.replace(/\|/g, '/')));
+        sound.jingle('fanfare');
+      }
+      commit(); scheduleSync(300); return;
+    }
+    case 'enter': {
+      hs.of = b ?? '';
+      hs.detail = null; hs.err = '';
+      go('house'); loadHouseDetail(); return;
+    }
+    case 'sleep': {
+      const why = sleepAtHome(s, hs.of);
+      say(t('Du ziehst die Stiefel aus und legst dich hin. Hier bist du sicher, so sicher man in Moosgrund eben ist.'), 'good');
+      if (why) say(why, 'info');
+      commit(); scheduleSync(300); return;
+    }
+    case 'burgle': {
+      hs.burgle = !hs.burgle;
+      if (hs.burgle) loadTargets('haus'); else render();
+      return;
+    }
+    case 'put': case 'take': {
+      if (hs.busy || !hs.detail) return;
+      const n = num('chest-n');
+      if (!(n > 0)) { say(t('Wie viele denn?'), 'warn'); render(); return; }
+      if (a === 'put' && n > p.gems) { say(t`Du hast nur ${p.gems} Edelsteine dabei.`, 'warn'); render(); return; }
+      const owner = hs.detail.owner;
+      hs.busy = true; render();
+      cloud.chest(owner, a === 'put' ? n : -n).then((c) => {
+        if (hs.detail) hs.detail.chest = c;
+        p.gems += a === 'put' ? -n : n;
+        say(a === 'put' ? t`Du legst ${n} ${n === 1 ? t('Edelstein') : t('Edelsteine')} in die Truhe.` : t`Du nimmst ${n} ${n === 1 ? t('Edelstein') : t('Edelsteine')} aus der Truhe.`, 'gold');
+        saveGame(s); scheduleSync(300); loadHouseDetail();
+      }, (e) => fail(e, t('Die Truhe klemmt.'))).finally(() => { hs.busy = false; render(); });
+      return;
+    }
+    case 'give': {
+      if (hs.busy) return;
+      const name = ((document.getElementById('key-name') as HTMLInputElement | null)?.value ?? '').trim();
+      if (!name) { say(t('Wem willst du einen Schlüssel geben?'), 'warn'); render(); return; }
+      hs.busy = true; render();
+      cloud.giveKey(name).then((who) => { say(t`${who} bekommt einen Schlüssel zu deinem Haus.`, 'good'); loadHouseDetail(); }, (e) => fail(e, t('Der Schlosser ist gerade nicht da.')))
+        .finally(() => { hs.busy = false; render(); });
+      return;
+    }
+    case 'takekey': {
+      cloud.takeKey(b).then(() => { say(t('Du nimmst den Schlüssel wieder an dich.'), 'info'); loadHouseDetail(); }, (e) => fail(e, t('Das hat nicht geklappt.'))).finally(render);
+      return;
+    }
+    case 'return': {
+      if (!ui.confirmDelete) { ui.confirmDelete = true; render(); return; }
+      ui.confirmDelete = false;
+      const owner = hs.of;
+      cloud.returnKey(owner).then(() => {
+        if (p.homeOf === owner) { p.atHome = false; p.homeOf = ''; saveGame(s); scheduleSync(300); }
+        say(t('Du hängst den Schlüssel zurück an den Haken neben der Tür.'), 'info');
+        go('houses'); loadHouses();
+      }, (e) => { fail(e, t('Das hat nicht geklappt.')); render(); });
+      return;
+    }
+  }
+}
+
 function handle(act: string, el: HTMLElement): void {
   const [cmd, a, b] = act.split(':');
   const s = state;
@@ -2317,6 +2541,17 @@ function handle(act: string, el: HTMLElement): void {
       const msg = chooseNewRace(s, a as RaceId);
       if (msg) { ui.flash = [{ t: msg, k: 'good' }]; saveGame(s); scheduleSync(); }
       render(); return;
+    }
+    case 'house': { if (s) handleHouse(s, a, b); return; }
+    case 'cliff': {
+      if (!s || a !== 'jump') return;
+      if (!ui.confirmDelete) { ui.confirmDelete = true; render(); return; }
+      ui.confirmDelete = false;
+      const why = jumpCliff(s);
+      if (why) { say(why, 'warn'); render(); return; }
+      ui.flash = [];
+      commit(); window.scrollTo(0, 0);
+      return;
     }
     case 'seer': {
       if (!s) return;
@@ -2521,6 +2756,7 @@ function handle(act: string, el: HTMLElement): void {
       if (a === 'aushang' && cloud.enabled) { ui.aushang = null; go('aushang'); loadAushang(); return; }
       if (a === 'fame' && cloud.enabled) loadFameCat();
       if (a === 'bank') ui.bankMode = '';
+      if (a === 'houses') { ui.houses.burgle = false; ui.houses.list = cloud.signedIn ? null : []; go('houses'); loadHouses(); return; }
       if (a === 'fame' && cloud.enabled) cloud.hallOfFame().then((rows) => { ui.fame = rows; if (ui.screen === 'fame') render(); }, () => {});
       go(a as Screen);
       return;
@@ -2627,9 +2863,9 @@ function handle(act: string, el: HTMLElement): void {
       loadTargets('gasthaus');
       return;
     }
-    case 'reload': loadTargets(a === 'gasthaus' ? 'gasthaus' : 'felder'); return;
+    case 'reload': loadTargets(a === 'gasthaus' || a === 'haus' ? a : 'felder'); return;
     case 'pvp': {
-      const place = b === 'gasthaus' ? 'gasthaus' : 'felder';
+      const place: PvpPlace = b === 'gasthaus' || b === 'haus' ? b : 'felder';
       const pv = ui.pvp;
       if (pv.busy) return;
       pv.busy = true; pv.error = '';
@@ -2688,7 +2924,10 @@ function handle(act: string, el: HTMLElement): void {
       if (s.player.alive) { go('village'); say(msg, 'good'); render(); scheduleSync(500); } else { say(msg, 'warn'); render(); }
       return;
     }
-    case 'dragon': if (startDragonFight(s)) { ui.flash = []; commit(); window.scrollTo(0, 0); } return;
+    case 'dragon':
+      if (!ui.confirmDragon && s.player.gold + Math.max(0, s.player.bank) >= DRAGON_CONFIRM_GOLD) { ui.confirmDragon = true; render(); return; }
+      ui.confirmDragon = false;
+      if (startDragonFight(s)) { ui.flash = []; commit(); window.scrollTo(0, 0); } return;
     case 'master': if (startMasterFight(s)) { ui.flash = []; commit(); window.scrollTo(0, 0); } return;
     case 'fight': {
       if (a === 'auto') {
@@ -2809,10 +3048,11 @@ function handle(act: string, el: HTMLElement): void {
         if (a === 'feste') { go('feste'); return; }
       } else closeFight(s);
       const target: Screen = a === 'forest' ? 'forest' : a === 'training' ? 'training' : a === 'shadows' ? 'shadows' : a === 'bonus' ? 'dragonBonus'
-        : a === 'fields' ? 'fields' : a === 'inn' ? 'inn' : 'village';
+        : a === 'fields' ? 'fields' : a === 'inn' ? 'inn' : a === 'houses' ? 'houses' : 'village';
       saveGame(s);
       go(target);
       if (target === 'fields') loadTargets('felder');
+      if (target === 'houses') { ui.houses.burgle = true; loadHouses(); loadTargets('haus'); }
       return;
     }
     case 'heal': say(heal(s, a as 'full' | 'half'), 'good'); commit(); return;

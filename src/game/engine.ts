@@ -25,6 +25,7 @@ import { loverNewDay } from './lovers';
 import { mountBuff, mountNewDay } from './stable';
 import type { Buff, DragonPoint, Fight, GameState, Gender, LogLine, Player, RaceId, SpecialtyId } from './types';
 
+import { homeMorning } from './house';
 import { t } from '../i18n';
 import { gameDayKey } from './clock';
 import { news } from '../i18n/news';
@@ -79,6 +80,7 @@ export function checkRealDay(s: GameState, today = gameDayKey()): boolean {
 
 export function startNewDay(s: GameState): void {
   const p = s.player;
+  const sleptHome = !!p.atHome && p.alive;
   s.day += 1;
   s.news = [];
   if (!p.alive) {
@@ -92,6 +94,7 @@ export function startNewDay(s: GameState): void {
   s.feste = null;
   p.seerPaid = false;
   p.innRoom = false;
+  p.jumped = false;
   p.hp = maxHp(p);
   p.soul = maxSoul(p);
   p.graveFights = GRAVE_FIGHTS_PER_DAY;
@@ -111,6 +114,8 @@ export function startNewDay(s: GameState): void {
   p.buffs = [];
   s.news.push(...loverNewDay(s, announce));
   s.news.push(...mountNewDay(s));
+  const home = homeMorning(s, sleptHome);
+  if (home) s.news.push(home);
   if (p.hauntedBy) {
     const lost = Math.min(HAUNT_TURNS, p.forestFights);
     p.forestFights -= lost;
@@ -161,6 +166,8 @@ export function forestSearch(s: GameState, mode: ForestMode): ForestResult {
   if (p.hp <= 0) return { type: 'none', reason: t('Du solltest erst zur Heilerin.') };
   if (s.pendingEvent) return { type: 'choice' };
   p.forestFights -= 1;
+  // Wie im Original: Wer dem Tod ins Auge sieht, wird ein wenig nüchterner.
+  if ((p.drunk ?? 0) > 0) p.drunk = Math.floor((p.drunk ?? 0) * 0.9);
 
   if (mode === 'normal' && rand() < EVENT_CHANCE) {
     const ev = pickEvent(p);
@@ -251,6 +258,8 @@ export function rentRoom(s: GameState): string {
   if (p.gold < cost) return t`Ein Zimmer kostet ${cost} Gold. So viel hast du nicht dabei.`;
   p.gold -= cost;
   p.innRoom = true;
+  p.atHome = false;
+  p.homeOf = '';
   return t`Frieda gibt dir den Schlüssel zu Zimmer 3. „Abschließen nicht vergessen.“ Wer hier schläft, ist vor Überfällen auf den Feldern sicher. (${cost} Gold)`;
 }
 
@@ -272,7 +281,10 @@ export function resurrect(s: GameState): string {
   p.favor -= RESURRECT_FAVOR;
   p.alive = true;
   p.hp = maxHp(p);
-  p.forestFights = Math.round(forestFightsPerDay(p) * RESURRECT_TURN_SHARE);
+  const jumped = !!p.jumped;
+  p.jumped = false;
+  // Nach einem Sprung von der Klippe gibt es keine neuen Waldkämpfe, die übrigen bleiben.
+  if (!jumped) p.forestFights = Math.round(forestFightsPerDay(p) * RESURRECT_TURN_SHARE);
   p.specialUses = specialUsesPerDay(p);
   p.seenMaster = false;
   p.drankToday = false;
@@ -282,9 +294,35 @@ export function resurrect(s: GameState): string {
   s.fight = null;
   s.stats.resurrections += 1;
   announce(s, news('earlyReturn', p.name));
-  const msg = t`Morwen stakt dich über den Fluss und setzt dich am Dorfrand ab. „Ausnahmsweise“, sagt sie. Du lebst wieder und hast noch ${p.forestFights} Waldkämpfe.`;
+  const msg = jumped
+    ? t`Morwen stakt dich über den Fluss und setzt dich am Dorfrand ab. „Wer selbst springt, kriegt von mir keinen Rabatt.“ Du lebst wieder und hast noch ${p.forestFights} Waldkämpfe.`
+    : t`Morwen stakt dich über den Fluss und setzt dich am Dorfrand ab. „Ausnahmsweise“, sagt sie. Du lebst wieder und hast noch ${p.forestFights} Waldkämpfe.`;
   s.news.push(msg);
   return msg;
+}
+
+/**
+ * Die Rabenklippe: freiwillig ins Schattenreich. Wie ein Tod im Wald ist das Gold im Beutel weg, Erfahrung bleibt.
+ * Morwen holt dich danach zwar zurück, aber ohne neue Waldkämpfe: Die übrigen bleiben, wie sie waren.
+ */
+export function jumpCliff(s: GameState): string | null {
+  const p = s.player;
+  if (!p.alive) return t('Du bist schon tot.');
+  if (s.fight || s.pendingEvent) return t('Erst musst du hier fertig werden.');
+  const lost = p.gold;
+  p.gold = 0;
+  p.alive = false;
+  p.hp = 0;
+  p.buffs = [];
+  p.soul = maxSoul(p);
+  p.jumped = true;
+  p.innRoom = false;
+  p.atHome = false;
+  s.stats.deaths += 1;
+  s.stats.lastDeathDay = s.day;
+  s.news.push(lost ? t`Du bist von der Rabenklippe gesprungen. ${lost} Gold liegen jetzt irgendwo unten im Farn.` : t('Du bist von der Rabenklippe gesprungen.'));
+  announce(s, news('cliffJump', p.name));
+  return null;
 }
 
 /** Spuken: kostet 25 Gunst, das Opfer verliert am nächsten Morgen Waldkämpfe. */

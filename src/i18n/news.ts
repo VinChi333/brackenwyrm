@@ -16,6 +16,8 @@ export const NEWS = {
   festeGuardian: '{0} ist in der versunkenen Feste am Hüter gescheitert.',
   festeDeath: '{0} wurde in der versunkenen Feste von {1} besiegt.',
   forestDeath: '{0} wurde im Brackenwald von {1} besiegt.',
+  cliffJump: '{0} ist von der Rabenklippe gesprungen. Morwen hat schon das Boot losgemacht.',
+  houseDone: '{0} hat im Wohnviertel ein eigenes Haus fertig gebaut: {1}.',
   newTitle: '{0} trägt jetzt den Titel {1}.',
   mineRich: '{0} hat im alten Stollen eine reiche Ader gefunden.',
   mineBuried: '{0} wurde im alten Stollen verschüttet.',

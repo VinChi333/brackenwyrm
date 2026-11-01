@@ -1,4 +1,4 @@
--- Brackenwyrm: Prüfung, ob Teil 1 bis 10 vollständig eingespielt sind.
+-- Brackenwyrm: Prüfung, ob Teil 1 bis 11 vollständig eingespielt sind.
 -- Im Supabase SQL-Editor ausführen. Jede Zeile sollte bei "ok" ein Häkchen (true) haben.
 select pruefung, ok from (values
   ('Teil 1: Spielstände und Kämpfer',          to_regclass('public.saves') is not null and to_regclass('public.fighters') is not null),
@@ -22,5 +22,8 @@ select pruefung, ok from (values
   ('Teil 7: Gildengespräch',                   exists (select 1 from pg_proc where proname = 'commentary_prepare' and prosrc like '%gilde%')),
   ('Teil 8: Vollversion',                      to_regclass('public.full_version') is not null and exists (select 1 from pg_proc where proname = 'redeem_code')),
   ('Teil 9: Rückmeldungen',                    to_regclass('public.feedback') is not null and exists (select 1 from pg_proc where proname = 'send_feedback')),
-  ('Teil 10: Startseite',                      exists (select 1 from pg_proc where proname = 'title_info'))
+  ('Teil 10: Startseite',                      exists (select 1 from pg_proc where proname = 'title_info')),
+  ('Teil 11: Häuser',                          to_regclass('public.houses') is not null and exists (select 1 from pg_proc where proname = 'house_chest')),
+  ('Teil 11: nach Teil 4 und 6 ausgeführt',    exists (select 1 from pg_proc where proname = 'pvp_attack' and prosrc like '%in_house%')
+                                               and exists (select 1 from pg_proc where proname = 'pvp_targets' and prosrc like '%in_house%'))
 ) as t(pruefung, ok);

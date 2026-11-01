@@ -6,12 +6,12 @@ import { WEAPONS } from '../content/items';
 import { SPECIALTIES, normalizeSpecialty } from '../content/specialties';
 import { normalizeRace } from '../content/races';
 import { maxSoul } from './balance';
-import type { PvpEvent, PvpResult } from './cloud';
+import type { PvpEvent, PvpPlace, PvpResult } from './cloud';
 import type { Fight, GameState, LogLine } from './types';
 
 import { t } from '../i18n';
 
-const PLACE: Record<string, string> = { felder: t('auf den Feldern'), gasthaus: t('in Friedas Gasthaus') };
+const PLACE: Record<string, string> = { felder: t('auf den Feldern'), gasthaus: t('in Friedas Gasthaus'), haus: t('im Wohnviertel') };
 
 /** Was beim Schlafen passiert ist. Gibt Meldungen für die Neuigkeiten zurück. */
 export function applyPvpEvents(s: GameState, events: PvpEvent[]): string[] {
@@ -54,13 +54,15 @@ export function applyPvpEvents(s: GameState, events: PvpEvent[]): string[] {
 }
 
 /** Baut aus dem Server-Ergebnis einen Kampf zum Anzeigen und wendet Gewinn oder Verlust an. */
-export function applyPvpResult(s: GameState, res: PvpResult, place: 'felder' | 'gasthaus'): Fight {
+export function applyPvpResult(s: GameState, res: PvpResult, place: PvpPlace): Fight {
   const p = s.player;
   const foe = res.foe;
   const weapon = WEAPONS[Math.max(0, Math.min(WEAPONS.length - 1, foe.weapon_tier))]?.name ?? t('Waffe');
   const names = { a: foe.name, N: foe.name, hits: t`schlägt im Halbschlaf mit ${weapon} zu`, move: SPECIALTIES[p.specialty].name };
   const log: LogLine[] = [{
-    t: place === 'gasthaus'
+    t: place === 'haus'
+      ? t`Im Wohnviertel ist alles dunkel. Du hebelst das Fenster von ${foe.name}s Schlafkammer auf und steigst hinein. Eine Diele knarrt. ${foe.name} sitzt sofort aufrecht im Bett, daheim schläft man leicht!`
+      : place === 'gasthaus'
       ? t`Frieda zwinkert dir zu und dreht sich weg. Du schleichst die Treppe hinauf zu ${foe.name}s Zimmer. ${foe.name} fährt aus dem Schlaf hoch!`
       : t`Du schleichst über die Felder vor dem Stadttor. Dort liegt ${foe.name} im Gras und schnarcht. Als du näher kommst, öffnet ${foe.name} ein Auge.`,
     k: 'warn', r: 0,
@@ -83,8 +85,12 @@ export function applyPvpResult(s: GameState, res: PvpResult, place: 'felder' | '
     p.gold += res.gold;
     p.exp += res.exp_win;
     p.hp = Math.max(1, res.hero.hp);
-    log.push({ t: t`${foe.name} sinkt zurück ins ${place === 'gasthaus' ? t('Kissen') : t('Gras')} und rührt sich nicht mehr. Morwen wird sich freuen.`, k: 'info', r });
+    log.push({ t: t`${foe.name} sinkt zurück ins ${place === 'felder' ? t('Gras') : t('Kissen')} und rührt sich nicht mehr. Morwen wird sich freuen.`, k: 'info', r });
     log.push({ t: t`Du nimmst ${res.gold} Gold an dich und lernst ${res.exp_win} Erfahrung aus dem Kampf.`, k: 'gold', r });
+    if (res.gems && res.gems > 0) {
+      p.gems += res.gems;
+      log.push({ t: res.gems === 1 ? t('Auf dem Weg nach draußen knackst du die Truhe und steckst einen Edelstein ein.') : t`Auf dem Weg nach draußen knackst du die Truhe und steckst ${res.gems} Edelsteine ein.`, k: 'gold', r });
+    }
     if (res.bounty && res.bounty > 0) {
       p.gold += res.bounty;
       log.push({ t: t`Veit Galgenstrick tritt aus dem Schatten und drückt dir einen Beutel in die Hand: das Kopfgeld auf ${foe.name}, ${res.bounty} Gold!`, k: 'gold', r });

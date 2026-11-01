@@ -24,10 +24,18 @@ export interface PvpResult {
   foe: { name: string; level: number; specialty: string; race?: string; gender: Gender; hp: number; max: number; weapon_tier: number };
   gold: number; exp_win: number; exp_lose: number; fights_left: number;
   bounty?: number;                 // kassiertes Kopfgeld (Teil 5)
+  gems?: number;                   // beim Einbruch aus der Truhe genommen (Teil 11)
 }
+export interface HouseRow { owner: string; ownerName: string; ownerGender: Gender; name: string; stage: number; done: boolean; mine: boolean; hasKey: boolean; keys: number }
+export interface HouseDetail {
+  owner: string; ownerName: string; name: string; done: boolean; chest: number; mine: boolean;
+  keys: { userId: string; name: string }[];
+  log: { who: string; delta: number; kind: 'truhe' | 'einbruch'; at: string }[];
+}
+export type PvpPlace = 'felder' | 'gasthaus' | 'haus';
 export interface PvpEvent { id: number; kind: 'slain' | 'defended' | 'haunted' | 'transfer'; other_name: string; place: string; gold: number; exp: number; created_at: string }
 export interface NewsRow { created_at: string; body: string }
-export interface WarriorRow { userId: string; name: string; gender: Gender; level: number; race: RaceId; specialty: SpecialtyId; dragonKills: number; alive: boolean; online: boolean; inInn: boolean; lastSeen: string; bio: string; mount: string; marriedTo: string; daysPlayed: number; heirlooms: string[] }
+export interface WarriorRow { userId: string; name: string; gender: Gender; level: number; race: RaceId; specialty: SpecialtyId; dragonKills: number; alive: boolean; online: boolean; inInn: boolean; inHouse?: boolean; lastSeen: string; bio: string; mount: string; marriedTo: string; daysPlayed: number; heirlooms: string[] }
 export interface MailRow { id: number; created_at: string; from_user: string | null; from_name: string; subject: string; body: string; seen: boolean }
 export interface CommentRow { id: number; created_at: string; name: string; body: string; user_id?: string }
 export type ReportKind = 'chat' | 'brief' | 'steckbrief' | 'name';
@@ -168,7 +176,75 @@ export class Cloud {
       if (e instanceof CloudError && /gender|PGRST204|42703/.test(e.message)) await sendProfile(profile);
       else throw e;
     }
+    await this.syncHouse(state);
     await this.pushFighter(state);
+  }
+
+  // ---------- Häuser (Teil 11) ----------
+  private houseSent = '';
+  private housesMissing = false;
+
+  /** Das eigene Haus melden, aber nur, wenn sich seit dem letzten Mal etwas geändert hat. Ohne Teil 11 still überspringen. */
+  async syncHouse(state: GameState): Promise<void> {
+    if (this.housesMissing) return;
+    const h = state.player.house;
+    const done = !!h && h.stage >= 4;
+    const key = `${this.userId}|${h ? `${h.name}|${h.stage}` : '-'}`;
+    if (key === this.houseSent) return;
+    try {
+      await this.call('/rest/v1/rpc/house_save', { method: 'POST', body: { hname: h ? h.name : null, hstage: h?.stage ?? 0, hdone: done } });
+      this.houseSent = key;
+    } catch (e) {
+      if (this.missingPart5(e)) { this.housesMissing = true; return; }
+      throw e;
+    }
+  }
+
+  private async rpc11<T>(name: string, body: object): Promise<T> {
+    await this.ensureSession();
+    try {
+      return await this.call(`/rest/v1/rpc/${name}`, { method: 'POST', body });
+    } catch (e) {
+      if (this.missingPart5(e)) throw new CloudError('server', t('Das Wohnviertel ist auf dem Server noch nicht eingerichtet (Teil 11).'));
+      throw e;
+    }
+  }
+
+  async housesList(): Promise<HouseRow[]> {
+    const rows = await this.rpc11<Record<string, unknown>[]>('houses_list', {});
+    return (Array.isArray(rows) ? rows : []).map((r) => ({
+      owner: String(r.owner), ownerName: String(r.owner_name), ownerGender: r.owner_gender === 'f' ? 'f' : 'm', name: String(r.name ?? ''),
+      stage: Number(r.stage) || 0, done: !!r.done, mine: !!r.mine, hasKey: !!r.has_key, keys: Number(r.keys) || 0,
+    }));
+  }
+
+  async houseDetail(owner: string): Promise<HouseDetail> {
+    const r = await this.rpc11<Record<string, unknown>>('house_detail', { howner: owner });
+    const keys = Array.isArray(r.keys) ? r.keys as { user_id: string; name: string }[] : [];
+    const log = Array.isArray(r.log) ? r.log as { who: string; delta: number; kind: string; at: string }[] : [];
+    return {
+      owner: String(r.owner), ownerName: String(r.owner_name ?? ''), name: String(r.name ?? ''), done: !!r.done, chest: Number(r.chest) || 0, mine: !!r.mine,
+      keys: keys.map((k) => ({ userId: String(k.user_id), name: String(k.name) })),
+      log: log.map((l) => ({ who: String(l.who), delta: Number(l.delta) || 0, kind: l.kind === 'einbruch' ? 'einbruch' : 'truhe', at: String(l.at) })),
+    };
+  }
+
+  giveKey(name: string): Promise<string> {
+    return this.rpc11('house_give_key', { holder_name: name });
+  }
+
+  takeKey(holder: string): Promise<void> {
+    return this.rpc11('house_take_key', { holder });
+  }
+
+  returnKey(owner: string): Promise<void> {
+    return this.rpc11('house_return_key', { howner: owner });
+  }
+
+  /** Edelsteine in die Truhe (positiv) oder heraus (negativ). Gibt den neuen Truheninhalt zurück. */
+  async chest(owner: string, delta: number): Promise<number> {
+    const r = await this.rpc11<{ chest: number }>('house_chest', { howner: owner, delta });
+    return Number(r.chest) || 0;
   }
 
   /** Kampfwerte für Spieler gegen Spieler. Nur wenn Teil 2 der Datenbank eingerichtet ist; sonst still überspringen. */
@@ -179,25 +255,27 @@ export class Cloud {
       user_id: s.userId, name: p.name, specialty: p.specialty, race: p.race, gender: p.gender, level: p.level, exp: Math.max(0, Math.round(p.exp)),
       gold: Math.max(0, p.gold), hp: Math.max(0, p.hp), base_max_hp: p.baseMaxHp + (p.potionHp ?? 0), bonus_atk: p.bonusAtk, bonus_def: p.bonusDef,
       weapon_tier: p.weaponTier, armor_tier: p.armorTier, dragon_kills: p.dragonKills, days_played: state.stats.realDays,
-      alive: p.alive, in_inn: p.alive && p.innRoom,
+      alive: p.alive, in_inn: p.alive && p.innRoom && !p.atHome,
+      in_house: p.alive && !!p.atHome, home_of: p.alive && p.atHome ? (p.homeOf || s.userId) : null,
       bio: (p.bio ?? '').slice(0, 400), mount: p.mount, married_to: p.marriedTo,
       heirlooms: (p.heirlooms ?? []).join(','),
       charm: Math.max(0, p.charm), wealth: Math.max(0, p.gold + p.bank), fastest_dk: state.stats.fastestDragon || 0, feste_treasures: p.festeTreasures ?? 0,
     };
     const send = (b: object) => this.call('/rest/v1/fighters', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: b });
     // Ältere Datenbanken kennen manche Spalten noch nicht: dann Schritt für Schritt einfacher speichern.
-    const { charm: _c, wealth: _we, fastest_dk: _f, feste_treasures: _t, ...noFame } = body;
+    const { in_house: _ih, home_of: _ho, ...noHouse } = body;
+    const { charm: _c, wealth: _we, fastest_dk: _f, feste_treasures: _t, ...noFame } = noHouse;
     const { heirlooms: _h, ...noHeir } = noFame;
     const { bio: _b, mount: _m, married_to: _w, ...noBio } = noHeir;
     const { race: _r, ...noRace } = noBio;
-    const attempts: Record<string, unknown>[] = [body, noFame, noHeir, noBio, { ...noRace, specialty: LEGACY_REVERSE[p.specialty] }];
+    const attempts: Record<string, unknown>[] = [body, noHouse, noFame, noHeir, noBio, { ...noRace, specialty: LEGACY_REVERSE[p.specialty] }];
     for (let i = 0; i < attempts.length; i++) {
       try {
         await send(attempts[i]);
         return;
       } catch (e) {
         if (e instanceof CloudError && /404|42P01|PGRST205/.test(e.message)) return;  // Tabelle gibt es (noch) nicht
-        const schemaError = e instanceof CloudError && /charm|wealth|fastest|feste_treasures|heirlooms|bio|mount|married|race|PGRST204|42703|42501|23514|check/i.test(e.message) && e.code === 'server';
+        const schemaError = e instanceof CloudError && /in_house|home_of|charm|wealth|fastest|feste_treasures|heirlooms|bio|mount|married|race|PGRST204|42703|42501|23514|check/i.test(e.message) && e.code === 'server';
         if (!schemaError || i === attempts.length - 1) throw e;
       }
     }
@@ -222,7 +300,7 @@ export class Cloud {
     await this.call(`/rest/v1/pvp_events?id=in.(${ids.map(Number).join(',')})`, { method: 'PATCH', prefer: 'return=minimal', body: { applied: true } });
   }
 
-  async pvpTargets(place: 'felder' | 'gasthaus'): Promise<PvpTarget[]> {
+  async pvpTargets(place: PvpPlace): Promise<PvpTarget[]> {
     await this.ensureSession();
     const rows = await this.call('/rest/v1/rpc/pvp_targets', { method: 'POST', body: { place } });
     return (Array.isArray(rows) ? rows : []).map((r: { user_id: string; name: string; level: number; specialty: string; race?: string; gender: Gender; dragon_kills: number; attackable: boolean; note: string }) => ({
@@ -235,7 +313,7 @@ export class Cloud {
     return await this.call('/rest/v1/rpc/pvp_status', { method: 'POST', body: {} });
   }
 
-  async pvpAttack(target: string, place: 'felder' | 'gasthaus'): Promise<PvpResult> {
+  async pvpAttack(target: string, place: PvpPlace): Promise<PvpResult> {
     await this.ensureSession();
     return await this.call('/rest/v1/rpc/pvp_attack', { method: 'POST', body: { target, place } });
   }
@@ -282,7 +360,7 @@ export class Cloud {
       const rows = await this.call('/rest/v1/rpc/warriors', { method: 'POST', body: {} });
       return (Array.isArray(rows) ? rows : []).map((r: Record<string, unknown>) => ({
         userId: String(r.user_id), name: String(r.name), gender: r.gender === 'f' ? 'f' : 'm', level: Number(r.level), race: normalizeRace(r.race),
-        specialty: normalizeSpecialty(r.specialty), dragonKills: Number(r.dragon_kills), alive: !!r.alive, online: !!r.online, inInn: !!r.in_inn, lastSeen: String(r.last_seen),
+        specialty: normalizeSpecialty(r.specialty), dragonKills: Number(r.dragon_kills), alive: !!r.alive, online: !!r.online, inInn: !!r.in_inn, inHouse: !!r.in_house, lastSeen: String(r.last_seen),
         bio: String(r.bio ?? ''), mount: String(r.mount ?? ''), marriedTo: String(r.married_to ?? ''), daysPlayed: Number(r.days_played ?? 0), heirlooms: String(r.heirlooms ?? '').split(',').filter(Boolean),
       }));
     } catch (e) {

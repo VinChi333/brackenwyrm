@@ -1,6 +1,7 @@
 // Getränke am Tresen (Original: "Exotic Drinks" bei Cedrik) und das Lallen im Gespräch (Original: drunkenize).
 // Rausch von 0 bis 100: ab 66 schenkt Frieda nichts mehr aus. Wer über 66 ins Bett geht, verliert morgens einen Waldkampf.
-// Harte Getränke höchstens zweimal am Tag.
+// Harte Getränke höchstens zweimal am Tag. Der Schnaps bringt höchstens einmal am Tag einen Waldkampf,
+// und Quellwasser gibt es höchstens dreimal am Tag (sonst ließe sich Schnaps und Wasser endlos abwechseln).
 
 import { maxHp } from './balance';
 import { chance, rand } from './rng';
@@ -22,17 +23,18 @@ export interface Drink {
 
 export const MAX_DRUNK = 66;
 export const MAX_HARD = 2;
+export const MAX_WATER = 3;
 
 export const DRINKS: Drink[] = [
   { id: 'harzbier', name: t('Harzbier'), costPerLevel: 8, drunk: 25, blurb: t('Heilt ein wenig, macht Mut (mehr Angriff).'),
     serve: t('Frieda zapft ein schäumendes Harzbier aus dem Fass und schiebt es dir über den Tresen. Es schmeckt nach Tannenzapfen und Mut.') },
   { id: 'moosmet', name: t('Moosmet'), costPerLevel: 10, drunk: 20, blurb: t('Süß und schwer. Macht dich zäher (mehr Verteidigung).'),
     serve: t('Frieda gießt dir einen grünlich schimmernden Met ein. Er ist so süß, dass dir die Zähne summen.') },
-  { id: 'kraeuterschnaps', name: t('Mirlas Kräuterschnaps'), costPerLevel: 12, drunk: 30, blurb: t('Mit etwas Glück ein zusätzlicher Waldkampf.'),
+  { id: 'kraeuterschnaps', name: t('Mirlas Kräuterschnaps'), costPerLevel: 12, drunk: 30, blurb: t('Mit etwas Glück ein zusätzlicher Waldkampf (einmal am Tag).'),
     serve: t('Frieda holt eine Flasche mit Mirlas Etikett unter dem Tresen hervor. „Medizin“, sagt sie und zwinkert.') },
   { id: 'drachenfeuer', name: t('Drachenfeuer'), costPerLevel: 15, drunk: 45, hard: true, blurb: t('Hart. Brennende Fäuste: viel mehr Schaden, weniger Deckung.'),
     serve: t('Frieda nimmt eine Flasche mit drei Kreuzen und einem Wyrm darauf und gießt ein winziges Gläschen ein. Du kippst es, und Rauch steigt dir aus den Ohren.') },
-  { id: 'quellwasser', name: t('Quellwasser'), costPerLevel: 0, drunk: -35, blurb: t('Kostenlos. Macht wieder klar im Kopf.'),
+  { id: 'quellwasser', name: t('Quellwasser'), costPerLevel: 0, drunk: -35, blurb: t('Kostenlos, dreimal am Tag. Macht wieder klar im Kopf.'),
     serve: t('Frieda stellt dir einen Krug kaltes Quellwasser hin. „Geht aufs Haus.“') },
 ];
 
@@ -64,12 +66,14 @@ export function orderDrink(s: GameState, id: DrinkId): { ok: boolean; lines: str
   if (!d) return { ok: false, lines: [t('Das hat Frieda nicht.')] };
   const drunk = p.drunk ?? 0;
   if (d.drunk > 0 && drunk >= MAX_DRUNK) return { ok: false, lines: [t('Frieda nimmt dir das Glas weg. „Du hattest genug, Schätzchen. Trink Wasser.“')] };
+  if (id === 'quellwasser' && (p.waterToday ?? 0) >= MAX_WATER) return { ok: false, lines: [t('„Noch ein Wasser? Du schwimmst ja schon, Schätzchen.“ Frieda stellt den Krug weg. Ausnüchtern musst du jetzt auf die harte Tour.')] };
   if (d.hard && (p.hardDrinks ?? 0) >= MAX_HARD) return { ok: false, lines: [t('„Noch ein Drachenfeuer?“ Frieda schüttelt den Kopf. „Morgen. Vielleicht.“')] };
   const cost = drinkCost(d, p.level);
   if (p.gold < cost) return { ok: false, lines: [t`${d.name} kostet ${cost} Gold.`] };
   p.gold -= cost;
   p.drunk = Math.max(0, Math.min(100, drunk + d.drunk));
   if (d.hard) p.hardDrinks = (p.hardDrinks ?? 0) + 1;
+  if (id === 'quellwasser') p.waterToday = (p.waterToday ?? 0) + 1;
   const lines = [d.serve];
   const buff = BUFFS[id];
   if (buff) {
@@ -77,7 +81,7 @@ export function orderDrink(s: GameState, id: DrinkId): { ok: boolean; lines: str
     lines.push(t`(${buff.name}: ${buff.rounds} Kampfrunden)`);
   }
   if (id === 'harzbier') p.hp = Math.min(Math.max(p.hp, maxHp(p)), p.hp + Math.round(maxHp(p) * 0.2));
-  if (id === 'kraeuterschnaps' && chance(0.33)) { p.forestFights += 1; lines.push(t('Der Schnaps fährt dir in die Beine. Du fühlst dich, als könntest du noch einmal in den Wald! (+1 Waldkampf)')); }
+  if (id === 'kraeuterschnaps' && !p.schnapsFight && chance(0.33)) { p.forestFights += 1; p.schnapsFight = true; lines.push(t('Der Schnaps fährt dir in die Beine. Du fühlst dich, als könntest du noch einmal in den Wald! (+1 Waldkampf)')); }
   if (id === 'drachenfeuer') p.hp = Math.max(1, p.hp - Math.round(maxHp(p) * 0.05));
   if (id === 'quellwasser' && drunk > 0) lines.push(t('Der Nebel in deinem Kopf lichtet sich ein wenig.'));
   lines.push(t`Du bist jetzt ${drunkWord(p.drunk)}.`);
@@ -90,6 +94,8 @@ export function soberUp(s: GameState): string | null {
   const was = p.drunk ?? 0;
   p.drunk = 0;
   p.hardDrinks = 0;
+  p.waterToday = 0;
+  p.schnapsFight = false;
   if (was > MAX_DRUNK) {
     p.forestFights = Math.max(0, p.forestFights - 1);
     return t('Du wachst mit einem fürchterlichen Kater im Rinnstein auf und kriechst zurück ins Dorf. Ein Waldkampf weniger.');

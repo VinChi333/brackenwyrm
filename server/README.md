@@ -67,6 +67,13 @@ Ohne Teil 9 bietet das Spiel nur WhatsApp, E-Mail und Kopieren an.
 `supabase-10-startseite.sql` nach Teil 9 ausführen. Die Startseite zeigt dann, wie viele Helden gerade unterwegs sind
 (mit bis zu drei Namen) und wer zuletzt den Wyrm bezwungen hat, mit Datum. Ohne Teil 10 steht dort nur der letzte Drachentöter.
 
+## Teil 11: Häuser (ab 0.55)
+
+`supabase-11-haeuser.sql` nach Teil 10 ausführen. Bringt das Wohnviertel: Häuser der anderen sehen, Schlüssel an Freunde
+geben, die gemeinsame Truhe für Edelsteine, sicher daheim schlafen und Einbrüche. Bauen geht auch ohne Teil 11, dann
+nur ohne Truhe, Schlüssel und Einbruch.
+**Teil 11 ersetzt die Spielerkämpfe aus Teil 4 und Teil 6: Wer Teil 4 oder Teil 6 erneut ausführt, führt danach auch Teil 11 erneut aus.**
+
 ## E-Mails: Passwort vergessen (ab 0.44)
 
 „Passwort vergessen?“ schickt einen Code per E-Mail. Der eingebaute Mailversand von Supabase schickt nur an

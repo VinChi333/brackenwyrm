@@ -16,7 +16,7 @@ await db.exec(`
   grant usage on schema auth to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
 `);
-for (const f of ['supabase.sql', 'supabase-2-dorf.sql', 'supabase-3-briefe.sql', 'supabase-4-schutz.sql', 'supabase-5-dorfleben.sql', 'supabase-6-spieltage.sql', 'supabase-7-gilden.sql', 'supabase-8-vollversion.sql', 'supabase-9-rueckmeldungen.sql', 'supabase-10-startseite.sql']) await db.exec(readFileSync(new URL(`../server/${f}`, import.meta.url), 'utf8'));
+for (const f of ['supabase.sql', 'supabase-2-dorf.sql', 'supabase-3-briefe.sql', 'supabase-4-schutz.sql', 'supabase-5-dorfleben.sql', 'supabase-6-spieltage.sql', 'supabase-7-gilden.sql', 'supabase-8-vollversion.sql', 'supabase-9-rueckmeldungen.sql', 'supabase-10-startseite.sql', 'supabase-11-haeuser.sql']) await db.exec(readFileSync(new URL(`../server/${f}`, import.meta.url), 'utf8'));
 
 let queue = Promise.resolve();
 /** Führt SQL als angemeldeter Spieler (oder anon) aus. Nacheinander, weil PGlite nur eine Verbindung hat. */
@@ -34,7 +34,7 @@ const admin = (sql, params = []) => { const p = queue.then(() => db.query(sql, p
 const COLS = {
   saves: ['user_id', 'data', 'saved_at'],
   profiles: ['user_id', 'name', 'level', 'dragon_kills', 'gender'],
-  fighters: ['user_id', 'name', 'specialty', 'race', 'gender', 'level', 'exp', 'gold', 'hp', 'base_max_hp', 'bonus_atk', 'bonus_def', 'weapon_tier', 'armor_tier', 'dragon_kills', 'days_played', 'alive', 'in_inn', 'bio', 'mount', 'married_to', 'heirlooms', 'charm', 'wealth', 'fastest_dk', 'feste_treasures'],
+  fighters: ['user_id', 'name', 'specialty', 'race', 'gender', 'level', 'exp', 'gold', 'hp', 'base_max_hp', 'bonus_atk', 'bonus_def', 'weapon_tier', 'armor_tier', 'dragon_kills', 'days_played', 'alive', 'in_inn', 'bio', 'mount', 'married_to', 'heirlooms', 'charm', 'wealth', 'fastest_dk', 'feste_treasures', 'in_house', 'home_of'],
   news: ['body'],
   commentary: ['section', 'body'],
   mail: ['to_user', 'subject', 'body'],
