@@ -18,7 +18,7 @@ export const FEEDBACK_KINDS = [
 
 export type FeedbackKind = (typeof FEEDBACK_KINDS)[number]['id'];
 
-export function feedbackMessage(s: GameState, version: string, kinds: FeedbackKind[], text: string, screen: string): string {
+export function feedbackMessage(s: GameState, version: string, kinds: FeedbackKind[], text: string, screen: string, account = ''): string {
   const p = s.player;
   const st = s.stats;
   const found = Object.keys(s.bestiary).filter((k) => k !== 'dragon').length;
@@ -36,5 +36,6 @@ export function feedbackMessage(s: GameState, version: string, kinds: FeedbackKi
     t`Drachenkills ${p.dragonKills}, Siege ${st.kills}, Tode ${st.deaths}, Meister ${st.masters}`,
     t`Bestiarium ${found}/${MONSTERS.length}, Waffe Stufe ${p.weaponTier}, Rüstung Stufe ${p.armorTier}`,
     t`Bildschirm: ${screen}, Gerät: ${device}`,
+    account ? t`Spielerkonto: ${account}` : '',
   ].filter((l, i, a) => !(l === '' && a[i - 1] === '')).join('\n');
 }

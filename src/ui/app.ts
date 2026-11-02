@@ -65,7 +65,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const VERSION = t('Version {0}', '0.56');
+const VERSION = t('Version {0}', '0.57');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -139,9 +139,10 @@ interface Ui {
 let state: GameState | null = loadGame();
 const prefs = loadPrefs();
 const cloud = new Cloud();
-cloud.onExpired = () => {
+cloud.onExpired = (email, why) => {
   resetSafety(); ui.full = null; ui.guild.mine = undefined;
   expiredNote = true;
+  prefs.authEnd = { why: 'expired', at: Date.now(), email }; prefs.authWhy = why; savePrefs(prefs);
   render();
 };
 const ui: Ui = {
@@ -205,12 +206,20 @@ function navHtml(groups: Group[]): string {
 
 /** Anmeldung abgelaufen und nicht erneuerbar: Hinweis bleibt stehen, bis man sich neu anmeldet. */
 let expiredNote = false;
-const EXPIRED_TEXT = tkey('Deine Anmeldung ist abgelaufen. Bitte melde dich in den Einstellungen neu an, dein Spielstand bleibt auf diesem Gerät.');
+const EXPIRED_TEXT = tkey('Du bist nicht mehr angemeldet. Dein Spielstand ist sicher auf diesem Gerät. Melde dich wieder an, damit er online gesichert wird und Felder, Briefe und Co. wieder gehen.');
+
+/** Nicht (mehr) angemeldet, obwohl dieser Spielstand zu einem Konto gehört und niemand selbst abgemeldet hat. */
+function lostLogin(): boolean {
+  if (!cloud.enabled || cloud.signedIn || !state) return false;
+  if (expiredNote) return true;
+  return !!prefs.syncUser && prefs.authEnd?.why !== 'user';
+}
 
 function flashHtml(): string {
-  const lines = expiredNote && !cloud.signedIn ? [{ t: tr(EXPIRED_TEXT), k: 'warn' as const }, ...ui.flash] : ui.flash;
-  if (!lines.length) return '';
-  return `<div class="flash log">${lines.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}</div>`;
+  const lost = lostLogin() && ui.screen !== 'settings' && ui.screen !== 'login';
+  const note = lost ? `<div class="flash log relogin"><p class="warn">${esc(tr(EXPIRED_TEXT))}</p><button type="button" class="tbtn" data-act="relogin">${t`Wieder anmelden`}</button></div>` : '';
+  if (!ui.flash.length) return note;
+  return `${note}<div class="flash log">${ui.flash.map((l) => `<p class="${l.k}">${esc(l.t)}</p>`).join('')}</div>`;
 }
 
 function say(t: string, k: LogLine['k'] = 'info'): void {
@@ -349,8 +358,15 @@ function guideCardHtml(s: GameState): string {
   </section>`;
 }
 
+/** Was nur mit Spielerkonto geht, bleibt antippbar und führt zur Anmeldung (statt grau und stumm). */
+function accountGate(groups: Group[]): Group[] {
+  if (!cloud.enabled || cloud.signedIn) return groups;
+  const need = t('nur mit Spielerkonto');
+  return groups.map((g) => ({ ...g, items: g.items.map((i) => i.disabled && i.hint === need ? { ...i, disabled: false, act: 'needacct' } : i) }));
+}
+
 function layout(s: GameState, main: string, groups: Group[], cls = ''): string {
-  groups = localKeys(guideGroups(s, groups));
+  groups = localKeys(guideGroups(s, accountGate(groups)));
   const top = guideTop();
   if (top) main = main.includes('</h1>') ? main.replace('</h1>', `</h1>${top}`) : top + main;
   const dock = dockItems(groups);
@@ -1321,7 +1337,10 @@ const SCREEN_NAMES: Partial<Record<Screen, string>> = {
 };
 
 function buildFeedback(s: GameState): string {
-  return feedbackMessage(s, VERSION, ui.fbKinds, ui.fbText, SCREEN_NAMES[ui.fbFrom] ?? ui.fbFrom);
+  const auth = !cloud.enabled ? '' : cloud.signedIn ? t('angemeldet') : prefs.authEnd
+    ? t`abgemeldet (${prefs.authEnd.why === 'user' ? t('selbst') : t('abgelaufen')}, ${new Date(prefs.authEnd.at).toLocaleString(t('de-AT'))}${prefs.authWhy ? `, ${prefs.authWhy}` : ''})`
+    : t('nicht angemeldet');
+  return feedbackMessage(s, VERSION, ui.fbKinds, ui.fbText, SCREEN_NAMES[ui.fbFrom] ?? ui.fbFrom, auth);
 }
 
 function feedbackScreen(s: GameState): string {
@@ -1383,7 +1402,7 @@ function accountHtml(): string {
 async function afterLogin(done: (m: string) => void, note = ''): Promise<void> {
   // Gleiches Konto wie beim letzten Abgleich: den Stand von damals behalten, sonst käme unnötig "Zwei Spielstände"
   if (prefs.syncUser !== cloud.userId) prefs.lastSyncedAt = 0;
-  prefs.syncUser = cloud.userId; savePrefs(prefs);
+  prefs.syncUser = cloud.userId; prefs.authEnd = null; savePrefs(prefs);
   expiredNote = false;
   resetSafety();  // Wache und Blockierliste für dieses Konto neu holen
   ui.full = null; loadFull();
@@ -2762,6 +2781,13 @@ function handle(act: string, el: HTMLElement): void {
       cloud.deleteMail(id).catch(() => {});
       render(); return;
     }
+    case 'relogin': case 'needacct':
+      ui.acctEmail = ui.acctEmail || prefs.authEnd?.email || '';
+      ui.acctMsg = cmd === 'needacct' ? t('Dafür brauchst du ein Spielerkonto. Melde dich hier an oder lege eines an, dein Held kommt mit.') : '';
+      ui.resetStep = '';
+      go(state ? 'settings' : 'login');
+      document.getElementById('acct-pass')?.scrollIntoView({ block: 'center' });
+      return;
     case 'go':
       if (a === 'fields' && cloud.signedIn) { go('fields'); loadTargets('felder'); return; }
       if (a === 'news' && cloud.enabled) { ui.newsRows = null; cloud.news(40).then((r) => { ui.newsRows = r; }, () => { ui.newsRows = []; }).finally(() => { if (ui.screen === 'news') render(); }); }
@@ -2856,6 +2882,7 @@ function handle(act: string, el: HTMLElement): void {
         done(t('Gleiche ab …'));
         syncNow().then(done);
       } else if (a === 'out') {
+        prefs.authEnd = { why: 'user', at: Date.now(), email: cloud.email }; savePrefs(prefs);
         cloud.signOut(); expiredNote = false; resetSafety(); ui.full = null; ui.guild.mine = undefined; done(t('Abgemeldet. Der Spielstand bleibt auf diesem Gerät.'));
       }
       return;

@@ -730,7 +730,9 @@ export class Cloud {
   private refreshing: Promise<Session> | null = null;
 
   /** Wird aufgerufen, wenn die Anmeldung abgelaufen ist und nicht erneuert werden konnte. */
-  onExpired: (() => void) | null = null;
+  onExpired: ((email: string, why: string) => void) | null = null;
+  /** Warum die letzte Erneuerung abgelehnt wurde (für die Rückmeldung an die Wache). */
+  lastAuthError = '';
 
   /** Gültige Anmeldung holen. Der Zugangsschlüssel von Supabase gilt nur eine Stunde und wird hier still erneuert. */
   private async ensureSession(force = false): Promise<Session> {
@@ -758,6 +760,9 @@ export class Cloud {
     if (res.status >= 400 && res.status < 500 && res.status !== 429) {
       const stored = this.readSession();
       if (stored && stored.userId === s.userId && stored.refreshToken !== s.refreshToken) { this.session = stored; return stored; }
+      let detail = '';
+      try { const d = JSON.parse(await res.text()); detail = String(d?.error_code ?? d?.code ?? d?.error ?? '') + ' ' + String(d?.msg ?? d?.message ?? d?.error_description ?? ''); } catch { /* ohne Text */ }
+      this.lastAuthError = `refresh ${res.status} ${detail}`.trim().slice(0, 160); // i18n-ignore
       this.expire();
       throw new CloudError('auth', t('Anmeldung abgelaufen. Bitte neu anmelden.'));
     }
@@ -766,8 +771,9 @@ export class Cloud {
 
   private expire(): void {
     if (!this.session) return;
+    const email = this.session.email;
     this.signOut();
-    this.onExpired?.();
+    this.onExpired?.(email, this.lastAuthError);
   }
 
   private async call(path: string, o: { method: string; body?: unknown; prefer?: string }, auth = true, retried = false): Promise<any> {
@@ -787,6 +793,7 @@ export class Cloud {
     if (auth && this.session && res.status === 401) {
       // Zugangsschlüssel abgelaufen oder ungültig: einmal erneuern und nochmal versuchen
       if (!retried) { await this.ensureSession(true); return this.call(path, o, auth, true); }
+      this.lastAuthError = `401 after refresh: ${path.split('?')[0]}`; // i18n-ignore
       this.expire();
       throw new CloudError('auth', t('Anmeldung abgelaufen. Bitte neu anmelden.'));
     }

@@ -135,6 +135,8 @@ export interface Prefs {
   dev: boolean;           // Entwicklermodus: Testknöpfe sichtbar
   lastSyncedAt: number;   // savedAt des Stands, der zuletzt mit dem Server übereinstimmte (0 = nie)
   syncUser?: string;      // Konto, für das lastSyncedAt gilt (anderes Konto: neu abgleichen)
+  authWhy?: string;       // technischer Grund der letzten abgelaufenen Anmeldung
+  authEnd?: { why: 'expired' | 'user'; at: number; email: string } | null;  // wie die letzte Anmeldung endete (für Hinweis und Rückmeldung)
   welcomed: boolean;      // Tester-Begrüßung gesehen
   fightHint: boolean;     // Hinweis "Befehle stehen links" schon gesehen
   musicVol: number;       // 0–1
