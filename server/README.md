@@ -99,6 +99,30 @@ Mitglieder des eigenen Supabase-Teams (höchstens 2 Mails pro Stunde), für Spie
    Betreff zum Beispiel: `Dein Code für Brackenwyrm`.
 6. Testen: Im Spiel unter Einstellungen „Passwort vergessen?“ mit der eigenen Adresse ausprobieren.
 
+## Sicherung der Spielstände (ab 0.58)
+
+Im Gratis-Tarif sichert Supabase nicht zum Herunterladen. Deshalb sichert GitHub die Spielstände jede Nacht
+(Datei `.github/workflows/sicherung.yml`). Einmalig einrichten, etwa 5 Minuten:
+
+1. In Supabase oben auf **Connect** klicken. Unter **Session pooler** die Adresse kopieren
+   (beginnt mit `postgresql://postgres.` und endet mit `:5432/postgres`).
+   Nicht „Direct connection“ nehmen, die erreicht GitHub nicht.
+2. In der Adresse `[YOUR-PASSWORD]` durch das Datenbank-Passwort ersetzen
+   (dasselbe wie beim Anlegen des Projekts; vergessen? Unter Project Settings → Database neu setzen).
+3. In GitHub im Projekt `brackenwyrm`: **Settings → Secrets and variables → Actions → New repository secret**.
+   Name: `SUPABASE_DB_URL`, Wert: die Adresse aus Schritt 2. Speichern.
+   Das Passwort steht dann nur dort, nicht im Code und nicht im Chat.
+4. Ausprobieren: **Actions → Sicherung → Run workflow**. Nach etwa einer Minute ist der Lauf grün.
+   Unten bei **Artifacts** liegt die Sicherung als Zip, darin `daten-….sql`, `aufbau-….sql` und
+   `ueberblick-….txt` (wie viele Zeilen in jeder Tabelle stehen).
+
+Danach läuft die Sicherung jede Nacht von selbst und bleibt 30 Tage liegen. Gesichert wird das Spiel
+(Schema „public“: Spielstände, Helden, Briefe, Gilden, Häuser …), nicht die Anmeldedaten. Die Konten
+selbst bleiben bei Supabase.
+
+Zurückspielen nur gemeinsam mit Claude: Die Datei `daten-….sql` enthält gewöhnliche `INSERT`-Zeilen, die
+sich gezielt (etwa nur ein Spielstand) im SQL-Editor wieder einspielen lassen.
+
 ## Wie der Abgleich funktioniert
 
 - Jeder Spielstand trägt den Zeitpunkt, an dem er gespeichert wurde.

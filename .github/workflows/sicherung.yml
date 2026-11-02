@@ -1,0 +1,58 @@
+# Sicherung der Spielstände (Supabase, Schema "public").
+# Läuft jede Nacht von selbst und auf Knopfdruck: GitHub → Actions → "Sicherung" → "Run workflow".
+# Braucht einmalig das Geheimnis SUPABASE_DB_URL (Session-Pooler-Adresse mit Passwort, siehe server/README.md).
+# Die Sicherung liegt danach 30 Tage lang unter dem jeweiligen Lauf bei "Artifacts" zum Herunterladen.
+
+name: Sicherung
+
+on:
+  schedule:
+    - cron: '17 3 * * *'   # jede Nacht um 3:17 Uhr UTC (4:17 Uhr in Wien, im Sommer 5:17 Uhr)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  sichern:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Postgres-Werkzeuge holen
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Spielstände sichern
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$DB_URL" ]; then echo "Das Geheimnis SUPABASE_DB_URL fehlt noch (siehe server/README.md)."; exit 1; fi
+          mkdir -p sicherung
+          STAMP=$(date -u +%Y-%m-%d_%H%M)
+          # Daten als lesbare INSERT-Zeilen (lassen sich im SQL-Editor wieder einspielen).
+          # Die Schutzregeln (Trigger) ruhen beim Einspielen, sonst würden sie alte Werte verändern.
+          {
+            echo "SET session_replication_role = replica;"
+            /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" --schema=public --data-only --column-inserts --no-owner --no-privileges
+            echo "SET session_replication_role = DEFAULT;"
+          } > "sicherung/daten-$STAMP.sql"
+          # Aufbau (Tabellen, Regeln, Funktionen) als Gegenprobe
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" --schema=public --schema-only --no-owner --no-privileges \
+            -f "sicherung/aufbau-$STAMP.sql"
+          # Kurzer Überblick: Zeilen je Tabelle
+          /usr/lib/postgresql/17/bin/psql "$DB_URL" -At -c \
+            "select relname || ': ' || n_live_tup from pg_stat_user_tables where schemaname = 'public' order by relname" \
+            > "sicherung/ueberblick-$STAMP.txt"
+          cat "sicherung/ueberblick-$STAMP.txt"
+          ls -la sicherung
+
+      - name: Sicherung ablegen
+        uses: actions/upload-artifact@v4
+        with:
+          name: sicherung-${{ github.run_number }}
+          path: sicherung/
+          retention-days: 30
+          if-no-files-found: error

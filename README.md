@@ -64,7 +64,7 @@ npm install
 npm run dev             # Entwicklungsserver
 npm run build           # baut dist/index.html (eine einzige Datei, läuft offline)
 npm run build:artifact  # zusätzlich dist/brackenwyrm.html für die Vorschauseite auf claude.ai
-npm run simulate        # Balancing: ein Bot spielt viele Durchgänge bis zum Drachenkill
+npm run rechner         # Spielrechner: viele Helden in drei Spielweisen bis zum Drachen (npm run rechner -- 200 3 --md bericht.md)
 npm test                # Tests für Spielerkonto und Abgleich
 ```
 
@@ -79,13 +79,18 @@ npm test                # Tests für Spielerkonto und Abgleich
 
 Texte und Gegner lassen sich in `src/content/` ändern, ohne die Spiellogik anzufassen.
 
-## Balancing (Simulation, 150 Durchgänge)
+## Balancing (Spielrechner 0.58, 200 Helden je Spielweise)
 
-- Kampfrunden im Wald: etwa 3 bis 4
-- Lebenspunkte-Verlust pro Waldkampf: 12 % auf Stufe 1 bis 24 % auf Stufe 14
-- Sieg gegen den Meister: etwa 75 %
-- Sieg gegen den Brackenwyrm mit guter Ausrüstung: etwa 60 %
-- Erster Drachenkill: nach etwa 30 Spieltagen
+Zwei Spieltage sind ein echter Tag.
+
+| Spielweise | 1. Drache | 3. Drache | Tode bis zum 1. Drachen |
+| --- | --- | --- | --- |
+| Fleißig (jeder Spieltag, heilt vorsichtig) | etwa 13 echte Tage | etwa 11 | etwa 2 |
+| Gemütlich (einmal am Tag) | etwa 28 echte Tage | etwa 25 | unter 1 |
+| Draufgänger (schwere Gegner, heilt spät) | etwa 17 echte Tage | etwa 11 | etwa 22 |
+
+- 61 Waldereignisse: bis zum ersten Drachen sieht man jedes im Schnitt knapp zweimal.
+- 7 Gegner pro Stufe: jeden trifft man pro Stufe im Schnitt gut viermal.
 
 ## Nächste Schritte
 

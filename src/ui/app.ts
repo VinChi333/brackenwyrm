@@ -65,7 +65,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const VERSION = t('Version {0}', '0.57');
+const VERSION = t('Version {0}', '0.58');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -661,6 +661,7 @@ function housesScreen(s: GameState): string {
     : `<h2>${t`Häuser in Moosgrund`}</h2>${hs.list.filter((x) => !x.mine).length ? `<ul class="house-keys">${hs.list.filter((x) => !x.mine).map((x) => `<li><span><strong>${esc(x.name || t('Ohne Namen'))}</strong><br><small>${t`von ${esc(x.ownerName)}`} · ${x.done ? t('fertig') : t`Baustelle ${x.stage} / ${HOUSE_STAGES.length}`}${x.hasKey ? ` · <span class="good">${t`du hast einen Schlüssel`}</span>` : ''}</small></span>${x.hasKey && x.done ? `<span class="row"><button type="button" class="tbtn" data-act="house:enter:${x.owner}">${t`Aufschließen`}</button></span>` : ''}</li>`).join('')}</ul>` : `<p class="muted">${t`Noch hat niemand sonst hier gebaut.`}</p>`}`;
   const burgle = hs.burgle ? `<h2>${t`Einbrechen`}</h2><p class="muted">${t`Wer daheim schläft, wehrt sich besser als auf den Feldern. Gewinnst du, nimmst du sein Gold und ein paar Edelsteine aus der Truhe mit.`}</p>${pvpIntro()}${targetsHtml('haus')}` : '';
   const main = `<h1>${t`Das Wohnviertel`}</h1>
+    ${placeArt('wohnviertel', t('Das Wohnviertel von Moosgrund'))}
     ${withNpc('holm', `<p class="lead">${t`Hinter der Mühle ziehen sich schmale Gassen den Farnhang hinauf. Zwischen Gärten und Holzzäunen stehen die Häuser derer, die in Moosgrund geblieben sind. Am Eingang lehnt <span class="npc">Baumeister Holm</span> an einem Stapel Bretter.`}</p>`)}
     ${flashHtml()}<h2>${t`Dein Haus`}</h2>${own}${burgle}${list}`;
   const items: Item[] = [];
@@ -703,6 +704,7 @@ function houseScreen(s: GameState): string {
     }
   } else if (cloud.enabled) chest = `<p class="muted">${t`Truhe und Schlüssel für Freunde gibt es mit Spielerkonto.`}</p>`;
   const main = `<h1>${esc(name)}</h1>
+    ${placeArt('haus', t('Im Haus'))}
     <p class="lead">${lead}</p>
     ${flashHtml()}
     <p>${sleepingHere ? t('Du hast dich hier schlafen gelegt. Wenn du jetzt aufhörst, bist du vor Überfällen auf den Feldern und im Gasthaus sicher. Nur Einbrecher kommen herein, und gegen die wehrst du dich daheim besser. Morgen wachst du ausgeschlafen auf.') : t('Hier schläfst du umsonst und sicherer als im Gasthaus, und morgen wachst du ausgeschlafen auf.')}</p>
@@ -747,6 +749,7 @@ function dragonWarning(p: GameState['player']): string {
 function cliffScreen(s: GameState): string {
   const p = s.player;
   const main = `<h1>${t`Die Rabenklippe`}</h1>
+    ${placeArt('rabenklippe', t('Die Rabenklippe über dem Nebelfluss'))}
     <p class="lead">${t`Am Rand des Brackenwalds bricht der Fels jäh ab. Tief unten liegt der Nebelfluss, und auf einem knorrigen Ast sitzt ein Rabe, der dich ansieht, als hätte er schon viele hier stehen sehen.`}</p>
     ${flashHtml()}
     <p>${t`Wer springt, landet bei Morwen im Schattenreich. Dort kannst du spuken, Seelen jagen und Gunst sammeln.`}</p>
@@ -1670,6 +1673,12 @@ function bioScreen(s: GameState): string {
 }
 
 const FESTE_ART = import.meta.glob('../assets/feste/*.webp', { eager: true, import: 'default' }) as Record<string, string>;
+// Bilder für Orte (src/assets/orte/<name>.webp). Fehlt eines, bleibt der Ort einfach ohne Bild.
+const ORTE_ART = import.meta.glob('../assets/orte/*.webp', { eager: true, import: 'default' }) as Record<string, string>;
+function placeArt(name: string, alt: string): string {
+  const src = ORTE_ART[`../assets/orte/${name}.webp`];
+  return src ? `<figure class="title-art feste-art"><img src="${src}" alt="${esc(alt)}"></figure>` : '';
+}
 function festeArt(name: string): string {
   return FESTE_ART[`../assets/feste/${name}.webp`] ?? '';
 }
@@ -2298,11 +2307,13 @@ const FESTE_MUSIC = true;
 function trackFor(scr: Screen): TrackId {
   const s = state;
   if (scr === 'title' || scr === 'create' || scr === 'login' || !s) return 'titel';
-  if (scr === 'fight' && s.fight && s.fight.kind !== 'feste') return s.fight.kind === 'dragon' ? 'drache' : s.fight.kind === 'grave' ? 'schattenreich' : 'kampf';
+  if (scr === 'fight' && s.fight && s.fight.kind !== 'feste') return s.fight.kind === 'dragon' ? 'drache' : s.fight.kind === 'grave' ? 'schattenreich' : s.fight.kind === 'master' ? 'meister' : 'kampf';
   if (scr === 'fight' && s.fight?.monsterId === 'hueter') return 'kampf';
   if (!s.player.alive || scr === 'shadows' || scr === 'haunt' || (scr === 'seer' && s.player.seerPaid)) return 'schattenreich';
   if (scr === 'feste' || scr === 'heirlooms' || (scr === 'fight' && s.fight?.kind === 'feste')) return FESTE_MUSIC ? 'feste' : 'schattenreich';
-  if (scr === 'forest' || scr === 'cliff') return 'wald';
+  if (scr === 'cliff') return 'klippe';
+  if (scr === 'forest') return 'wald';
+  if (scr === 'houses' || scr === 'house') return 'heim';
   if (scr === 'inn' || scr === 'flirt' || scr === 'innGuests' || scr === 'tresen' || scr === 'dag' || scr === 'fivesix') return 'gasthaus';
   return 'dorf';
 }

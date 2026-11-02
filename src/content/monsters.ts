@@ -3,7 +3,7 @@ import { FESTE_FOES } from './feste';
 
 import { lang, t } from '../i18n';
 
-// Fünf Gegner pro Stufe. Eigene Welt: der Brackenwald rund um das Dorf Moosgrund.
+// Sieben Gegner pro Stufe. Eigene Welt: der Brackenwald rund um das Dorf Moosgrund.
 
 export const MONSTERS: MonsterDef[] = [
   // Stufe 1
@@ -22,6 +22,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'eichelbold', name: t('Eichelbold'), level: 1, shape: 'goblin', prop: 'spear', scale: 0.6, eyes: '#f3c06a',
     intro: t('Ein Eichelbold mit einer Eichelkappe als Helm droht dir mit einem Zahnstocher.'),
     hits: t('piekst dich mit seinem Zahnstocherspeer'), falls: t('Der Eichelbold kullert davon und versteckt sich unter seiner Kappe.') },
+  { id: 'farnschnecke', name: t('Farnschnecke'), level: 1, shape: 'blob', scale: 0.7, eyes: '#c8e07a',
+    intro: t('Eine Schnecke, groß wie ein Kürbis, kriecht auf dich zu. Auf ihrem Haus wächst ein Farn. Sie ist sehr langsam, aber sehr entschlossen.'),
+    hits: t('schleimt dich von oben bis unten ein'), falls: t('Die Farnschnecke zieht sich beleidigt in ihr Haus zurück.') },
+  { id: 'diebelster', name: t('Diebelster'), level: 1, shape: 'bird', scale: 0.65, eyes: '#e9dfc3',
+    intro: t('Eine Elster hüpft auf deinen Stiefel und mustert deine Knöpfe. Sie will sie haben. Alle.'),
+    hits: t('pickt dir einen Knopf vom Hemd'), falls: t('Die Diebelster flattert mit leerem Schnabel davon.') },
 
   // Stufe 2
   { id: 'borkenwolf', name: t('Borkenwolf'), level: 2, shape: 'wolf', scale: 0.95, eyes: '#f3c06a',
@@ -39,6 +45,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'riesenzecke', name: t('Riesenzecke'), level: 2, shape: 'beetle', scale: 0.75, eyes: '#ff8a6a',
     intro: t('Eine Zecke, so groß wie eine Katze, krabbelt zielstrebig auf dich zu.'),
     hits: t('beißt sich in deinem Bein fest'), falls: t('Die Riesenzecke platzt. Lieber nicht hinsehen.') },
+  { id: 'harzling', name: t('Harzling'), level: 2, shape: 'blob', scale: 0.75, eyes: '#f3c06a',
+    intro: t('Von einer Kiefer tropft ein goldener Klumpen Harz, landet vor dir und bekommt Augen.'),
+    hits: t('klebt dir die Finger zusammen'), falls: t('Der Harzling erstarrt zu einem Klumpen Bernstein.') },
+  { id: 'grimmdachs', name: t('Grimmdachs'), level: 2, shape: 'rat', scale: 0.9, eyes: '#ff8a6a',
+    intro: t('Ein Dachs mit Krallen wie Eisenhaken kommt aus seinem Bau. Du hast auf sein Dach getreten.'),
+    hits: t('gräbt seine Krallen in dein Bein'), falls: t('Der Grimmdachs verschwindet schimpfend in seinem Bau.') },
 
   // Stufe 3
   { id: 'sumpfkroete', name: t('Sumpfkröte'), level: 3, shape: 'blob', scale: 1.0, eyes: '#f3c06a',
@@ -56,6 +68,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'raubwels', name: t('Raubwels'), level: 3, shape: 'blob', scale: 1.0, eyes: '#f3c06a',
     intro: t('Aus einem Tümpel schnellt ein Raubwels mit Schnurrbart und schlechter Laune.'),
     hits: t('schlägt dir mit der Schwanzflosse ins Gesicht'), falls: t('Der Raubwels plumpst zurück in seinen Tümpel.') },
+  { id: 'fallensteller', name: t('Fallensteller'), level: 3, shape: 'humanoid', prop: 'spear', scale: 0.95, eyes: '#f3c06a',
+    intro: t('Ein Fallensteller hat dich für einen Hirsch gehalten. Jetzt ist er einfach nur schlecht gelaunt.'),
+    hits: t('stößt mit seinem Jagdspieß zu'), falls: t('Der Fallensteller verheddert sich in seiner eigenen Schlinge und gibt auf.') },
+  { id: 'riesenegel', name: t('Riesenegel'), level: 3, shape: 'serpent', scale: 0.8, eyes: '#ff8a6a',
+    intro: t('Aus dem Schlamm am Bachufer schlängelt sich ein Egel, so lang wie dein Arm.'),
+    hits: t('saugt sich an deinem Arm fest'), falls: t('Der Riesenegel lässt los und platscht zurück in den Schlamm.') },
 
   // Stufe 4
   { id: 'keiler', name: t('Wildkeiler'), level: 4, shape: 'boar', scale: 1.0, eyes: '#f3c06a',
@@ -73,6 +91,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'vogelscheuche', name: t('Vogelscheuche'), level: 4, shape: 'humanoid', prop: 'staff', scale: 1.0, eyes: '#ffcf5a',
     intro: t('Eine Vogelscheuche steigt von ihrem Pfahl und dreht den Kürbiskopf zu dir.'),
     hits: t('schlägt mit ihren Strohhänden zu'), falls: t('Die Vogelscheuche fällt in sich zusammen. Übrig bleibt ein Haufen Stroh.') },
+  { id: 'knorrbock', name: t('Knorrbock'), level: 4, shape: 'stag', scale: 0.9, eyes: '#f3c06a',
+    intro: t('Ein Bock mit Hörnern aus knorrigem Holz scharrt mit den Hufen. Er hat dich als Gegner ausgesucht. Warum, weiß nur er.'),
+    hits: t('rammt dich mit seinen Holzhörnern'), falls: t('Der Knorrbock trottet meckernd ins Unterholz.') },
+  { id: 'beutelschneiderin', name: t('Beutelschneiderin'), level: 4, shape: 'humanoid', prop: 'daggers', scale: 0.9, eyes: '#e9dfc3',
+    intro: t('Eine Frau lächelt dich freundlich an und fragt nach dem Weg. Ihre Hand ist schon an deinem Gürtel.'),
+    hits: t('ritzt dich mit ihrem Messer'), falls: t('Die Beutelschneiderin rennt davon, ohne Beute.') },
 
   // Stufe 5
   { id: 'huegelkobold', name: t('Hügelkobold'), level: 5, shape: 'goblin', prop: 'spear', scale: 0.95, eyes: '#f3c06a',
@@ -90,6 +114,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'pilzschamane', name: t('Pilzschamane'), level: 5, shape: 'goblin', prop: 'staff', scale: 0.9, eyes: '#c8e07a',
     intro: t('Ein Kobold mit Pilzhut murmelt Beschwörungen und wirft mit glühenden Sporen.'),
     hits: t('bläst dir glühende Sporen ins Gesicht'), falls: t('Der Pilzschamane verpufft in einer Sporenwolke.') },
+  { id: 'rankenschlinger', name: t('Rankenschlinger'), level: 5, shape: 'treant', scale: 0.9, eyes: '#c8e07a',
+    intro: t('Ein Brombeerstrauch wächst dir in Sekunden entgegen. Seine Ranken tasten nach deinen Knöcheln.'),
+    hits: t('schlingt sich um deine Beine und reißt dich um'), falls: t('Der Rankenschlinger welkt in Sekunden.') },
+  { id: 'mondeule', name: t('Mondeule'), level: 5, shape: 'bird', scale: 1.0, eyes: '#ffcf5a',
+    intro: t('Eine Eule mit Flügeln so breit wie ein Scheunentor gleitet lautlos aus dem Dunkel. Du hörst sie erst, als es zu spät ist.'),
+    hits: t('schlägt dir lautlos die Krallen in die Schulter'), falls: t('Die Mondeule gleitet davon, als wäre nichts gewesen.') },
 
   // Stufe 6
   { id: 'rudelfuehrer', name: t('Rudelführer'), level: 6, shape: 'wolf', scale: 1.1, eyes: '#ffcf5a',
@@ -107,6 +137,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'elchbulle', name: t('Elchbulle'), level: 6, shape: 'stag', scale: 1.15, eyes: '#f3c06a',
     intro: t('Ein riesiger Elchbulle senkt das Geweih. Du stehst in seinem Revier.'),
     hits: t('rammt dich mit seinem Schaufelgeweih'), falls: t('Der Elchbulle knickt in die Knie und bleibt liegen.') },
+  { id: 'schlammgolem', name: t('Schlammgolem'), level: 6, shape: 'troll', scale: 1.05, eyes: '#c8e07a',
+    intro: t('Der Boden steht auf. Er besteht aus Schlamm, Wurzeln und einem alten Stiefel.'),
+    hits: t('klatscht dir eine Ladung Schlamm ins Gesicht'), falls: t('Der Schlammgolem zerfließt zu einer Pfütze. Der Stiefel bleibt übrig.') },
+  { id: 'grubenwurm', name: t('Grubenwurm'), level: 6, shape: 'serpent', scale: 1.0, eyes: '#ff8a6a',
+    intro: t('Aus einem Erdloch schießt ein blinder Wurm mit einem Maul voller Zähne. Er hat dich gehört.'),
+    hits: t('beißt blind um sich und trifft dich'), falls: t('Der Grubenwurm zieht sich zurück in sein Loch.') },
 
   // Stufe 7
   { id: 'steintroll', name: t('Steintroll'), level: 7, shape: 'troll', scale: 1.0, eyes: '#f3c06a',
@@ -124,6 +160,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'hornissenschwarm', name: t('Hornissenschwarm'), level: 7, shape: 'bat', scale: 1.0, eyes: '#ffcf5a',
     intro: t('Ein Hornissennest fällt vom Baum, und sein Inhalt ist sehr wütend.'),
     hits: t('sticht dich, und sticht, und sticht'), falls: t('Die Hornissen geben auf und summen beleidigt davon.') },
+  { id: 'moorweib', name: t('Moorweib'), level: 7, shape: 'ghost', scale: 1.0, eyes: '#c8e07a',
+    intro: t('Ein Weib mit Haaren aus Schilf steht bis zur Hüfte im Moor und winkt dich zu sich.'),
+    hits: t('zieht dich mit nassen Fingern ins Wasser'), falls: t('Das Moorweib versinkt kichernd im Moor.') },
+  { id: 'hirschkaefer', name: t('Hirschkäfer'), level: 7, shape: 'beetle', scale: 1.1, eyes: '#e9dfc3',
+    intro: t('Ein Hirschkäfer, so groß wie ein Pony, hebt drohend sein Geweih.'),
+    hits: t('kneift dich mit seinem Geweih'), falls: t('Der Hirschkäfer kippt um und rudert mit den Beinen.') },
 
   // Stufe 8
   { id: 'schattenluchs', name: t('Schattenluchs'), level: 8, shape: 'wolf', scale: 0.95, eyes: '#c8e07a',
@@ -141,6 +183,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'schwarzschuetzin', name: t('Schwarzschützin'), level: 8, shape: 'humanoid', prop: 'bow', scale: 1.0, eyes: '#ff8a6a',
     intro: t('Eine Schützin in schwarzem Leder lässt ihren Bogen sinken. „Zu langsam“, sagt sie und spannt ihn wieder.'),
     hits: t('trifft dich mit einem schwarz gefiederten Pfeil'), falls: t('Die Schwarzschützin verschwindet zwischen den Bäumen, so lautlos, wie sie kam.') },
+  { id: 'axtbruder', name: t('Axtbruder'), level: 8, shape: 'humanoid', prop: 'axe', scale: 1.0, eyes: '#ff8a6a',
+    intro: t('Ein Söldner, der seine Armee verlassen hat, aber nicht seine Axt. Er braucht Geld. Deins.'),
+    hits: t('schwingt die Axt in deine Richtung'), falls: t('Der Axtbruder stolpert davon und sucht sich eine neue Armee.') },
+  { id: 'wurzelkrake', name: t('Wurzelkrake'), level: 8, shape: 'spider', scale: 1.1, eyes: '#bfe3ff',
+    intro: t('Aus einem schwarzen Waldteich greifen Wurzeln nach dir. Nein, keine Wurzeln. Arme.'),
+    hits: t('umschlingt dich mit ihren Fangarmen'), falls: t('Die Wurzelkrake gleitet zurück in den dunklen Teich.') },
 
   // Stufe 9
   { id: 'hoehlenbaer', name: t('Höhlenbär'), level: 9, shape: 'bear', scale: 1.2, eyes: '#f3c06a',
@@ -158,6 +206,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'borkenoger', name: t('Borkenoger'), level: 9, shape: 'troll', prop: 'club', scale: 1.15, eyes: '#f3c06a',
     intro: t('Ein Oger mit Haut wie Baumrinde reißt einen jungen Baum aus und benutzt ihn als Keule.'),
     hits: t('drischt mit dem Baumstamm auf dich ein'), falls: t('Der Borkenoger fällt um wie eine gefällte Eiche.') },
+  { id: 'aschegeist', name: t('Aschegeist'), level: 9, shape: 'ghost', scale: 1.1, eyes: '#ff6b5e',
+    intro: t('Aus einem erloschenen Kohlenmeiler steigt eine Gestalt aus Asche und Glut. Sie hustet.'),
+    hits: t('verbrennt dich mit glühender Asche'), falls: t('Der Aschegeist zerfällt zu kaltem Staub.') },
+  { id: 'moorross', name: t('Moorross'), level: 9, shape: 'horse', scale: 1.1, eyes: '#bfe3ff',
+    intro: t('Ein schwarzes Pferd steht am Ufer und lädt dich ein aufzusitzen. Sein Fell ist nass. Immer.'),
+    hits: t('schlägt mit den Hufen nach dir'), falls: t('Das Moorross galoppiert ins Wasser und taucht nicht wieder auf.') },
 
   // Stufe 10
   { id: 'grabwicht', name: t('Grabwicht'), level: 10, shape: 'ghost', scale: 1.0, eyes: '#bfe3ff',
@@ -175,6 +229,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'kristallspinne', name: t('Kristallspinne'), level: 10, shape: 'spider', scale: 1.15, eyes: '#bfe3ff',
     intro: t('Eine Spinne aus glitzerndem Kristall klirrt über die Felsen.'),
     hits: t('schneidet dich mit gläsernen Beinen'), falls: t('Die Kristallspinne zerspringt in tausend funkelnde Splitter.') },
+  { id: 'trollschamanin', name: t('Trollschamanin'), level: 10, shape: 'troll', prop: 'staff', scale: 1.15, eyes: '#c8e07a',
+    intro: t('Eine Trollschamanin klappert mit einer Kette aus Knochen und murmelt etwas Unfreundliches.'),
+    hits: t('schleudert dir einen Fluch an den Kopf'), falls: t('Die Trollschamanin verschwindet in einer Wolke aus stinkendem Rauch.') },
+  { id: 'werwolf', name: t('Werwolf'), level: 10, shape: 'wolf', scale: 1.15, eyes: '#ffcf5a',
+    intro: t('Halb Mann, halb Wolf, ganz schlechte Laune. Der Mond ist schuld.'),
+    hits: t('reißt dich mit Klauen und Zähnen'), falls: t('Der Werwolf jault und wird wieder zu einem nackten, sehr verlegenen Mann.') },
 
   // Stufe 11
   { id: 'nachtmahr', name: t('Nachtmahr'), level: 11, shape: 'stag', scale: 1.1, eyes: '#ff8a6a',
@@ -192,6 +252,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'dornendruide', name: t('Dornendruide'), level: 11, shape: 'humanoid', prop: 'staff', scale: 1.05, eyes: '#c8e07a',
     intro: t('Ein Druide, dem Dornen aus der Haut wachsen, ruft die Ranken gegen dich.'),
     hits: t('lässt Dornenranken nach dir peitschen'), falls: t('Der Dornendruide verwurzelt sich und wird zu einem stillen Busch.') },
+  { id: 'wildejaegerin', name: t('Mondjägerin'), level: 11, shape: 'humanoid', prop: 'bow', scale: 1.1, eyes: '#bfe3ff',
+    intro: t('Hörner schallen durch den Wald. Die Mondjägerin ist auf der Jagd, und heute bist du das Wild.'),
+    hits: t('trifft dich mit einem Pfeil aus Mondlicht'), falls: t('Die Mondjägerin bläst ins Horn und verschwindet mit dem Wind.') },
+  { id: 'schwarzhund', name: t('Schwarzhund'), level: 11, shape: 'wolf', scale: 1.2, eyes: '#ff6b5e',
+    intro: t('Ein riesiger schwarzer Hund mit glühenden Augen folgt dir schon seit einer Weile. Jetzt nicht mehr. Jetzt steht er vor dir.'),
+    hits: t('packt dich mit eiskalten Zähnen'), falls: t('Der Schwarzhund löst sich in Rauch auf.') },
 
   // Stufe 12
   { id: 'harpyie', name: t('Harpyie'), level: 12, shape: 'bird', scale: 1.2, eyes: '#ff8a6a',
@@ -209,6 +275,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'frostbaer', name: t('Frostbär'), level: 12, shape: 'bear', scale: 1.3, eyes: '#bfe3ff',
     intro: t('Ein weißer Bär, dessen Atem Raureif auf die Farne malt.'),
     hits: t('schlägt mit eisigen Pranken zu'), falls: t('Der Frostbär legt sich in den Schnee, den er selbst gemacht hat.') },
+  { id: 'kettengeist', name: t('Kettengeist'), level: 12, shape: 'ghost', scale: 1.2, eyes: '#bfe3ff',
+    intro: t('Ein Geist schleppt rasselnde Ketten durch den Wald. Er bekommt sie nicht ab, und das macht ihn wütend.'),
+    hits: t('schlägt dir seine Ketten um die Ohren'), falls: t('Die Ketten fallen klirrend zu Boden. Der Geist ist frei und schwebt erleichtert davon.') },
+  { id: 'tausendfuesser', name: t('Riesentausendfüßer'), level: 12, shape: 'serpent', scale: 1.25, eyes: '#ff8a6a',
+    intro: t('Ein Tausendfüßer, länger als ein Baumstamm, ringelt sich aus dem Laub. Alle tausend Füße zeigen in deine Richtung.'),
+    hits: t('beißt dich mit giftigen Kiefern'), falls: t('Der Riesentausendfüßer rollt sich ein und rührt sich nicht mehr.') },
 
   // Stufe 13
   { id: 'wyrmling', name: t('Wyrmling'), level: 13, shape: 'serpent', scale: 1.2, eyes: '#ffcf5a',
@@ -226,6 +298,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'moorriese', name: t('Moorriese'), level: 13, shape: 'troll', scale: 1.35, eyes: '#c8e07a',
     intro: t('Ein Riese aus Torf und Schilf erhebt sich aus dem Moor. Frösche sitzen auf seinen Schultern.'),
     hits: t('begräbt dich unter einer Faust voll Schlamm'), falls: t('Der Moorriese zerfällt zu einem Hügel aus Torf. Die Frösche hüpfen davon.') },
+  { id: 'blutbuche', name: t('Blutbuche'), level: 13, shape: 'treant', scale: 1.3, eyes: '#ff6b5e',
+    intro: t('Eine Buche mit rotem Laub reißt ihre Wurzeln aus dem Boden. Ihre Blätter rascheln wie Gelächter.'),
+    hits: t('peitscht dich mit ihren Ästen'), falls: t('Die Blutbuche erstarrt mitten im Schritt und ist wieder nur ein Baum.') },
+  { id: 'altewoelfin', name: t('Rudelmutter'), level: 13, shape: 'wolf', scale: 1.3, eyes: '#ffcf5a',
+    intro: t('Die Rudelmutter aller Wölfe im Brackenwald tritt aus dem Dickicht. Ihr Fell ist grau, ihr Blick nicht.'),
+    hits: t('reißt dich zu Boden'), falls: t('Die Rudelmutter heult ein letztes Mal, und im ganzen Wald antworten die Wölfe.') },
 
   // Stufe 14
   { id: 'eichenhueter', name: t('Eichenhüter'), level: 14, shape: 'treant', scale: 1.35, eyes: '#ffcf5a',
@@ -243,6 +321,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'wyrmpriesterin', name: t('Wyrmpriesterin'), level: 14, shape: 'humanoid', prop: 'staff', scale: 1.05, eyes: '#c8e07a',
     intro: t('Eine Priesterin in einer Robe aus Schuppen singt dem schlafenden Wyrm ein Wiegenlied. Du störst.'),
     hits: t('schleudert dir grünes Feuer entgegen'), falls: t('Die Wyrmpriesterin verstummt mitten im Lied und sinkt nieder.') },
+  { id: 'glutsalamander', name: t('Glutsalamander'), level: 14, shape: 'serpent', scale: 1.35, eyes: '#ff6b5e',
+    intro: t('Ein Salamander, so lang wie ein Karren, glüht von innen. Das Moos unter ihm dampft.'),
+    hits: t('verbrennt dich mit seiner glühenden Haut'), falls: t('Der Glutsalamander erlischt wie ein Feuer im Regen.') },
+  { id: 'huegelkoenig', name: t('Hügelkönig'), level: 14, shape: 'humanoid', prop: 'sword', scale: 1.25, eyes: '#bfe3ff',
+    intro: t('Aus einem Hügelgrab steigt ein König in rostiger Krone. Er hat lange geschlafen und ist schlecht gelaunt.'),
+    hits: t('trifft dich mit seinem uralten Schwert'), falls: t('Der Hügelkönig sinkt zurück in sein Grab. Diesmal hoffentlich für länger.') },
 
   // Stufe 15
   { id: 'farngeist', name: t('Farngeist'), level: 15, shape: 'ghost', scale: 1.3, eyes: '#c8e07a',
@@ -260,6 +344,12 @@ export const MONSTERS: MonsterDef[] = [
   { id: 'nachtkoenigin', name: t('Nachtkönigin'), level: 15, shape: 'ghost', scale: 1.35, eyes: '#bfe3ff',
     intro: t('Eine Gestalt aus Sternenlicht und Dunkelheit schwebt über der Lichtung. Die Vögel verstummen.'),
     hits: t('berührt dich, und dir wird kalt bis ins Herz'), falls: t('Die Nachtkönigin zerstiebt wie ein Schwarm Glühwürmchen.') },
+  { id: 'sturmriese', name: t('Sturmriese'), level: 15, shape: 'troll', scale: 1.5, eyes: '#bfe3ff',
+    intro: t('Ein Riese, dessen Kopf in den Wolken steckt. Wenn er brüllt, donnert es.'),
+    hits: t('schleudert einen Blitz nach dir'), falls: t('Der Sturmriese stürzt, und für einen Augenblick regnet es.') },
+  { id: 'glutvogel', name: t('Glutvogel'), level: 15, shape: 'bird', scale: 1.35, eyes: '#ffcf5a',
+    intro: t('Ein Vogel aus Glut und Funken kreist über den Wipfeln. Wo er landet, brennt das Farnkraut.'),
+    hits: t('stürzt sich in einem Funkenregen auf dich'), falls: t('Der Glutvogel zerfällt zu Asche. Die Asche sieht dich noch eine Weile an.') },
 ];
 
 export function monstersOfLevel(level: number): MonsterDef[] {
@@ -295,6 +385,8 @@ const GENDER: Record<string, 'm' | 'f' | 'n'> = {
   eichenhueter: 'm', schattenwolf: 'm', steinwurm: 'm', farngeist: 'm', trollkoenig: 'm', wyrmwaechter: 'm',
   // neue Gegner ab 0.45
   'moosigel': 'm', 'eichelbold': 'm', 'krallenmarder': 'm', 'riesenzecke': 'f', 'moorhund': 'm', 'raubwels': 'm', 'dornenfuchs': 'm', 'vogelscheuche': 'f', 'schreckreiher': 'm', 'pilzschamane': 'm', 'ertrunkener': 'f', 'elchbulle': 'm', 'moorschmuggler': 'm', 'hornissenschwarm': 'm', 'hoehlenmolch': 'm', 'schwarzschuetzin': 'f', 'schlickhydra': 'f', 'borkenoger': 'm', 'wiedergaenger': 'm', 'kristallspinne': 'f', 'nachtgreif': 'm', 'dornendruide': 'm', 'steinblickechse': 'f', 'frostbaer': 'm', 'schattenreiter': 'm', 'moorriese': 'm', 'glutgeweih': 'm', 'wyrmpriesterin': 'f', 'urkeiler': 'm', 'nachtkoenigin': 'f',
+  // neue Gegner ab 0.58
+  'farnschnecke': 'f', 'diebelster': 'f', 'harzling': 'm', 'grimmdachs': 'm', 'fallensteller': 'm', 'riesenegel': 'm', 'knorrbock': 'm', 'beutelschneiderin': 'f', 'rankenschlinger': 'm', 'mondeule': 'f', 'schlammgolem': 'm', 'grubenwurm': 'm', 'moorweib': 'n', 'hirschkaefer': 'm', 'axtbruder': 'm', 'wurzelkrake': 'f', 'aschegeist': 'm', 'moorross': 'n', 'trollschamanin': 'f', 'werwolf': 'm', 'wildejaegerin': 'f', 'schwarzhund': 'm', 'kettengeist': 'm', 'tausendfuesser': 'm', 'blutbuche': 'f', 'altewoelfin': 'f', 'glutsalamander': 'm', 'huegelkoenig': 'm', 'sturmriese': 'm', 'glutvogel': 'm',
   dragon: 'm',
   // Schattenreich
   'verirrte-seele': 'f', faehrmann: 'm', schattenhund: 'm', knochenkraehe: 'f', 'klagende-witwe': 'f', nebelschlund: 'm',

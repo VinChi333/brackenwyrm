@@ -11,7 +11,11 @@ const SFX_URL: Record<string, string> = Object.fromEntries(
 export type SfxId = 'hit' | 'crit' | 'miss' | 'hurt' | 'win' | 'death' | 'coins' | 'gem' | 'levelup' | 'card'
   | 'dunkel' | 'mystik' | 'dieb' | 'click' | 'event' | 'letter' | 'buy' | 'open';
 
-export type TrackId = 'titel' | 'dorf' | 'wald' | 'kampf' | 'gasthaus' | 'schattenreich' | 'drache' | 'feste';
+export type TrackId = 'titel' | 'dorf' | 'wald' | 'kampf' | 'gasthaus' | 'schattenreich' | 'drache' | 'feste'
+  | 'heim' | 'klippe' | 'meister';
+
+/** Neue Stücke, die es vielleicht noch nicht gibt: Fehlt die Datei, läuft stattdessen dieses. */
+const FALLBACK: Partial<Record<TrackId, TrackId>> = { heim: 'dorf', klippe: 'wald', meister: 'kampf' };
 
 export interface SoundPrefs { musicVol: number; sfxVol: number; muted: boolean }
 
@@ -98,9 +102,10 @@ class SoundSystem {
   }
 
   /** Musik für den aktuellen Ort. Gleiches Stück läuft einfach weiter. */
-  music(id: TrackId | null): void {
-    this.wanted = id;
+  music(want: TrackId | null): void {
+    this.wanted = want;
     if (!this.ctx) return;
+    const id = want && this.missing.has(want) && FALLBACK[want] ? FALLBACK[want]! : want;
     if (this.current?.id === id) {
       if (this.current.blocked) this.start(this.current);
       return;
@@ -126,7 +131,10 @@ class SoundSystem {
     el.addEventListener('error', () => {
       if (entry.retired) return;
       this.missing.add(id);
-      if (this.current === entry) this.current = null;
+      if (this.current === entry) {
+        this.current = null;
+        if (FALLBACK[id] && this.wanted === id) this.music(id);
+      }
     });
     el.src = `${MUSIC_BASE}musik-${id}.mp3`;
     this.current = entry;

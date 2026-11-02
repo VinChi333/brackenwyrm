@@ -547,21 +547,312 @@ export const FOREST_EVENTS: ForestEvent[] = [
     p.forestFights -= lost;
     return [{ t: t`Du gerätst in ein Sumpfloch. Es dauert ewig, bis du dich an einer Wurzel herausgezogen hast.${lost ? t` (−${lost} Waldkämpfe)` : ''}`, k: 'bad' }];
   } },
+
+  // ---------- Neu in 0.58: kleine Begegnungen ----------
+  { id: 'pilzsammlerin', weight: 5, run: (p) => {
+    const g = roll(3, 8) * p.level;
+    p.gold += g;
+    return [{ t: t`Eine kurzsichtige Pilzsammlerin hält dich für einen besonders großen Steinpilz und will dich in ihren Korb packen. Als sie ihren Irrtum bemerkt, ist ihr das so peinlich, dass sie dir ${g} Gold in die Hand drückt.`, k: 'gold' }];
+  } },
+  { id: 'wildschweine', weight: 5, run: (p) => {
+    if (p.mount) return [{ t: t('Eine Rotte Wildschweine stürmt durchs Unterholz. Dein Reittier macht einen Satz zur Seite, und die Schweine donnern an euch vorbei.'), k: 'info' }];
+    const d = hurt(p, 0.12);
+    return [{ t: t`Eine Rotte Wildschweine stürmt durchs Unterholz, und du stehst genau im Weg. Danach weißt du, wie sich ein Acker fühlt. ${d} Schaden.`, k: 'bad' }];
+  } },
+  { id: 'eule', weight: 5, run: (p) => {
+    const e = Math.round(expPerKill(p.level) * 0.5);
+    p.exp += e;
+    return [{ t: t`Eine alte Uhu-Dame sitzt auf einem Ast und ruft „Schuhu“. Du verstehst kein Wort, aber du hörst trotzdem höflich zu. Irgendwie fühlst du dich danach klüger. ${e} Erfahrung.`, k: 'good' }];
+  } },
+  { id: 'fallgrube', weight: 4, run: (p) => {
+    if (p.specialty === 'dieb') {
+      const g = roll(5, 12) * p.level;
+      p.gold += g;
+      return [{ t: t`Das Laub vor dir liegt zu ordentlich. Eine Fallgrube! Du machst einen Bogen darum und findest dafür das Versteck des Fallenstellers: ${g} Gold.`, k: 'gold' }];
+    }
+    const lost = Math.min(1, p.forestFights);
+    p.forestFights -= lost;
+    return [{ t: t`Der Boden gibt nach, und du landest in einer Fallgrube. Unten liegt schon ein Dachs, der dich genauso vorwurfsvoll ansieht wie du ihn.${lost ? t(' Bis du draußen bist, ist eine Stunde vergangen. (−1 Waldkampf)') : ''}`, k: 'bad' }];
+  } },
+  { id: 'stiefel', weight: 4, run: (p) => {
+    const d = hurt(p, 0.05);
+    return [{ t: t`Während du kurz rastest, bindet dir ein Wurzelgnom die Schnürsenkel zusammen. Beim ersten Schritt küsst du den Waldboden. ${d} Schaden und ein Gelächter aus dem Farn.`, k: 'bad' }];
+  } },
+  { id: 'honig', weight: 5, run: (p) => {
+    const h = mend(p, 0.25);
+    const d = Math.max(1, Math.round(maxHp(p) * 0.04));
+    p.hp = Math.max(1, p.hp - d);
+    return [{ t: t`In einer hohlen Eiche summt ein wilder Bienenstock. Du holst dir eine Wabe Honig. Die Bienen finden das nicht gut. Unterm Strich: ${h} Lebenspunkte vom Honig, ${d} Schaden von den Stichen.`, k: h > d ? 'good' : 'info' }];
+  } },
+  { id: 'wegweiser', weight: 4, run: (p) => {
+    if (p.race === 'elf') return [{ t: t('Jemand hat den Wegweiser verdreht. Elfen lassen sich davon nicht täuschen: Du liest den Weg am Moos der Bäume ab und gehst weiter.'), k: 'info' }];
+    const lost = Math.min(1, p.forestFights);
+    p.forestFights -= lost;
+    return [{ t: t`Jemand hat den Wegweiser verdreht, vermutlich die Wurzelgnome. Du läufst eine Stunde im Kreis, bis du wieder an derselben Stelle stehst.${lost ? t(' (−1 Waldkampf)') : ''}`, k: 'bad' }];
+  } },
+  { id: 'raben', weight: 4, run: (p) => {
+    if (chance(0.35)) {
+      p.gems += 1;
+      return [{ t: t('Ein Rabe von der Rabenklippe kreist über dir und lässt etwas fallen. Es klickt auf deinem Helm: ein Edelstein! Den hat er wohl irgendwo geklaut.'), k: 'gold' }];
+    }
+    const g = Math.floor(p.gold * 0.05);
+    if (g < 1) return [{ t: t('Ein Rabe landet neben dir und durchsucht deine Taschen. Er findet nichts Glänzendes und krächzt beleidigt.'), k: 'info' }];
+    p.gold -= g;
+    return [{ t: t`Ein Rabe stößt herab, schnappt sich ein paar glänzende Münzen aus deinem Beutel und fliegt zur Rabenklippe. ${g} Gold sind weg.`, k: 'bad' }];
+  } },
+  { id: 'spielmann', weight: 4, run: (p) => {
+    p.buffs.push({ id: 'spielmann', name: t('Florians Lied'), atkMult: 1.1, rounds: 15 });
+    const lines: LogLine[] = [{ t: t('Auf einer Lichtung übt Florian, der Barde, ein neues Heldenlied. Er singt es dir zur Probe vor. Es handelt nicht von dir, aber es klingt so. (Florians Lied: etwas mehr Angriff für 15 Runden)'), k: 'good' }];
+    if (p.marriedTo === 'florian') { p.charm += 1; lines.push({ t: t('Zum Schluss gibt er dir einen Kuss und steckt dir eine Waldblume ins Haar. (+1 Charme)'), k: 'good' }); }
+    return lines;
+  } },
+  { id: 'schuppe', weight: 3, minLevel: 12, run: (p) => {
+    const g = roll(20, 40) * p.level;
+    p.gold += g;
+    return [{ t: t`Im Farn liegt eine Schuppe, so groß wie ein Schild, schwarzgrün und noch warm. Der Wyrm häutet sich. Ein Händler in Moosgrund wird dir dafür ${g} Gold zahlen, so viel ist sicher. Du hast es schon mal eingesteckt.`, k: 'gold' }];
+  } },
+  { id: 'mohn', weight: 4, run: (p) => {
+    const lost = Math.min(1, p.forestFights);
+    p.forestFights -= lost;
+    p.hp = Math.max(p.hp, maxHp(p));
+    return [{ t: t`Du kommst an einer Wiese voller Mohn vorbei und legst dich nur ganz kurz hin. Als du aufwachst, steht die Sonne woanders. Dafür bist du ausgeruht: volle Lebenspunkte.${lost ? t(' (−1 Waldkampf)') : ''}`, k: 'info' }];
+  } },
+  { id: 'hirsch', weight: 4, run: () => [
+    { t: t('Ein riesiger Hirsch tritt aus dem Nebel, sieht dich lange an und verschwindet wieder. Du weißt nicht, was das bedeuten soll. Der Hirsch wahrscheinlich auch nicht.'), k: 'info' },
+  ] },
+  { id: 'nebelstimmen', weight: 3, run: (p) => [
+    { t: p.level >= 10
+      ? t('Aus dem Nebel flüstern Stimmen deinen Namen. Früher hätte dir das Angst gemacht. Heute rufst du zurück: „Später!“ Die Stimmen sind beleidigt.')
+      : t('Aus dem Nebel flüstern Stimmen deinen Namen. Du gehst schneller. Viel schneller.'), k: 'info' },
+  ] },
+  { id: 'goldkaefer', weight: 4, run: (p) => {
+    const g = roll(4, 10) * p.level;
+    p.gold += g;
+    return [{ t: t`Ein Käfer mit goldenem Panzer krabbelt vor dir her. Du folgst ihm aus Neugier bis zu einem umgestürzten Karren. Zwischen den Brettern liegen noch ${g} Gold.`, k: 'gold' }];
+  } },
+
+  // ---------- Neu in 0.58: mit Entscheidung ----------
+  { id: 'zwergenhaendler', weight: 4,
+    prompt: (p) => [{ t: t`Ein Zwerg mit einer Lupe im Auge sitzt auf einem Baumstumpf. „Edelsteine? Ich kaufe Edelsteine. ${gemPrice(p)} Gold für einen guten Stein, und ich sehe, du hast welche.“ Er sieht es tatsächlich, obwohl sie in deiner Tasche stecken.`, k: 'warn' }],
+    choices: [
+      { id: 'verkaufen', label: t('Einen Edelstein verkaufen'), key: 'v', hint: (p) => t`${gemPrice(p)} Gold`, available: (p) => p.gems > 0, run: (p) => {
+        const g = gemPrice(p);
+        p.gems -= 1;
+        p.gold += g;
+        return [{ t: p.race === 'zwerg'
+          ? t`„Ach, ein Landsmann!“ Unter Zwergen zahlt man anständig: ${g} Gold für deinen Stein.`
+          : t`Der Zwerg beißt auf den Stein, nickt und zählt dir ${g} Gold ab. Zweimal, weil er sich beim ersten Mal „verzählt“ hat.`, k: 'gold' }];
+      } },
+      { id: 'nein', label: t('Behalten'), key: 'b', run: () => [{ t: t('„Wie du meinst“, brummt der Zwerg. „Steine werden auch nicht billiger.“'), k: 'info' }] },
+    ] },
+  { id: 'brueckentroll', weight: 4,
+    prompt: (p) => [{ t: t`Über einen reißenden Bach führt eine Holzbrücke. Darunter wohnt ein Troll, der sie für seine hält. „${p.level * 8} Gold Brückenzoll“, grollt er.`, k: 'warn' }],
+    choices: [
+      { id: 'zahlen', label: t('Brückenzoll zahlen'), key: 'z', hint: (p) => t`${p.level * 8} Gold`, available: (p) => p.gold >= p.level * 8, run: (p) => {
+        p.gold -= p.level * 8;
+        return [{ t: t('Der Troll beißt in jede Münze und lässt dich durch. Er winkt dir sogar nach. Geschäft ist Geschäft.'), k: 'info' }];
+      } },
+      { id: 'drohen', label: t('Ihm drohen'), key: 'd', run: (p) => {
+        if (chance(p.race === 'troll' ? 0.8 : 0.5)) {
+          const g = roll(5, 10) * p.level;
+          p.gold += g;
+          return [{ t: p.race === 'troll'
+            ? t`Du grollst lauter als er. Unter Trollen ist das ein Argument. Er rückt seine Zolleinnahmen heraus: ${g} Gold.`
+            : t`Du ziehst die Waffe und machst ein grimmiges Gesicht. Der Troll erschrickt so sehr, dass er dir seine Zolleinnahmen gibt: ${g} Gold.`, k: 'gold' }];
+        }
+        const d = hurt(p, 0.25);
+        return [{ t: t`Der Troll lacht, packt dich am Gürtel und wirft dich in den Bach. ${d} Schaden und eine sehr nasse Hose.`, k: 'bad' }];
+      } },
+      { id: 'waten', label: t('Durch den Bach waten'), key: 'w', run: (p) => {
+        const lost = Math.min(1, p.forestFights);
+        p.forestFights -= lost;
+        return [{ t: t`Du suchst dir eine flache Stelle, ziemlich weit flussaufwärts. Der Troll ruft dir Beleidigungen hinterher.${lost ? t(' (−1 Waldkampf)') : ''}`, k: 'info' }];
+      } },
+    ] },
+  { id: 'verirrtes_kind', weight: 3,
+    prompt: () => [{ t: t('Unter einem Farn sitzt ein kleines Mädchen aus Moosgrund und weint. Es wollte nur ganz kurz Beeren pflücken, und jetzt sehen alle Bäume gleich aus.'), k: 'warn' }],
+    choices: [
+      { id: 'heim', label: t('Es heim ins Dorf bringen'), key: 'h', hint: () => t('2 Waldkämpfe'), run: (p, ctx) => {
+        const lost = Math.min(2, p.forestFights);
+        p.forestFights -= lost;
+        const g = roll(8, 15) * p.level;
+        p.gold += g;
+        p.charm += 1;
+        ctx.announce(news('lostChild', p.name));
+        return [{ t: t`Du trägst die Kleine auf den Schultern bis nach Moosgrund. Die Mutter weint vor Glück, der Vater drückt dir ${g} Gold in die Hand, und am Brunnen erzählt man sich von dir. (+1 Charme)`, k: 'gold' }];
+      } },
+      { id: 'weg', label: t('Ihr den Weg zeigen'), key: 'w', run: () => [{ t: t('Du zeigst ihr, wo die Sonne steht und dass das Dorf hinter dem großen Felsen liegt. Sie nickt tapfer und rennt los. Hoffentlich.'), k: 'info' }] },
+    ] },
+  { id: 'fuchsfalle', weight: 4,
+    prompt: () => [{ t: t('Ein junger Fuchs hängt mit der Pfote in einer rostigen Falle. Er fiept, sieht dich an und fletscht dann sicherheitshalber doch die Zähne.'), k: 'warn' }],
+    choices: [
+      { id: 'befreien', label: t('Den Fuchs befreien'), key: 'b', run: (p) => {
+        const d = hurt(p, 0.05);
+        if (chance(0.35)) {
+          p.gems += 1;
+          return [{ t: t`Er beißt dich zum Dank in die Hand (${d} Schaden) und verschwindet. Kurz darauf ist er wieder da und legt dir etwas vor die Füße: einen Edelstein. Wo er den wohl herhat?`, k: 'gold' }];
+        }
+        const e = Math.round(expPerKill(p.level) * 0.7);
+        p.exp += e;
+        return [{ t: t`Er beißt dich zum Dank in die Hand (${d} Schaden) und humpelt davon. Du lernst etwas über Dankbarkeit und Fallen. ${e} Erfahrung.`, k: 'good' }];
+      } },
+      { id: 'weg', label: t('Weitergehen'), key: 'w', run: () => [{ t: t('Du gehst weiter. Das Fiepen hörst du noch eine ganze Weile.'), k: 'info' }] },
+    ] },
+  { id: 'ruestung', weight: 4,
+    prompt: () => [{ t: t('An einem Baum lehnt das Gerippe eines Ritters, noch in voller Rüstung. Die Rüstung sieht besser aus als der Ritter. Sie hätte deine Größe.'), k: 'warn' }],
+    choices: [
+      { id: 'anziehen', label: t('Die Rüstung anlegen'), key: 'a', run: (p) => {
+        if (chance(0.6)) {
+          p.buffs.push({ id: 'ritterruestung', name: t('Rittersrüstung'), atkMult: 1, defMult: 1.25, rounds: 25 });
+          return [{ t: t('Sie passt wie angegossen und klappert nur ein bisschen. (Rittersrüstung: viel mehr Verteidigung für 25 Runden, dann rostet sie dir vom Leib)'), k: 'good' }];
+        }
+        const d = hurt(p, 0.12);
+        return [{ t: t`Kaum steckst du drin, merkst du, dass ein Ameisenvolk darin wohnt. Du tanzt dich wieder heraus. ${d} Schaden und eine Menge Würde.`, k: 'bad' }];
+      } },
+      { id: 'begraben', label: t('Den Ritter begraben'), key: 'g', run: (p) => {
+        p.favor += 5;
+        return [{ t: t('Du schaufelst ein Grab unter dem Baum und legst den Ritter samt Rüstung hinein. Irgendwo im Schattenreich nickt Morwen anerkennend. (+5 Gunst bei Morwen)'), k: 'good' }];
+      } },
+      { id: 'weg', label: t('In Ruhe lassen'), key: 'r', run: () => [{ t: t('Du lässt den Ritter in seiner Rüstung. Er sieht aus, als hätte er sich das so ausgesucht.'), k: 'info' }] },
+    ] },
+  { id: 'nussschalen', weight: 4, neutral: true,
+    prompt: (p) => [{ t: t`An einer Wegkreuzung hat ein Gaukler mit spitzem Hut drei Nussschalen auf einem Fass. Unter einer liegt eine Erbse. Er schiebt die Schalen flink hin und her. „${p.level * 10} Gold Einsatz. Findest du die Erbse, kriegst du dreimal so viel zurück.“`, k: 'warn' }],
+    // „Nicht spielen“ zuerst: am Handy steht es dann breit unten, die drei Schalen nebeneinander darüber.
+    choices: [
+      { id: 'nein', label: t('Nicht spielen'), key: 'n', run: () => [{ t: t('„Kluges Kind“, sagt der Gaukler und sucht sich den Nächsten.'), k: 'info' }] },
+      ...(['links', 'mitte', 'rechts'] as const).map((where, n): EventChoice => ({
+        id: where,
+        label: [t('Linke Schale'), t('Mittlere Schale'), t('Rechte Schale')][n],
+        key: ['1', '2', '3'][n],
+        hint: (p) => t`${p.level * 10} Gold`,
+        available: (p) => p.gold >= p.level * 10,
+        run: (p) => {
+          const bet = p.level * 10;
+          const sharp = p.specialty === 'dieb' && chance(0.5);
+          if (sharp || roll(1, 3) === 1) {
+            p.gold += bet * 2;
+            return [{ t: sharp
+              ? t`Du kennst den Trick, du hast ihn selbst schon gemacht. Du tippst auf die Schale, unter die er die Erbse gerade geschoben hat. Er zahlt mit saurem Gesicht: ${bet * 2} Gold Gewinn.`
+              : t`Die Erbse liegt genau da! Der Gaukler zahlt dir murrend ${bet * 2} Gold Gewinn.`, k: 'gold' }];
+          }
+          p.gold -= bet;
+          return [{ t: t`Leer. Der Gaukler hebt die anderen Schalen an. Auch leer. Wo ist die Erbse? Sicher nicht mehr auf dem Fass, und deine ${bet} Gold auch nicht.`, k: 'bad' }];
+        },
+      })),
+    ] },
+  { id: 'irrlicht', weight: 4,
+    prompt: () => [{ t: t('Zwischen den Bäumen tanzt ein bläuliches Licht. Es bleibt stehen, als würde es auf dich warten, und hüpft dann ein Stück weiter. „Komm“, scheint es zu sagen.'), k: 'warn' }],
+    choices: [
+      { id: 'folgen', label: t('Dem Licht folgen'), key: 'f', run: (p) => {
+        const r = roll(1, 10);
+        if (r <= 4) { p.gems += 1; return [{ t: t('Das Licht führt dich zu einem Grabhügel und erlischt über einem Stein. Darunter liegt ein Edelstein. Danke, kleines Licht.'), k: 'gold' }]; }
+        if (r <= 8) {
+          const lost = Math.min(2, p.forestFights);
+          p.forestFights -= lost;
+          return [{ t: t`Das Licht führt dich mitten ins Moor und geht aus. Bis du wieder festen Boden unter den Füßen hast, ist es Nachmittag.${lost ? t` (−${lost} Waldkämpfe)` : ''}`, k: 'bad' }];
+        }
+        return [{ t: t('Das Licht führt dich bis an die Kante der Rabenklippe und kichert. Du drehst ganz langsam wieder um.'), k: 'warn' }];
+      } },
+      { id: 'weg', label: t('Nicht folgen'), key: 'n', run: () => [{ t: t('Lichter, die im Wald herumhüpfen, haben nie etwas Gutes vor. Das weiß in Moosgrund jedes Kind.'), k: 'info' }] },
+    ] },
+  { id: 'einsiedler', weight: 4,
+    prompt: () => [{ t: t('In einer Felsnische wohnt ein Einsiedler mit einem Bart bis zu den Knien. „Ich war einmal ein großer Kämpfer“, sagt er. „Hilf mir Holz hacken, und ich zeige dir, wie man richtig steht.“ Das würde dich 2 Waldkämpfe kosten.'), k: 'warn' }],
+    choices: [
+      { id: 'lernen', label: t('Holz hacken und lernen'), key: 'h', hint: () => t('2 Waldkämpfe'), available: (p) => p.forestFights >= 2, run: (p) => {
+        p.forestFights -= 2;
+        const e = Math.round(expPerKill(p.level) * 2.5);
+        p.exp += e;
+        return [{ t: t`Ihr hackt Holz bis zum Mittag. Zwischen zwei Scheiten schiebt er dir mit dem Stiefel den Fuß zurecht. Plötzlich stehst du wie ein Baum. ${e} Erfahrung.`, k: 'good' }];
+      } },
+      { id: 'nein', label: t('Lieber nicht'), key: 'n', run: () => [{ t: t('„Die Jugend“, seufzt der Einsiedler und hackt allein weiter.'), k: 'info' }] },
+    ] },
+  { id: 'duell', weight: 4,
+    prompt: (p) => [{ t: t`Ein fahrender Ritter in einer Rüstung voller Dellen versperrt dir den Weg. „Ein Duell! Nur zur Übung, bis einer ins Moos fällt!“ ${p.level >= 12 ? t('Er sieht ziemlich müde aus.') : t('Er sieht ziemlich entschlossen aus.')}`, k: 'warn' }],
+    choices: [
+      { id: 'annehmen', label: t('Das Duell annehmen'), key: 'a', run: (p) => {
+        if (chance(0.55)) {
+          const e = Math.round(expPerKill(p.level) * 1.5);
+          p.exp += e;
+          p.charm += 1;
+          return [{ t: t`Nach drei Hieben liegt der Ritter im Moos und lacht. Er schenkt dir eine Ehrenschleife für den Gürtel. ${e} Erfahrung. (+1 Charme)`, k: 'good' }];
+        }
+        const d = hurt(p, 0.3);
+        return [{ t: t`Der Ritter ist besser, als seine Rüstung aussieht. Du landest im Moos, er hilft dir höflich auf. ${d} Schaden.`, k: 'bad' }];
+      } },
+      { id: 'nein', label: t('Ablehnen'), key: 'l', run: () => [{ t: t('„Schade!“, ruft der Ritter und reitet weiter, um jemand anderen zu fragen.'), k: 'info' }] },
+    ] },
+  { id: 'nymphe', weight: 3,
+    prompt: () => [
+      { t: t('Du beugst dich über einen Waldsee, um zu trinken, und deine Waffe rutscht dir aus dem Gürtel ins Wasser. Platsch.'), k: 'warn' },
+      { t: t('Da steigt eine Nymphe aus dem See. In der einen Hand hält sie ein goldenes Schwert, in der anderen ein silbernes. „Welches hast du verloren?“'), k: 'info' },
+    ],
+    choices: [
+      { id: 'gold', label: t('„Das goldene!“'), key: 'g', run: (p) => {
+        const g = Math.floor(p.gold * 0.1);
+        p.gold -= g;
+        return [{ t: t`Die Nymphe zieht eine Augenbraue hoch und taucht mit beiden Schwertern wieder ab. Deine eigene Waffe holst du dir selbst aus dem Schlamm. Dabei rutschen dir ${g} Gold aus der Tasche.`, k: 'bad' }];
+      } },
+      { id: 'silber', label: t('„Das silberne!“'), key: 's', run: (p) => {
+        const g = Math.floor(p.gold * 0.1);
+        p.gold -= g;
+        return [{ t: t`„Bescheiden gelogen ist auch gelogen“, sagt die Nymphe und taucht ab. Deine eigene Waffe holst du dir selbst aus dem Schlamm. Dabei rutschen dir ${g} Gold aus der Tasche.`, k: 'bad' }];
+      } },
+      { id: 'ehrlich', label: t('„Keins davon. Meins war verbeult.“'), key: 'k', run: (p) => {
+        p.gems += 1;
+        p.charm += 1;
+        return [{ t: t('Die Nymphe lächelt und reicht dir deine verbeulte Waffe. „Ehrliche Leute sind selten im Brackenwald.“ Dazu legt sie dir einen Edelstein in die Hand. (+1 Charme)'), k: 'gold' }];
+      } },
+    ] },
+  { id: 'bettlerin', weight: 3,
+    prompt: (p) => [{ t: t`Am Wegrand sitzt eine Gestalt in einem grauen Umhang und hält dir eine knochige Hand hin. „Eine Münze für eine alte Frau? ${p.level * 3} Gold, mehr will ich nicht.“ Ihre Stimme klingt seltsam vertraut.`, k: 'warn' }],
+    choices: [
+      { id: 'geben', label: t('Ihr Gold geben'), key: 'g', hint: (p) => t`${p.level * 3} Gold`, available: (p) => p.gold >= p.level * 3, run: (p) => {
+        p.gold -= p.level * 3;
+        p.favor += 10;
+        return [{ t: t('Sie nimmt die Münzen, und für einen Augenblick siehst du unter der Kapuze kein Gesicht, nur Nebel. Dann ist sie fort. Am Nebelfluss wird man sich an dich erinnern. (+10 Gunst bei Morwen)'), k: 'good' }];
+      } },
+      { id: 'nein', label: t('Weitergehen'), key: 'w', run: () => [{ t: t('Du gehst weiter. Als du dich umdrehst, ist der Wegrand leer. Dir wird ein bisschen kalt.'), k: 'info' }] },
+    ] },
+  { id: 'holzfaeller', weight: 4,
+    prompt: (p) => [{ t: t`Drei Holzfäller mühen sich mit einem Stamm ab, der quer über dem Weg liegt. „Pack mit an!“, rufen sie. ${p.race === 'troll' ? t('Für einen Troll ist das eine Kleinigkeit.') : t('Das sieht nach einer Stunde Arbeit aus.')}`, k: 'warn' }],
+    choices: [
+      { id: 'helfen', label: t('Mit anpacken'), key: 'a', hint: (p) => (p.race === 'troll' ? '' : t('1 Waldkampf')), run: (p) => {
+        if (p.race !== 'troll') p.forestFights = Math.max(0, p.forestFights - 1);
+        const g = roll(6, 12) * p.level;
+        const e = Math.round(expPerKill(p.level) * 0.6);
+        p.gold += g;
+        p.exp += e;
+        return [{ t: p.race === 'troll'
+          ? t`Du hebst den Stamm allein an und wirfst ihn ins Gebüsch. Die Holzfäller starren dich an und geben dir ihren Tageslohn: ${g} Gold. ${e} Erfahrung.`
+          : t`Hau ruck! Gemeinsam rollt ihr den Stamm vom Weg. Die Holzfäller teilen ihr Brot und ihren Lohn mit dir: ${g} Gold. ${e} Erfahrung.`, k: 'gold' }];
+      } },
+      { id: 'weg', label: t('Außen herum gehen'), key: 'w', run: () => [{ t: t('Du kletterst über das Gestrüpp neben dem Weg. Die Holzfäller rufen dir etwas Unfreundliches nach.'), k: 'info' }] },
+    ] },
 ];
+
+/** Was der Zwerg im Wald für einen Edelstein zahlt (Zwerge bekommen mehr). */
+function gemPrice(p: Player): number {
+  return Math.round((60 + 25 * p.level) * (p.race === 'zwerg' ? 1.25 : 1));
+}
 
 function eligible(p: Player): ForestEvent[] {
   return FOREST_EVENTS.filter((e) => (!e.minLevel || p.level >= e.minLevel) && (!e.when || e.when(p)));
 }
 
+/** Für den Spielrechner (scripts/rechner.ts): meldet, welches Ereignis gezogen wurde. Im Spiel leer. */
+export const eventTrace: { onPick?: (id: string) => void } = {};
+
 export function pickEvent(p: Player): ForestEvent {
   const list = eligible(p);
   const total = list.reduce((s, e) => s + e.weight, 0);
   let r = roll(1, total);
+  let hit = list[0];
   for (const e of list) {
     r -= e.weight;
-    if (r <= 0) return e;
+    if (r <= 0) { hit = e; break; }
   }
-  return list[0];
+  eventTrace.onPick?.(hit.id);
+  return hit;
 }
 
 export function eventById(id: string): ForestEvent | undefined {
