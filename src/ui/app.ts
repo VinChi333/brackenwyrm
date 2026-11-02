@@ -366,7 +366,7 @@ function accountGate(groups: Group[]): Group[] {
 }
 
 function layout(s: GameState, main: string, groups: Group[], cls = ''): string {
-  groups = localKeys(guideGroups(s, accountGate(groups)));
+  groups = localKeys(accountGate(guideGroups(s, groups)));
   const top = guideTop();
   if (top) main = main.includes('</h1>') ? main.replace('</h1>', `</h1>${top}`) : top + main;
   const dock = dockItems(groups);
