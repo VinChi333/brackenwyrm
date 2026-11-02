@@ -65,7 +65,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const VERSION = t('Version {0}', '0.55');
+const VERSION = t('Version {0}', '0.56');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -1356,7 +1356,7 @@ function accountHtml(): string {
   if (ui.resetStep === 'email') {
     return `<h2>${t`Passwort vergessen`}</h2>
       <p class="muted">${t`Gib die E-Mail-Adresse deines Spielerkontos ein. Wir schicken dir einen Code, mit dem du ein neues Passwort festlegst.`}</p>
-      <div class="acct-form"><label class="field">${t`E-Mail`}<input type="email" id="acct-email" autocomplete="email" placeholder="${t`deine@mail.at`}" value="${esc(ui.acctEmail)}"></label></div>
+      <div class="acct-form"><label class="field">${t`E-Mail`}<input type="email" id="acct-email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="${t`deine@mail.at`}" value="${esc(ui.acctEmail)}"></label></div>
       <div class="row"><button type="button" class="btn" data-act="acct:resetsend">${t`Code schicken`}</button><button type="button" class="btn ghost" data-act="acct:resetcancel">${t`Zurück zur Anmeldung`}</button></div>${msg}`;
   }
   if (ui.resetStep === 'code') {
@@ -1371,7 +1371,7 @@ function accountHtml(): string {
   return `<h2>${t`Spielerkonto`}</h2>
     <p class="muted">${t`Mit einem Konto wird dein Spielstand online gesichert, und du spielst auf Handy und Computer mit demselben Helden.`}</p>
     <div class="acct-form">
-      <label class="field">${t`E-Mail`}<input type="email" id="acct-email" autocomplete="email" placeholder="${t`deine@mail.at`}" value="${esc(ui.acctEmail)}"></label>
+      <label class="field">${t`E-Mail`}<input type="email" id="acct-email" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="${t`deine@mail.at`}" value="${esc(ui.acctEmail)}"></label>
       <label class="field">${t`Passwort`}<input type="password" id="acct-pass" autocomplete="current-password" placeholder="${t`mindestens 6 Zeichen`}"></label>
     </div>
     <div class="row"><button type="button" class="btn" data-act="acct:in">${t`Anmelden`}</button><button type="button" class="btn ghost" data-act="acct:up">${t`Neues Konto anlegen`}</button></div>
@@ -1387,6 +1387,7 @@ async function afterLogin(done: (m: string) => void, note = ''): Promise<void> {
   expiredNote = false;
   resetSafety();  // Wache und Blockierliste für dieses Konto neu holen
   ui.full = null; loadFull();
+  ui.acctMsg = t('Angemeldet. Dein Spielstand wird geladen …'); render();
   const m = await syncNow();
   if (ui.screen === 'login') {
     if (state) { const newDay = checkRealDay(state); saveGame(state, !newDay); if (note) say(note, 'good'); go('village'); return; }
@@ -1402,18 +1403,40 @@ function summary(st: GameState): string {
   return `${t`<strong>${esc(p.name)}</strong>, Stufe ${p.level}, Spieltag ${st.day}<br>${p.gold} Gold, ${p.exp} Erfahrung, ${p.forestFights} Waldkämpfe übrig, ${p.dragonKills} Drachenkills<br><span class="muted">gespeichert ${when}</span>`}`;
 }
 
+/** Wie weit ein Spielstand ist: Drachen zuerst, dann Stufe und Erfahrung, dann gespielte Tage. */
+function progressOf(st: GameState): number {
+  const p = st.player;
+  return p.dragonKills * 1e9 + p.level * 1e6 + Math.min(999_999, Math.max(0, p.exp)) + (st.stats?.realDays ?? 0) / 1000;
+}
+
+/** Welche Wahl im Konfliktfall der Hauptknopf ist: der weitere Stand; bei Gleichstand und anderem Helden der aus dem Konto. */
+function conflictPick(s: GameState, remote: GameState): 'local' | 'remote' {
+  const a = progressOf(s), b = progressOf(remote);
+  if (a !== b) return a > b ? 'local' : 'remote';
+  if (s.player.name !== remote.player.name) return 'remote';
+  return (s.savedAt ?? 0) >= (remote.savedAt ?? 0) ? 'local' : 'remote';
+}
+
 function syncConflictScreen(s: GameState): string {
   const remote = ui.conflict!.state;
+  const other = s.player.name !== remote.player.name;
+  const pick = conflictPick(s, remote);
+  const lead = other
+    ? t`In deinem Spielerkonto ist <strong>${esc(remote.player.name)}</strong> gespeichert, auf diesem Gerät spielst du gerade <strong>${esc(s.player.name)}</strong>. Ein Konto hat genau einen Helden. Welchen willst du behalten? Der andere geht verloren.`
+    : t('Auf diesem Gerät und online wurde seit dem letzten Abgleich weitergespielt. Welcher Stand soll bleiben? Der andere geht verloren.');
   const main = `<h1>${t`Zwei Spielstände`}</h1>
-    <p class="lead">${t`Auf diesem Gerät und online wurde seit dem letzten Abgleich weitergespielt. Welcher Stand soll bleiben? Der andere geht verloren.`}</p>
+    <p class="lead">${lead}</p>
     <div class="records sync-choice">
-      <div class="rec">${t`<span>Auf diesem Gerät</span>`}<p>${summary(s)}</p></div>
-      <div class="rec">${t`<span>Online gesichert</span>`}<p>${summary(remote)}</p></div>
-    </div>`;
-  return layout(s, main, [{ title: t('Entscheiden'), items: [
-    { act: 'conflict:local', label: t('Diesen Stand behalten'), key: 'd' },
-    { act: 'conflict:remote', label: t('Online-Stand laden'), key: 'o' },
-  ] }]);
+      <div class="rec${pick === 'remote' ? ' best' : ''}">${t`<span>In deinem Spielerkonto</span>`}<p>${summary(remote)}</p></div>
+      <div class="rec${pick === 'local' ? ' best' : ''}">${t`<span>Auf diesem Gerät</span>`}<p>${summary(s)}</p></div>
+    </div>
+    <p class="muted">${t`Der hervorgehobene Stand ist der weitere. Für den anderen musst du zweimal drücken.`}</p>`;
+  const remoteItem: Item = { act: 'conflict:remote', label: other ? t`${remote.player.name} aus dem Konto laden` : t('Stand aus dem Konto laden'), key: 'o' };
+  const localItem: Item = { act: 'conflict:local', label: other ? t`${s.player.name} behalten` : t('Stand von diesem Gerät behalten'), key: 'd' };
+  const confirmLabel = t('Wirklich? Der andere Stand geht verloren. Nochmal drücken.');
+  if (ui.confirmDelete) (pick === 'remote' ? localItem : remoteItem).label = confirmLabel;
+  const items = pick === 'remote' ? [{ ...remoteItem, primary: true }, localItem] : [{ ...localItem, primary: true }, remoteItem];
+  return layout(s, main, [{ title: t('Entscheiden'), items }]);
 }
 
 // ---------- Spieler gegen Spieler, Dorfplatz, Neuigkeiten ----------
@@ -2796,7 +2819,8 @@ function handle(act: string, el: HTMLElement): void {
     case 'acct': {
       const done = (m: string) => { ui.acctMsg = m; render(); };
       if (a === 'in' || a === 'up') {
-        const email = ((document.getElementById('acct-email') as HTMLInputElement | null)?.value ?? '').trim();
+        // Handy-Tastaturen schreiben gern den ersten Buchstaben groß oder hängen ein Leerzeichen an
+        const email = ((document.getElementById('acct-email') as HTMLInputElement | null)?.value ?? '').trim().toLowerCase();
         const pass = (document.getElementById('acct-pass') as HTMLInputElement | null)?.value ?? '';
         ui.acctEmail = email;
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { done(t('Bitte eine gültige E-Mail-Adresse eingeben.')); return; }
@@ -2811,7 +2835,7 @@ function handle(act: string, el: HTMLElement): void {
         ui.resetStep = ''; done('');
       } else if (a === 'resetsend') {
         const field = document.getElementById('acct-email') as HTMLInputElement | null;
-        const email = (field ? field.value : ui.acctEmail).trim();
+        const email = (field ? field.value : ui.acctEmail).trim().toLowerCase();
         ui.acctEmail = email;
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { done(t('Bitte eine gültige E-Mail-Adresse eingeben.')); return; }
         done(t('Schicke Code …'));
@@ -3010,8 +3034,11 @@ function handle(act: string, el: HTMLElement): void {
     }
     case 'conflict': {
       const remote = ui.conflict;
-      ui.conflict = null;
       if (!remote) return;
+      // Wer den weniger weiten Stand wählt, muss zweimal drücken
+      if (a !== conflictPick(s, remote.state) && !ui.confirmDelete) { ui.confirmDelete = true; render(); return; }
+      ui.confirmDelete = false;
+      ui.conflict = null;
       if (a === 'remote') {
         state = remote.state;
         localSaveWithoutTouch(state);

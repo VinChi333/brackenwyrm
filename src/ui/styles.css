@@ -184,6 +184,7 @@ p { margin: 0; }
 .rec { background: var(--panel-2); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
 .rec span { color: var(--muted); font-size: 13px; }
 .rec strong { font-size: 20px; color: var(--gold-hi); font-variant-numeric: tabular-nums; }
+.sync-choice .rec.best { outline: 2px solid var(--gold); }
 
 /* Knöpfe & Formulare */
 .btn {
