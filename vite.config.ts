@@ -1,5 +1,7 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 
 // Zwei Bauweisen:
 //  - Netlify (normal): Code und Stil in kleinen Dateien, Bilder, Schriften und Klänge als eigene Dateien.
@@ -33,11 +35,28 @@ function shareTags(site: string): Plugin {
   return { name: 'share-tags', transformIndexHtml: (html) => html.replace('</title>', `</title>\n${tags.join('\n')}`) };
 }
 
+/** Vorschau-Bau: Bilder aus .artifact-cache/ (verkleinert, siehe scripts/artifact-images.py) statt der Originale einbetten. */
+function smallImages(): Plugin {
+  const src = path.resolve('src/assets');
+  const cache = path.resolve('.artifact-cache');
+  return {
+    name: 'artifact-small-images',
+    enforce: 'pre',
+    load(id) {
+      const file = id.split('?')[0];
+      if (!file.endsWith('.webp') || !file.startsWith(src + path.sep)) return null;
+      const small = path.join(cache, path.relative(src, file));
+      if (!existsSync(small)) return null;
+      return `export default "data:image/webp;base64,${readFileSync(small).toString('base64')}"`;
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_');
   return mode === 'artifact'
     ? {
-        plugins: [viteSingleFile()],
+        plugins: [smallImages(), viteSingleFile()],
         build: { assetsInlineLimit: 100_000_000, cssCodeSplit: false, target: 'es2020' },
       }
     : {
