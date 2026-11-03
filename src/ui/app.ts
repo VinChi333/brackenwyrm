@@ -65,7 +65,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const VERSION = t('Version {0}', '0.58');
+const VERSION = t('Version {0}', '0.59');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -2284,6 +2284,7 @@ export function render(): void {
     impressum: () => legalScreen('impressum'), datenschutz: () => legalScreen('datenschutz'), wache: () => wacheScreen(s!), blocks: () => blocksScreen(s!), deleteAccount: () => deleteAccountScreen(s!),
   };
   root.innerHTML = views[scr]();
+  fitCardNames();
   sound.music(trackFor(scr));
   soundCues();
   if (cloud.signedIn && !safetyLoaded) loadSafety();
@@ -2299,6 +2300,21 @@ export function render(): void {
   const fl = root.querySelector<HTMLElement>('.battle .fight-log');
   if (fl) fl.scrollTop = fl.scrollHeight;
 }
+
+/** Lange Gegnernamen (z. B. „Beutelschneiderin“) passen nicht aufs Kartenschild: Schrift so weit verkleinern,
+ *  dass der ganze Name sichtbar ist, statt ihn mit „…“ abzuschneiden. */
+function fitCardNames(): void {
+  if (!root) return;
+  for (const n of root.querySelectorAll<HTMLElement>('.card-name')) {
+    n.style.fontSize = '';
+    const cw = n.clientWidth, sw = n.scrollWidth;
+    if (!cw || sw <= cw + 1) continue;
+    const base = parseFloat(getComputedStyle(n).fontSize);
+    n.style.fontSize = `${Math.max(9, Math.floor((base * cw) / sw * 10) / 10)}px`;
+  }
+}
+document.fonts?.ready.then(fitCardNames);
+window.addEventListener('resize', () => fitCardNames());
 
 /** Welche Musik zu welchem Ort gehört. */
 /** Sobald es ein eigenes Musikstück für die Feste gibt (public/audio/music/musik-feste.mp3), auf true setzen. */
