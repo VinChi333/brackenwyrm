@@ -875,3 +875,4 @@ h1 .g-tag { font-size: 0.7em; }
 .merc-speaker .card.mini { width: 108px; }
 .good-box .merc-speaker .card.mini { width: 120px; }
 .merc-speaker .card.mini .card-name { font-size: 11px; }
+.merc-speaker .card.mini .card-tier { font-size: 9px; letter-spacing: 0.06em; }
