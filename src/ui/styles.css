@@ -868,3 +868,10 @@ h1 .g-tag { font-size: 0.7em; }
 .fishbook .fish.unknown { opacity: 0.6; }
 .fishbook .trophy { margin: 8px 0 4px; }
 .bottle-notes { margin-top: 6px; display: grid; gap: 4px; }
+
+/* Söldner im Lager mit kleiner Karte links */
+.merc-speaker { flex-wrap: nowrap; gap: 12px; align-items: center; }
+.merc-speaker > div { flex: 1 1 auto; }
+.merc-speaker .card.mini { width: 108px; }
+.good-box .merc-speaker .card.mini { width: 120px; }
+.merc-speaker .card.mini .card-name { font-size: 11px; }

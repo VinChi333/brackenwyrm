@@ -101,13 +101,20 @@ export function monsterCard(m: MonsterDef): CardInfo {
   return { key: m.id, name: m.name, level: m.level, tier: tierFor(m.level), art: a.art, hasIllustration: a.real, flavor: m.intro, glow, fx: FX_KIND[m.id] ?? 'motes' };
 }
 
-/** Seelen im Schattenreich: absichtlich als Schattenkarte, mit Geisterlichtern. */
+/** Seelen im Schattenreich, mit Geisterlichtern. Bild: src/assets/monsters/<id>.webp, ohne Bild eine Schattenkarte. */
 export function shadeCard(id: string): CardInfo | null {
   const m = shadeById(id);
   if (!m) return null;
   const glow = m.eyes ?? '#bfe3ff';
-  const art = shadowArt(creature(m.shape, glow, m.prop), m.shape, glow);
-  return { key: m.id, name: m.name, level: 0, tier: 'shade', art, hasIllustration: false, flavor: m.intro, glow, fx: 'wisps' };
+  const a = artFor(m.id, () => shadowArt(creature(m.shape, glow, m.prop), m.shape, glow));
+  return { key: m.id, name: m.name, level: 0, tier: 'shade', art: a.art, hasIllustration: a.real, flavor: m.intro, glow, fx: 'wisps' };
+}
+
+/** Söldner aus dem Lager. Bild: src/assets/monsters/merc-<id>.webp — ohne Bild keine Karte. */
+export function companionCard(id: string, name: string, role: string): CardInfo | null {
+  if (!MONSTER_ART[`merc-${id}`]) return null;
+  const a = artFor(`merc-${id}`, () => '');
+  return { key: `merc-${id}`, name, level: 0, tier: 'bronze', art: a.art, hasIllustration: true, flavor: '', glow: '#d9b26a', fx: 'motes', tierLabel: role };
 }
 
 export function dragonCard(): CardInfo {

@@ -50,7 +50,7 @@ import { BITE_LINES, BOTTLE_NOTES, LEGEND, TWITCH_LINES, WAIT_LINES } from '../c
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
 import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, MountId, RaceId, SpecialtyId } from '../game/types';
-import { cardBack, cardFor, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard, mountCard, npcCard, tierFor } from './art/cards';
+import { cardBack, cardFor, companionCard, shadeBack, shadeCard, cardHtml, dragonCard, heroArt, heroPortrait, masterCard, monsterCard, mountCard, npcCard, tierFor } from './art/cards';
 import type { CardInfo, NpcId } from './art/cards';
 import { applyPvpEvents, applyPvpResult } from '../game/pvp';
 import { sound, type TrackId } from './audio';
@@ -1168,6 +1168,12 @@ function gildeScreen(s: GameState): string {
   return layout(s, main, [{ title: t('Zurück'), items: [back] }]);
 }
 
+/** Söldner mit Karte daneben, sobald es ein Bild gibt (src/assets/monsters/merc-<id>.webp). */
+function mercWrap(id: string, name: string, role: string, html: string): string {
+  const c = companionCard(id, name, role);
+  return c ? `<div class="speaker merc-speaker">${cardHtml(c, { cls: 'mini npc-card' })}<div><div>${html}</div></div></div>` : html;
+}
+
 function lagerScreen(s: GameState): string {
   const p = s.player;
   const cp = p.companion;
@@ -1175,8 +1181,8 @@ function lagerScreen(s: GameState): string {
   const main = `<h1>${t`Das Söldnerlager`}</h1>
     ${withNpc('hagen', `<p class="lead">${COMPANION_TEXT.intro}</p>`)}
     ${flashHtml()}
-    ${cp && cd ? `<section class="good-box"><h2>${esc(cd.name)}, ${cd.role}</h2><p>${cp.hp <= 0 ? t('Liegt k. o. im Zelt.') : t`${cp.hp} von ${cp.maxHp} Lebenspunkten.`} ${esc(cd.blurb)}</p></section>` : ''}
-    <ul class="potions">${COMPANIONS.map((c) => `<li>${t`<strong>${esc(c.name)}</strong> · ${c.role} <span class="gold">${companionCost(c.id, p.level)} Gold</span><br><small class="muted">${esc(c.blurb)} ${companionMaxHp(c.id, p.level)} Lebenspunkte.</small>`}</li>`).join('')}</ul>
+    ${cp && cd ? `<section class="good-box">${mercWrap(cd.id, cd.name, cd.role, `<h2>${esc(cd.name)}, ${cd.role}</h2><p>${cp.hp <= 0 ? t('Liegt k. o. im Zelt.') : t`${cp.hp} von ${cp.maxHp} Lebenspunkten.`} ${esc(cd.blurb)}</p>`)}</section>` : ''}
+    <ul class="potions mercs">${COMPANIONS.map((c) => `<li>${mercWrap(c.id, c.name, c.role, t`<strong>${esc(c.name)}</strong> · ${c.role} <span class="gold">${companionCost(c.id, p.level)} Gold</span><br><small class="muted">${esc(c.blurb)} ${companionMaxHp(c.id, p.level)} Lebenspunkte.</small>`)}</li>`).join('')}</ul>
     <p class="muted">${COMPANION_TEXT.rules}</p>`;
   const heal = companionHealCost(s);
   const items: Item[] = cp ? [
