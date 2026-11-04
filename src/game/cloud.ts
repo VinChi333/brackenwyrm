@@ -167,17 +167,45 @@ export class Cloud {
       prefer: 'resolution=merge-duplicates,return=minimal',
       body: { user_id: s.userId, data: state, saved_at: state.savedAt ?? Date.now() },
     });
-    const profile = { user_id: s.userId, name: p.name, level: p.level, dragon_kills: p.dragonKills };
-    const sendProfile = (body: object) => this.call('/rest/v1/profiles', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body });
+    // Ab hier ist der Spielstand gesichert. Ruhmeshalle, Haus und Kampfwerte sind Beiwerk: Klappt dort etwas nicht,
+    // darf das den Abgleich nicht scheitern lassen (sonst fragt das Spiel danach immer wieder nach zwei Spielständen).
+    this.sideError = '';
     try {
-      await sendProfile({ ...profile, gender: p.gender });
+      const profile = { user_id: s.userId, name: p.name, level: p.level, dragon_kills: p.dragonKills };
+      try {
+        await this.upsertOwn('profiles', s.userId, { ...profile, gender: p.gender });
+      } catch (e) {
+        // Datenbank noch ohne Spalte "gender" (Teil 2 nicht ausgeführt): ohne sie speichern
+        if (e instanceof CloudError && /gender|PGRST204|42703/.test(e.message)) await this.upsertOwn('profiles', s.userId, profile);
+        else throw e;
+      }
+      await this.syncHouse(state);
+      await this.pushFighter(state);
     } catch (e) {
-      // Datenbank noch ohne Spalte "gender" (Teil 2 nicht ausgeführt): ohne sie speichern
-      if (e instanceof CloudError && /gender|PGRST204|42703/.test(e.message)) await sendProfile(profile);
-      else throw e;
+      this.sideError = e instanceof Error ? e.message : String(e);
     }
-    await this.syncHouse(state);
-    await this.pushFighter(state);
+  }
+
+  /** Fehler beim Beiwerk des letzten Hochladens (Ruhmeshalle, Kriegerliste), leer wenn alles geklappt hat. */
+  sideError = '';
+
+  /**
+   * Die eigene Zeile in profiles/fighters schreiben. Erst ändern (ohne user_id, dafür gibt es keine Änderungsrechte),
+   * und nur wenn es sie noch nicht gibt, anlegen. Ein "upsert" würde auch user_id ändern wollen und scheitert
+   * mit "permission denied" (42501).
+   */
+  private async upsertOwn(table: string, userId: string, body: Record<string, unknown>): Promise<void> {
+    const { user_id: _u, ...upd } = body;
+    const where = `/rest/v1/${table}?user_id=eq.${encodeURIComponent(userId)}&select=user_id`;
+    const rows = await this.call(where, { method: 'PATCH', prefer: 'return=representation', body: upd });
+    if (Array.isArray(rows) && rows.length) return;
+    try {
+      await this.call(`/rest/v1/${table}`, { method: 'POST', prefer: 'return=minimal', body: { ...upd, user_id: userId } });
+    } catch (e) {
+      // Gibt es doch schon (unsichtbar, z. B. ausgeblendetes Profil): dann hat das Ändern oben gereicht
+      if (e instanceof CloudError && /23505|duplicate/i.test(e.message)) return;
+      throw e;
+    }
   }
 
   // ---------- Häuser (Teil 11) ----------
@@ -261,7 +289,7 @@ export class Cloud {
       heirlooms: (p.heirlooms ?? []).join(','),
       charm: Math.max(0, p.charm), wealth: Math.max(0, p.gold + p.bank), fastest_dk: state.stats.fastestDragon || 0, feste_treasures: p.festeTreasures ?? 0,
     };
-    const send = (b: object) => this.call('/rest/v1/fighters', { method: 'POST', prefer: 'resolution=merge-duplicates,return=minimal', body: b });
+    const send = (b: Record<string, unknown>) => this.upsertOwn('fighters', s.userId, b);
     // Ältere Datenbanken kennen manche Spalten noch nicht: dann Schritt für Schritt einfacher speichern.
     const { in_house: _ih, home_of: _ho, ...noHouse } = body;
     const { charm: _c, wealth: _we, fastest_dk: _f, feste_treasures: _t, ...noFame } = noHouse;

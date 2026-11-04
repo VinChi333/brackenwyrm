@@ -56,6 +56,10 @@ const fake = async (url: string | URL | Request, init: RequestInit = {}): Promis
   if (u.includes('/rest/v1/saves?')) return json(db.save ? [db.save] : []);
   if (u.endsWith('/rest/v1/saves')) { db.save = { data: body.data, saved_at: body.saved_at }; return new Response('', { status: 201 }); }
   if (u.endsWith('/rest/v1/profiles')) { db.profile = body; return new Response('', { status: 201 }); }
+  if (u.includes('/rest/v1/profiles?') && init.method === 'PATCH') {
+    if (!db.profile) return json([]);
+    db.profile = { ...(db.profile as object), ...body }; return json([{ user_id: 'u1' }]);
+  }
   if (u.includes('/rest/v1/profiles?')) return json([{ name: 'Hilda', level: 3, dragon_kills: 2, gender: 'f' }]);
   return json({}, 404);
 };
@@ -102,6 +106,24 @@ await t('hochladen und wieder laden ergibt denselben Spielstand', async () => {
   assert.equal(back?.state.player.name, 'Hilda');
   assert.equal(back?.state.player.level, 3);
   assert.deepEqual(db.profile, { user_id: 'u1', name: 'Hilda', level: 3, dragon_kills: 0, gender: 'f' });
+  // zweites Mal: nur ändern, ohne user_id (dafür gibt es auf dem Server keine Änderungsrechte)
+  s.player.level = 4;
+  await cloud.push(s);
+  const patch = calls.filter((c) => c.url.includes('/rest/v1/profiles?') && c.init.method === 'PATCH').pop()!;
+  assert.ok(!('user_id' in JSON.parse(String(patch.init.body))), 'user_id nicht im Ändern');
+  assert.equal((db.profile as { level: number }).level, 4);
+  assert.equal(cloud.sideError, '');
+});
+await t('Fehler bei Ruhmeshalle/Kriegerliste lässt das Sichern des Spielstands nicht scheitern', async () => {
+  const s = newGame('Hilda', 'mystik', 'f');
+  s.savedAt = 5555;
+  const failing = new Cloud('https://x.supabase.co', 'anon', (async (url: string | URL | Request, init: RequestInit = {}) =>
+    String(url).includes('/rest/v1/profiles')
+      ? new Response(JSON.stringify({ code: '42501', message: 'permission denied for table profiles' }), { status: 403 })
+      : fake(url, init)) as typeof fetch, store);
+  await failing.push(s);
+  assert.equal((db.save as { saved_at: number }).saved_at, 5555, 'Spielstand trotzdem gesichert');
+  assert.match(failing.sideError, /42501|permission/);
 });
 await t('Ruhmeshalle wird gelesen', async () => {
   const rows = await cloud.hallOfFame();

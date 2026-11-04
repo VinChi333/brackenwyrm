@@ -130,15 +130,19 @@ const server = createServer(async (req, res) => {
       const upsert = (req.headers.prefer ?? '').includes('merge-duplicates');
       const ignore = (req.headers.prefer ?? '').includes('ignore-duplicates');
       const sql = `insert into public.${name} (${cols.join(', ')}) values (${cols.map((_, i) => `$${i + 1}`).join(', ')})` +
-        (upsert ? ` on conflict (user_id) do update set ${cols.filter((c) => c !== 'user_id').map((c) => `${c} = excluded.${c}`).join(', ')}` : ignore ? ' on conflict do nothing' : '');
+        // wie PostgREST: beim upsert stehen ALLE gesendeten Spalten im Ändern-Teil, auch user_id (braucht dafür Änderungsrechte)
+        (upsert ? ` on conflict (user_id) do update set ${cols.map((c) => `${c} = excluded.${c}`).join(', ')}` : ignore ? ' on conflict do nothing' : '');
       await as(uid, sql, vals);
       return send(201);
     }
     if (req.method === 'PATCH') {
       const { where, vals } = filters(url.searchParams);
       const sets = Object.keys(data).map((c, i) => `${c} = $${vals.length + i + 1}`);
-      await as(uid, `update public.${name} set ${sets.join(', ')} ${where}`, [...vals, ...Object.values(data)]);
-      return send(204);
+      const rep = (req.headers.prefer ?? '').includes('return=representation');
+      const sel = url.searchParams.get('select') ?? '*';
+      const vv = Object.values(data).map((v) => (typeof v === 'object' && v !== null ? JSON.stringify(v) : v));
+      const r = await as(uid, `update public.${name} set ${sets.join(', ')} ${where}${rep ? ` returning ${sel}` : ''}`, [...vals, ...vv]);
+      return rep ? send(200, r.rows) : send(204);
     }
     if (req.method === 'DELETE') {
       const { where, vals } = filters(url.searchParams);

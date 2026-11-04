@@ -67,7 +67,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const VERSION = t('Version {0}', '0.64');
+const VERSION = t('Version {0}', '0.65');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -2592,7 +2592,9 @@ async function syncNow(): Promise<string> {
     }
     savePrefs(prefs);
     if (d === 'pull' || changed) render();
-    return d === 'none' && !changed ? t('Alles aktuell.') : d === 'pull' ? t('Online-Stand geladen.') : t('Online gesichert.');
+    const msg = d === 'none' && !changed ? t('Alles aktuell.') : d === 'pull' ? t('Online-Stand geladen.') : t('Online gesichert.');
+    // Spielstand ist gesichert; nur Ruhmeshalle oder Kriegerliste hatten ein Problem: als Hinweis dazuschreiben
+    return cloud.sideError ? `${msg} ${t`(Ruhmeshalle und Kriegerliste nicht aktualisiert: ${cloud.sideError})`}` : msg;
   } catch (e) {
     return e instanceof CloudError ? e.message : t('Abgleich fehlgeschlagen.');
   } finally {
