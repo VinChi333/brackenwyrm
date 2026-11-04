@@ -846,7 +846,7 @@ h1 .g-tag { font-size: 0.7em; }
 .angel-float::after { content: ''; position: absolute; left: -16px; right: -16px; bottom: -6px; height: 8px; border-radius: 50%;
   border: 1px solid rgba(200, 225, 255, 0.35); animation: float-ring 2.6s ease-in-out infinite; }
 .angel-float.twitch { animation: float-twitch 0.5s ease-in-out 1; }
-.angel-float.bite { animation: float-bite 0.35s ease-in forwards; }
+.angel-float.bite { animation: float-pull 0.35s ease-out forwards, float-fight 0.18s ease-in-out 0.35s infinite alternate; }
 .angel-float.bite::after { animation: float-splash 0.6s ease-out forwards; }
 .angel-line { margin: 8px 0 0; min-height: 1.5em; color: var(--muted); }
 .angel-line.bite { color: var(--gold-hi); font-weight: 700; }
@@ -854,11 +854,13 @@ h1 .g-tag { font-size: 0.7em; }
 @keyframes float-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
 @keyframes float-ring { 0%, 100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.15); opacity: 0.3; } }
 @keyframes float-twitch { 0%, 100% { transform: translateY(0) rotate(0); } 25% { transform: translateY(5px) rotate(-12deg); } 60% { transform: translateY(-1px) rotate(9deg); } }
-@keyframes float-bite { to { transform: translateY(46px) scale(0.85); opacity: 0.15; } }
+/* Beim Biss: nach unten gezogen, halb unter Wasser, zappelt, bis die Zeit zum Anschlagen vorbei ist (bleibt sichtbar) */
+@keyframes float-pull { to { transform: translateY(22px); } }
+@keyframes float-fight { from { transform: translateY(22px) rotate(-14deg); } to { transform: translateY(26px) rotate(14deg); } }
 @keyframes float-splash { from { transform: scale(1); opacity: 0.9; } to { transform: scale(3); opacity: 0; } }
 .reduced .angel-float, .reduced .angel-float::after { animation: none; }
-.reduced .angel-float.bite { transform: translateY(46px); opacity: 0.2; }
-@media (prefers-reduced-motion: reduce) { .angel-float, .angel-float::after { animation: none; } .angel-float.bite { transform: translateY(46px); opacity: 0.2; } }
+.reduced .angel-float.bite { transform: translateY(24px); }
+@media (prefers-reduced-motion: reduce) { .angel-float, .angel-float::after { animation: none; } .angel-float.bite { transform: translateY(24px); } }
 .fishbook { list-style: none; padding: 0; margin: 6px 0 14px; display: grid; gap: 6px; }
 .fishbook .fish { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
 .fishbook .fish p { margin: 4px 0 0; }

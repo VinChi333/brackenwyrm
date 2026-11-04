@@ -1930,7 +1930,7 @@ function stegScreen(s: GameState): string {
     <p class="muted">${left > 0 ? t`Heute noch ${left} von ${CASTS_PER_DAY} Würfen.` : t('Für heute sind deine Würmer alle. Am nächsten Spieltag beißen sie wieder.')}</p>`;
   const groups: Group[] = [];
   if (c?.stage === 'wait') {
-    groups.push({ title: t('Angeln'), items: [{ act: 'angel:strike', label: t('Anschlagen!'), key: 'a', primary: true }] });
+    groups.push({ title: t('Angeln'), items: [{ act: 'angel:strike', label: t('Anschlagen!'), key: 'a', hint: t('oder Leertaste'), primary: true }] });
   } else if (c?.stage === 'drill') {
     groups.push({ title: t('Drill'), items: [
       { act: 'angel:nachgeben', label: t('Schnur geben'), key: 'g', hint: t('nachgeben') },
@@ -3527,6 +3527,8 @@ function onKey(e: KeyboardEvent): void {
     return;
   }
   if (e.key === 'Escape' && ui.menuOpen) { ui.menuOpen = false; render(); return; }
+  // Angeln am PC: Leertaste schlägt an (wie die Taste A)
+  if (e.key === ' ' && currentScreen() === 'steg' && fishing?.c.stage === 'wait') { e.preventDefault(); handle('angel:strike', root); return; }
   const arrow: Record<string, string> = { ArrowUp: 'n', ArrowRight: 'o', ArrowDown: 's', ArrowLeft: 'w' };
   if (arrow[e.key] && currentScreen() === 'feste') {
     const b = root.querySelector<HTMLButtonElement>(`[data-act="feste:${arrow[e.key]}"]:not(:disabled)`);

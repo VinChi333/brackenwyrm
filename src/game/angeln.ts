@@ -3,7 +3,7 @@
 //   - Ab Stufe 1, 5 Würfe pro Spieltag, kostet keine Waldkämpfe.
 //   - Beim Auswerfen steht schon fest, was beißt (neu laden hilft nicht, der Wurf ist verbraucht).
 //   - Vor dem Biss zuckt der Schwimmer manchmal nur. Wer dann anschlägt, zieht ins Leere.
-//   - Beim echten Biss bleibt etwa eine Sekunde zum Anschlagen (Elfen etwas länger).
+//   - Beim echten Biss bleiben zwei Sekunden zum Anschlagen (Elfen eine halbe länger). Leertaste oder A.
 //   - Mittlere und große Fische wehren sich (Drill): Zieht der Fisch, nachgeben; ist er müde, einholen.
 //     Trollen verzeiht die Schnur einen Fehler pro Drill.
 //   - Manche Fische beißen nur am Morgen-Spieltag, andere nur am Abend. Zwerge ziehen öfter Kuriositäten heraus.
@@ -17,7 +17,7 @@ import { t } from '../i18n';
 import { news } from '../i18n/news';
 
 export const CASTS_PER_DAY = 5;
-export const BITE_WINDOW = 1100;      // ms zum Anschlagen
+export const BITE_WINDOW = 2000;      // ms zum Anschlagen (1,1 s war im Test mit der Maus kaum zu schaffen)
 export const ELF_WINDOW = 500;        // so viel länger für Elfen
 export const DRILL_ROUNDS: Record<string, number> = { s: 0, m: 1, l: 2, x: 4 };
 export const LEGEND_GEMS = 3;

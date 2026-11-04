@@ -3078,4 +3078,5 @@ export const EN: Record<string, string> = {
   "Was sonst am Haken hing": "What else got hooked",
   "Zurück zum Steg": "Back to the jetty",
   "(Ruhmeshalle und Kriegerliste nicht aktualisiert: {0})": "(Hall of fame and warrior list not updated: {0})",
+  "oder Leertaste": "or space bar",
 };
