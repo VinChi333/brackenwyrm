@@ -2940,4 +2940,9 @@ export const EN: Record<string, string> = {
   "Rudelmutter": "Pack Mother",
   "Das Wohnviertel von Moosgrund": "The residential quarter of Mossdale",
   "Die Rabenklippe über dem Nebelfluss": "Raven Cliff above the Misty River",
+  "Der Dorfplatz von Moosgrund": "The village square of Mossdale",
+  "Der Rand des Brackenwalds": "The edge of the Brackenwood",
+  "Die Gaststube im Schlafenden Wurm": "The taproom of the Sleeping Worm",
+  "Der Trainingsplatz von Moosgrund": "The training ground of Mossdale",
+  "Ortsbilder ausblenden (nur Text, wie früher)": "Hide location pictures (text only, like the old days)",
 };

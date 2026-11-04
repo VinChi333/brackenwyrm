@@ -132,6 +132,7 @@ export function importCode(code: string): GameState | null {
 
 export interface Prefs {
   reducedMotion: boolean;
+  noPlaceArt?: boolean;   // Ortsbilder ausblenden: nur Text, wie früher (Gegnerkarten bleiben)
   dev: boolean;           // Entwicklermodus: Testknöpfe sichtbar
   lastSyncedAt: number;   // savedAt des Stands, der zuletzt mit dem Server übereinstimmte (0 = nie)
   syncUser?: string;      // Konto, für das lastSyncedAt gilt (anderes Konto: neu abgleichen)

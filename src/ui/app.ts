@@ -556,6 +556,7 @@ function villageScreen(s: GameState): string {
   const mstate = canChallengeMaster(p);
   const found = Object.keys(s.bestiary).filter((k) => k !== 'dragon').length;
   const main = `<h1>${t`Moosgrund`}</h1>
+    ${placeArt('dorfplatz', t('Der Dorfplatz von Moosgrund'))}
     <p class="lead">${t`Du stehst auf dem Dorfplatz von <span class="place">Moosgrund</span>. Rauch steigt aus den Kaminen, aus dem Gasthaus <span class="place">Zum Schlafenden Wurm</span> klingt Gelächter. Im Norden rauscht der <span class="place">Brackenwald</span>, und irgendwo dahinter schläft der Wyrm.`}</p>
     ${prefs.welcomed ? '' : `<section class="welcome">
       <h2>${t`Willkommen in Moosgrund!`}</h2>
@@ -765,6 +766,7 @@ function forestScreen(s: GameState): string {
   if (s.pendingEvent) return eventScreen(s);
   const low = p.hp < maxHp(p) * 0.4;
   const main = `<h1>${t`Der Brackenwald`}</h1>
+    ${placeArt('waldrand', t('Der Rand des Brackenwalds'))}
     <p class="lead">${t`Zwischen den Stämmen ist es still. Farne reichen dir bis zur Hüfte, und irgendwo knackt ein Ast.`}</p>
     ${flashHtml()}
     ${low ? `<p class="warn-box">${t`Du bist angeschlagen (${p.hp} von ${maxHp(p)} Lebenspunkten). Mirla in der Kräuterhütte könnte helfen.`}</p>` : ''}
@@ -884,7 +886,7 @@ function trainingScreen(s: GameState): string {
       <p class="lead">${esc(line)}</p>
       ${st === 'notReady' ? `<p class="muted">${t`Dir fehlen noch ${need - p.exp} Erfahrungspunkte.`}</p>` : ''}</div></div>`;
   }
-  return layout(s, `<h1>${t`Der Trainingsplatz`}</h1>${flashHtml()}${text}`, [
+  return layout(s, `<h1>${t`Der Trainingsplatz`}</h1>${placeArt('trainingsplatz', t('Der Trainingsplatz von Moosgrund'))}${flashHtml()}${text}`, [
     { title: t('Training'), items: m && st !== 'max' ? [{ act: 'master', label: t`${m.name} herausfordern`, key: 'm', disabled: st !== 'ok', hint: st === 'seen' ? t('morgen wieder') : st === 'ok' ? t`Aufstieg auf Stufe ${p.level + 1}` : t('noch nicht bereit') }] : [] },
     { title: t('Zurück'), items: [back] },
   ]);
@@ -979,6 +981,7 @@ const RUMORS = [
 function innScreen(s: GameState): string {
   const p = s.player;
   const main = `<h1>${t`Zum Schlafenden Wurm`}</h1>
+    ${placeArt('gasthaus', t('Die Gaststube im Schlafenden Wurm'))}
     ${withNpc('frieda', `<p class="lead">${t`Das Feuer knistert. Wirtin <span class="npc">Frieda</span> poliert ein Glas, das davon nicht sauberer wird. In der Ecke stimmt Barde <span class="npc">Florian</span> seine Laute.`}</p>`)}
     <p class="rumor">${esc(RUMORS[s.day % RUMORS.length])}</p>
     ${flashHtml()}
@@ -1675,7 +1678,9 @@ function bioScreen(s: GameState): string {
 const FESTE_ART = import.meta.glob('../assets/feste/*.webp', { eager: true, import: 'default' }) as Record<string, string>;
 // Bilder für Orte (src/assets/orte/<name>.webp). Fehlt eines, bleibt der Ort einfach ohne Bild.
 const ORTE_ART = import.meta.glob('../assets/orte/*.webp', { eager: true, import: 'default' }) as Record<string, string>;
+// Bilderregel: Bilder zeigen Orte und Wesen, der Text erzählt, was passiert (Ereignisse, Gespräche, Tod und Drachensieg ohne Bild).
 function placeArt(name: string, alt: string): string {
+  if (prefs.noPlaceArt) return '';
   const src = ORTE_ART[`../assets/orte/${name}.webp`];
   return src ? `<figure class="title-art feste-art"><img src="${src}" alt="${esc(alt)}"></figure>` : '';
 }
@@ -1740,7 +1745,7 @@ function festeScreen(s: GameState): string {
       : '';
     const art = run?.over === 'treasure' && treasureArt ? treasureArt : entranceArt;
     const main = `<h1>${FESTE_NAME}</h1>
-      ${art ? `<figure class="title-art feste-art"><img src="${art}" alt="${run?.over === 'treasure' ? t('Die Schatzkammer der Wyrmjäger') : t('Die versunkene Feste im Moor')}"></figure>` : ''}
+      ${art && !prefs.noPlaceArt ? `<figure class="title-art feste-art"><img src="${art}" alt="${run?.over === 'treasure' ? t('Die Schatzkammer der Wyrmjäger') : t('Die versunkene Feste im Moor')}"></figure>` : ''}
       ${summary || `<p class="lead">${FESTE_TEXT.entrance}</p>`}
       ${flashHtml()}
       ${why === 'today' && !summary ? `<p class="muted">${FESTE_TEXT.closedToday}</p>` : ''}
@@ -1984,6 +1989,7 @@ function settingsScreen(s: GameState): string {
   const main = `<h1>${t`Einstellungen`}</h1>
     ${flashHtml()}
     <label class="toggle"><input type="checkbox" id="opt-motion" data-act="toggle:motion" ${prefs.reducedMotion ? 'checked' : ''}> ${t`Weniger Bewegung im Kampf`}</label>
+    <label class="toggle"><input type="checkbox" id="opt-placeart" data-act="toggle:placeart" ${prefs.noPlaceArt ? 'checked' : ''}> ${t`Ortsbilder ausblenden (nur Text, wie früher)`}</label>
     <h2>${t`Ton`}</h2>
     <label class="slider">${t`Musik`} <input type="range" min="0" max="100" step="5" data-act="vol:music" value="${Math.round(prefs.musicVol * 100)}" aria-label="${t`Lautstärke Musik`}"></label>
     <label class="slider">${t`Effekte`} <input type="range" min="0" max="100" step="5" data-act="vol:sfx" value="${Math.round(prefs.sfxVol * 100)}" aria-label="${t`Lautstärke Effekte`}"></label>
@@ -3292,6 +3298,7 @@ function handle(act: string, el: HTMLElement): void {
     }
     case 'toggle':
       if (a === 'motion') prefs.reducedMotion = (el as HTMLInputElement).checked;
+      if (a === 'placeart') prefs.noPlaceArt = (el as HTMLInputElement).checked;
       if (a === 'muted') { prefs.muted = (el as HTMLInputElement).checked; sound.setPrefs(prefs); }
       savePrefs(prefs);
       render();
