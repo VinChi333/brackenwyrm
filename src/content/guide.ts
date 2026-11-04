@@ -60,6 +60,7 @@ export const PLACE_NAMES: Record<string, string> = {
 
 /** Kurzer Hinweis beim ersten Besuch eines Ortes. */
 export const SCREEN_HINTS: Record<string, string> = {
+  steg: t('Wirf aus und warte. Zuckt der Schwimmer nur, knabbert bloß einer. Taucht er ganz ab, schnell anschlagen! Große Fische wehren sich: Zieht er, gib Schnur. Wird er müde, hol ein.'),
   forest: t('„Herumstreifen“ findet Gegner deiner Stufe, „Leichte Beute“ schwächere, „Nervenkitzel“ stärkere mit mehr Lohn. Manchmal passiert im Wald auch etwas ganz anderes.'),
   fight: t('„Angreifen“ ist ein Schlag. „Kämpfen bis zum Ende“ kämpft für dich weiter und hält an, wenn es knapp wird. Fliehen klappt nicht immer.'),
   healer: t('Mirla heilt gegen Gold. Je höher deine Stufe, desto teurer wird es.'),

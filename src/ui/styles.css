@@ -832,3 +832,37 @@ h1 .g-tag { font-size: 0.7em; }
 .house-keys { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
 .house-keys li { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px 6px 12px; }
 .house-keys .row { margin: 0; }
+
+/* ---------- Angeln am Steg ---------- */
+.angel { margin: 10px 0 12px; }
+.angel-water { position: relative; height: 92px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line);
+  background: radial-gradient(ellipse at 50% 120%, rgba(232, 184, 90, 0.18), transparent 60%),
+    repeating-linear-gradient(180deg, rgba(150, 190, 230, 0.07) 0 2px, transparent 2px 11px),
+    linear-gradient(180deg, #1a2a3e, #0d1726); }
+.angel-water::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(200, 220, 240, 0.12), transparent 45%); pointer-events: none; }
+.angel-float { position: absolute; left: 50%; top: 34px; width: 18px; height: 26px; margin-left: -9px; border-radius: 9px 9px 7px 7px;
+  background: linear-gradient(180deg, #f2f2ee 0 45%, #d8433a 45% 100%); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 4px 10px rgba(0, 0, 0, 0.4);
+  animation: float-bob 2.6s ease-in-out infinite; }
+.angel-float::after { content: ''; position: absolute; left: -16px; right: -16px; bottom: -6px; height: 8px; border-radius: 50%;
+  border: 1px solid rgba(200, 225, 255, 0.35); animation: float-ring 2.6s ease-in-out infinite; }
+.angel-float.twitch { animation: float-twitch 0.5s ease-in-out 1; }
+.angel-float.bite { animation: float-bite 0.35s ease-in forwards; }
+.angel-float.bite::after { animation: float-splash 0.6s ease-out forwards; }
+.angel-line { margin: 8px 0 0; min-height: 1.5em; color: var(--muted); }
+.angel-line.bite { color: var(--gold-hi); font-weight: 700; }
+.angel-drill { font-size: 17px; color: var(--gold-hi); margin: 10px 0; }
+@keyframes float-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+@keyframes float-ring { 0%, 100% { transform: scale(1); opacity: 0.6; } 50% { transform: scale(1.15); opacity: 0.3; } }
+@keyframes float-twitch { 0%, 100% { transform: translateY(0) rotate(0); } 25% { transform: translateY(5px) rotate(-12deg); } 60% { transform: translateY(-1px) rotate(9deg); } }
+@keyframes float-bite { to { transform: translateY(46px) scale(0.85); opacity: 0.15; } }
+@keyframes float-splash { from { transform: scale(1); opacity: 0.9; } to { transform: scale(3); opacity: 0; } }
+.reduced .angel-float, .reduced .angel-float::after { animation: none; }
+.reduced .angel-float.bite { transform: translateY(46px); opacity: 0.2; }
+@media (prefers-reduced-motion: reduce) { .angel-float, .angel-float::after { animation: none; } .angel-float.bite { transform: translateY(46px); opacity: 0.2; } }
+.fishbook { list-style: none; padding: 0; margin: 6px 0 14px; display: grid; gap: 6px; }
+.fishbook .fish { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
+.fishbook .fish p { margin: 4px 0 0; }
+.fishbook .fish small { color: var(--muted); }
+.fishbook .fish.unknown { opacity: 0.6; }
+.fishbook .trophy { margin: 8px 0 4px; }
+.bottle-notes { margin-top: 6px; display: grid; gap: 4px; }

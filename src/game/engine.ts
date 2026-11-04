@@ -91,6 +91,7 @@ export function startNewDay(s: GameState): void {
   s.pendingEvent = null;
   p.innTalks = 0;
   p.ambrosGames = 0;
+  p.fishCasts = 0;
   s.feste = null;
   p.seerPaid = false;
   p.innRoom = false;

@@ -45,6 +45,8 @@ import { HOUSE_NAME_MAX, HOUSE_STAGES, PLOT_COST, buildStage, buyPlot, canBuild,
 import { DRINKS, MAX_DRUNK, MAX_WATER, drinkCost, drunkWord, orderDrink, slur, type DrinkId } from '../game/tavern';
 import { POTIONS, chooseNewRace, chooseNewSpecialty, drinkPotion, paySeer, seerCost, type PotionId } from '../game/shops';
 import { AMBROS_GAMES_PER_DAY, AMBROS_TRIES, ambrosBets, guessAmbros, startAmbros, type AmbrosGame } from '../game/ambros';
+import { CASTS_PER_DAY, castsLeft, drillLine, drillMove, fishDef, fishHeal, fishPrice, fishbookEntries, fmtWeight, fryFish, sellFish, startCast, strike, type Cast } from '../game/angeln';
+import { BITE_LINES, BOTTLE_NOTES, LEGEND, TWITCH_LINES, WAIT_LINES } from '../content/fische';
 import type { CommentRow, FameRow, NewsRow, PvpTarget, RemoteSave } from '../game/cloud';
 import { decideSync } from '../game/sync';
 import type { ChronicleEntry, DragonPoint, GameState, Gender, LogLine, MountId, RaceId, SpecialtyId } from '../game/types';
@@ -59,13 +61,13 @@ import { serverText } from '../i18n/server';
 
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros'
-  | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount'
+  | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount' | 'steg' | 'fangbuch'
   | 'quirin' | 'seer' | 'felsen' | 'garten' | 'feste' | 'heirlooms'
   | 'tresen' | 'dag' | 'fivesix' | 'aushang' | 'lager' | 'gilde' | 'vollversion' | 'cliff' | 'houses' | 'house';
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const VERSION = t('Version {0}', '0.62');
+const VERSION = t('Version {0}', '0.63');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -592,6 +594,7 @@ function villageScreen(s: GameState): string {
       { act: 'go:lager', label: t('Söldnerlager'), key: 'ö', hint: p.companion ? `${companionDef(p.companion.id)?.name ?? ''}${p.companion.hp <= 0 ? t(' (k. o.)') : ''}` : t('Begleiter anheuern') },
       ...(cloud.enabled ? [{ act: 'go:seer', label: t('Das Zelt der Seherin'), key: 'z', hint: p.seerPaid ? t('bezahlt') : t('mit den Toten reden') }] : []),
       { act: 'go:ambros', label: t('Der alte Ambros'), key: 'a', hint: (p.ambrosGames ?? 0) >= AMBROS_GAMES_PER_DAY ? t('schläft') : t('Zahlenraten') },
+      { act: 'go:steg', label: t('Der Steg am Nebelfluss'), key: 'd', hint: castsLeft(s) ? t`angeln · ${castsLeft(s)} Würfe` : t('morgen wieder') },
       ...(cloud.enabled ? [
         { act: 'go:garten', label: t('Der Rosengarten'), key: 'o' },
         { act: 'go:felsen', label: t('Der Wyrmstein'), key: 'y', hint: p.dragonKills ? t('Drachentöter') : '' },
@@ -1339,7 +1342,7 @@ const SCREEN_NAMES: Partial<Record<Screen, string>> = {
   village: t('Dorfplatz'), forest: t('Wald'), fight: t('Kampf'), training: t('Trainingsplatz'), healer: t('Kräuterhütte'), smith: t('Schmiede'),
   bank: t('Kontor'), inn: t('Gasthaus'), bestiary: t('Bestiarium'), fame: t('Ruhmeshalle'), chronicle: t('Kampfchronik'), settings: t('Einstellungen'),
   shadows: t('Schattenreich'), dragonBonus: t('Drachenkill'), quirin: t('Quirins Tränke'), tresen: t('Tresen'), lager: t('Söldnerlager'), gilde: t('Gildenhalle'), dag: t('Veit Galgenstrick'), fivesix: t('Sechserjagd'), aushang: t('Aushang'), feste: t('Versunkene Feste'), heirlooms: t('Erbstücke'), seer: t('Seherin'), cliff: t('Rabenklippe'), houses: t('Wohnviertel'), house: t('Dein Haus'), felsen: t('Wyrmstein'), garten: t('Rosengarten'),
-  stable: t('Pferdestall'), ambros: t('Ambros'), warriors: t('Kriegerliste'), mail: t('Briefe'), bio: t('Steckbrief'),
+  stable: t('Pferdestall'), ambros: t('Ambros'), steg: t('Steg'), fangbuch: t('Fangbuch'), warriors: t('Kriegerliste'), mail: t('Briefe'), bio: t('Steckbrief'),
 };
 
 function buildFeedback(s: GameState): string {
@@ -1860,6 +1863,128 @@ function gartenScreen(s: GameState): string {
   return layout(s, main, [{ title: t('Zurück'), items: [back] }]);
 }
 
+// ---------- Angeln am Steg (Regeln in game/angeln.ts) ----------
+/** Der laufende Wurf. Nur im Speicher: wer neu lädt, verliert den Wurf (er ist beim Auswerfen schon gezählt). */
+let fishing: { c: Cast; t0: number; timers: number[]; wait: string; drillSeed: number } | null = null;
+const FISCHE_ART = import.meta.glob('../assets/fische/*.webp', { eager: true, import: 'default' }) as Record<string, string>;
+
+function stopFishTimers(): void {
+  if (fishing) { for (const id of fishing.timers) clearTimeout(id); fishing.timers = []; }
+}
+
+/** Schwimmer und Zeile direkt im Bild ändern, ohne alles neu zu zeichnen (sonst ruckelt die Animation). */
+function floatState(cls: '' | 'twitch' | 'bite', line: string): void {
+  const f = document.getElementById('angel-float');
+  const l = document.getElementById('angel-line');
+  if (f) { f.classList.remove('twitch', 'bite'); void f.offsetWidth; if (cls) f.classList.add(cls); }
+  if (l) { l.textContent = line; l.classList.toggle('bite', cls === 'bite'); }
+}
+
+function castLine(): void {
+  const s = state;
+  if (!s) return;
+  stopFishTimers();
+  const c = startCast(s);
+  if (typeof c === 'string') { say(c, 'warn'); render(); return; }
+  fishing = { c, t0: performance.now(), timers: [], wait: pick0(WAIT_LINES), drillSeed: Math.floor(Math.random() * 3) };
+  ui.flash = [];
+  sound.play('click');
+  commit();
+  const f = fishing;
+  for (const at of c.twitches) f.timers.push(window.setTimeout(() => { if (fishing === f && c.stage === 'wait') floatState('twitch', pick0(TWITCH_LINES)); }, at));
+  f.timers.push(window.setTimeout(() => {
+    if (fishing !== f || c.stage !== 'wait') return;
+    floatState('bite', pick0(BITE_LINES));
+    sound.play('event');
+    navigator.vibrate?.(120);
+  }, c.biteAt));
+  // Zeitfenster vorbei: zu spät
+  f.timers.push(window.setTimeout(() => {
+    if (fishing !== f || c.stage !== 'wait') return;
+    strike(s, c, c.biteAt + c.window + 1);
+    sound.play('miss');
+    saveGame(s);
+    if (ui.screen === 'steg') render();
+  }, c.biteAt + c.window + 30));
+}
+
+function pick0<T>(list: readonly T[]): T {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function stegScreen(s: GameState): string {
+  const p = s.player;
+  const left = castsLeft(s);
+  const f = fishing;
+  const c = f?.c ?? null;
+  const castNow = !!c && (c.stage === 'wait' || c.stage === 'drill' || (c.stage === 'caught' && !c.done));
+  const water = c && c.stage === 'wait'
+    ? `<div class="angel" role="group" aria-label="${t`Dein Schwimmer`}"><div class="angel-water"><span id="angel-float" class="angel-float"></span></div>
+        <p id="angel-line" class="angel-line" aria-live="assertive">${esc(f!.wait)}</p></div>` : '';
+  const log = c && c.lines.length ? `<div class="event-box log">${c.lines.map((l, i) => `<p class="${i === c.lines.length - 1 && c.stage === 'lost' ? 'bad' : c.stage === 'caught' && i === c.lines.length - 1 ? 'gold' : 'info'}">${esc(l)}</p>`).join('')}</div>` : '';
+  const drill = c && c.stage === 'drill' ? `<p class="angel-drill" aria-live="assertive">${esc(drillLine(c, f!.drillSeed))}</p>` : '';
+  const main = `<h1>${t`Der Steg am Nebelfluss`}</h1>
+    ${placeArt('steg', t('Ein alter Steg im Nebel am Nebelfluss'))}
+    ${c ? '' : `<p class="lead">${t`Ein alter Steg reicht weit in den Nebelfluss hinaus. Die Laterne am Pfosten brennt immer, keiner weiß, wer sie anzündet. Eine Angelrute und ein Eimer Würmer stehen für jeden bereit.`}</p>`}
+    ${flashHtml()}${water}${log}${drill}
+    <p class="muted">${left > 0 ? t`Heute noch ${left} von ${CASTS_PER_DAY} Würfen.` : t('Für heute sind deine Würmer alle. Am nächsten Spieltag beißen sie wieder.')}</p>`;
+  const groups: Group[] = [];
+  if (c?.stage === 'wait') {
+    groups.push({ title: t('Angeln'), items: [{ act: 'angel:strike', label: t('Anschlagen!'), key: 'a', primary: true }] });
+  } else if (c?.stage === 'drill') {
+    groups.push({ title: t('Drill'), items: [
+      { act: 'angel:nachgeben', label: t('Schnur geben'), key: 'g', hint: t('nachgeben') },
+      { act: 'angel:einholen', label: t('Einholen'), key: 'e', hint: t('Stück für Stück') },
+    ] });
+  } else if (c?.stage === 'caught' && !c.done) {
+    const heal = fishHeal(s, c);
+    groups.push({ title: t('Dein Fang'), items: [
+      { act: 'angel:verkaufen', label: t('An Friedas Küche verkaufen'), key: 'v', hint: t`${fishPrice(s, c)} Gold`, primary: true },
+      { act: 'angel:braten', label: t('Am Ufer braten'), key: 'b', hint: heal > 0 ? t`+${heal} Lebenspunkte` : t('du bist schon satt') },
+    ] });
+  } else {
+    groups.push({ title: t('Angeln'), items: [
+      { act: 'angel:cast', label: c ? t('Nochmal auswerfen') : t('Angel auswerfen'), key: 'a', hint: left ? t`${left} Würfe übrig` : t('morgen wieder'), disabled: left <= 0 || !p.alive, primary: true },
+      { act: 'go:fangbuch', label: t('Fangbuch'), key: 'f' },
+    ] });
+  }
+  if (!castNow) groups.push({ title: t('Zurück'), items: [back] });
+  return layout(s, main, groups);
+}
+
+function fangbuchScreen(s: GameState): string {
+  const book = s.fishbook ?? {};
+  const all = fishbookEntries();
+  const fish = all.filter((e) => e.kind === 'fish');
+  const got = fish.filter((e) => book[e.id]?.n).length;
+  const when = (id: string) => { const d = fishDef(id); return d?.time === 'a' ? t('beißt morgens') : d?.time === 'b' ? t('beißt abends') : t('beißt immer'); };
+  const row = (e: (typeof all)[number]) => {
+    const r = book[e.id];
+    if (e.kind === 'legend') {
+      const art = FISCHE_ART['../assets/fische/alter.webp'];
+      return r?.n
+        ? `<li class="fish legend"><strong class="gold">${esc(e.name)}</strong> <small>${t`${r.n}× gefangen · größter: ${fmtWeight(r.max)} Pfund`}</small>
+            ${art ? `<figure class="title-art feste-art trophy"><img src="${art}" alt="${esc(e.name)}"></figure>` : ''}<p>${esc(LEGEND.desc)}</p></li>`
+        : `<li class="fish legend unknown"><strong>???</strong><p class="muted">${t`Die alten Angler erzählen von einem Wels, so groß wie ein Boot. Gesehen hat ihn kaum einer.`}</p></li>`;
+    }
+    if (e.kind === 'curio') {
+      if (!r?.n) return `<li class="fish unknown"><strong>???</strong></li>`;
+      const notes = e.id === 'flaschenpost' ? `<div class="bottle-notes">${BOTTLE_NOTES.slice(0, Math.min(r.n, BOTTLE_NOTES.length)).map((x) => `<p class="scroll">${esc(x)}</p>`).join('')}</div>` : '';
+      return `<li class="fish"><strong>${esc(e.name)}</strong> <small>${t`${r.n}× an der Angel`}</small>${notes}</li>`;
+    }
+    return r?.n
+      ? `<li class="fish"><strong>${esc(e.name)}</strong> <small>${t`${r.n}× gefangen · größter: ${fmtWeight(r.max)} Pfund · ${when(e.id)}`}</small><p>${esc(fishDef(e.id)!.desc)}</p></li>`
+      : `<li class="fish unknown"><strong>???</strong> <small>${when(e.id)}</small></li>`;
+  };
+  const main = `<h1>${t`Fangbuch`}</h1>
+    <p class="lead">${t`Ein abgegriffenes Büchlein, das am Steg an einem Nagel hängt. Darin steht, was du je aus dem Nebelfluss gezogen hast.`}</p>
+    <p class="muted">${t`${got} von ${fish.length} Fischen gefangen.`}</p>
+    <h2>${t`Fische`}</h2><ul class="fishbook">${fish.map(row).join('')}</ul>
+    <h2>${t`Die Legende`}</h2><ul class="fishbook">${all.filter((e) => e.kind === 'legend').map(row).join('')}</ul>
+    <h2>${t`Was sonst am Haken hing`}</h2><ul class="fishbook">${all.filter((e) => e.kind === 'curio').map(row).join('')}</ul>`;
+  return layout(s, main, [{ title: t('Zurück'), items: [{ act: 'go:steg', label: t('Zurück zum Steg'), key: 's', primary: true }, back] }]);
+}
+
 function ambrosScreen(s: GameState): string {
   const p = s.player;
   const g = ui.ambros;
@@ -2286,7 +2411,7 @@ export function render(): void {
     village: () => villageScreen(s!), forest: () => forestScreen(s!), fight: () => fightScreen(s!),
     training: () => trainingScreen(s!), healer: () => healerScreen(s!), smith: () => smithScreen(s!),
     bank: () => bankScreen(s!), inn: () => innScreen(s!), bestiary: () => bestiaryScreen(s!), fame: () => fameScreen(s!), syncConflict: () => syncConflictScreen(s!), fields: () => fieldsScreen(s!), innGuests: () => innGuestsScreen(s!), news: () => newsScreen(s!), chronicle: () => chronicleScreen(s!), feedback: () => feedbackScreen(s!),
-    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), vollversion: () => vollversionScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), tresen: () => tresenScreen(s!), dag: () => dagScreen(s!), fivesix: () => fivesixScreen(s!), aushang: () => aushangScreen(s!), lager: () => lagerScreen(s!), gilde: () => gildeScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!), cliff: () => cliffScreen(s!), houses: () => housesScreen(s!), house: () => houseScreen(s!),
+    settings: () => settingsScreen(s!), shadows: () => shadowsScreen(s!), dragonBonus: () => dragonBonusScreen(s!), vollversion: () => vollversionScreen(s!), flirt: () => flirtScreen(s!), stable: () => stableScreen(s!), warriors: () => warriorsScreen(s!), mail: () => mailScreen(s!), haunt: () => hauntScreen(s!), bio: () => bioScreen(s!), ambros: () => ambrosScreen(s!), quirin: () => quirinScreen(s!), tresen: () => tresenScreen(s!), dag: () => dagScreen(s!), fivesix: () => fivesixScreen(s!), aushang: () => aushangScreen(s!), lager: () => lagerScreen(s!), gilde: () => gildeScreen(s!), feste: () => festeScreen(s!), heirlooms: () => heirloomsScreen(s!), seer: () => seerScreen(s!), felsen: () => felsenScreen(s!), garten: () => gartenScreen(s!), cliff: () => cliffScreen(s!), houses: () => housesScreen(s!), house: () => houseScreen(s!), steg: () => stegScreen(s!), fangbuch: () => fangbuchScreen(s!),
     impressum: () => legalScreen('impressum'), datenschutz: () => legalScreen('datenschutz'), wache: () => wacheScreen(s!), blocks: () => blocksScreen(s!), deleteAccount: () => deleteAccountScreen(s!),
   };
   root.innerHTML = views[scr]();
@@ -2336,6 +2461,7 @@ function trackFor(scr: Screen): TrackId {
   if (scr === 'cliff') return 'klippe';
   if (scr === 'forest') return 'wald';
   if (scr === 'houses' || scr === 'house') return 'heim';
+  if (scr === 'steg' || scr === 'fangbuch') return 'steg';
   if (scr === 'inn' || scr === 'flirt' || scr === 'innGuests' || scr === 'tresen' || scr === 'dag' || scr === 'fivesix') return 'gasthaus';
   return 'dorf';
 }
@@ -2746,6 +2872,27 @@ function handle(act: string, el: HTMLElement): void {
       say(t('Dein Steckbrief hängt jetzt am Rathaus.'), 'good'); render();
       return;
     }
+    case 'angel': {
+      if (!s) return;
+      const c = fishing?.c;
+      if (a === 'cast') { castLine(); return; }
+      if (!c || !fishing) return;
+      if (a === 'strike') {
+        if (c.stage !== 'wait') return;
+        stopFishTimers();
+        strike(s, c, performance.now() - fishing.t0);
+        const st: string = c.stage;
+        sound.play(st === 'lost' ? 'miss' : st === 'drill' ? 'hit' : 'win');
+      } else if (a === 'nachgeben' || a === 'einholen') {
+        drillMove(s, c, a);
+        sound.play(c.stage === 'lost' ? 'miss' : c.stage === 'caught' ? 'win' : 'click');
+        fishing.drillSeed += 1;
+      } else if (a === 'verkaufen') { sellFish(s, c); sound.play('coins'); }
+      else if (a === 'braten') { fryFish(s, c); sound.play('buy'); }
+      if (c.stage === 'caught' && c.catchId === LEGEND.id) sound.play('gem');
+      commit();
+      return;
+    }
     case 'ambros': {
       if (!s) return;
       const r = startAmbros(s, Number(a));
@@ -2832,6 +2979,7 @@ function handle(act: string, el: HTMLElement): void {
       if (a === 'deleteAccount') ui.delMsg = '';
       if (a === 'felsen' && cloud.enabled) cloud.hallOfFame(40).then((rows) => { ui.fame = rows; if (ui.screen === 'felsen') render(); }, () => {});
       if (a === 'tresen') ui.flash = [];
+      if (a === 'steg' && fishing && (fishing.c.stage === 'lost' || fishing.c.done)) { stopFishTimers(); fishing = null; }
       if (a === 'dag' && cloud.signedIn) { ui.bounties = null; go('dag'); loadWarriors(); cloud.bounties().then((b) => { ui.bounties = b; }, (e) => { ui.bounties = []; say(e instanceof CloudError ? e.message : t('Veit schweigt.'), 'warn'); }).finally(render); return; }
       if (a === 'fivesix' && cloud.signedIn) { ui.dice = { info: null, last: null, err: '', busy: false }; go('fivesix'); cloud.jackpot().then((i) => { ui.dice.info = i; }, (e) => { ui.dice.err = e instanceof CloudError ? e.message : t('Der Tisch ist leer.'); }).finally(render); return; }
       if (a === 'gilde' && cloud.signedIn) { ui.guild.confirmLeave = false; go('gilde'); loadGuild(); return; }

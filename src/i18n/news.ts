@@ -24,6 +24,7 @@ export const NEWS = {
   stoneCircle: '{0} ist im Steinkreis verschwunden. Morwen weiß mehr.',
   towerRescue: '{0} hat jemanden aus dem alten Turm im Brackenwald befreit.',
   lostChild: '{0} hat ein verirrtes Kind aus dem Brackenwald heim nach Moosgrund gebracht.',
+  legendFish: '{0} hat am Steg den Alten vom Nebelfluss an der Angel gehabt und wieder schwimmen lassen!',
   festeTreasureFirstM: '{0} hat heute als Erster den Hüter der versunkenen Feste besiegt und ihren Schatz gehoben!',
   festeTreasureFirstF: '{0} hat heute als Erste den Hüter der versunkenen Feste besiegt und ihren Schatz gehoben!',
   festeTreasure: '{0} hat den Hüter der versunkenen Feste besiegt und ihren Schatz gehoben!',

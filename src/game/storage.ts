@@ -51,6 +51,8 @@ export function validate(x: unknown): GameState | null {
   s.settings = Object.assign({ retro: false, reducedMotion: false }, s.settings ?? {});
   s.news = Array.isArray(s.news) ? s.news : [];
   s.bestiary = s.bestiary && typeof s.bestiary === 'object' ? s.bestiary : {};
+  s.fishbook = s.fishbook && typeof s.fishbook === 'object' ? Object.fromEntries(Object.entries(s.fishbook)
+    .filter(([, r]) => r && typeof r === 'object').map(([k, r]) => [k, { n: Math.max(0, Math.floor(Number(r.n) || 0)), max: Math.max(0, Number(r.max) || 0) }])) : {};
   s.player.buffs = Array.isArray(s.player.buffs) ? s.player.buffs : [];
   s.player.gender = s.player.gender === 'f' ? 'f' : 'm';
   // Bis Testversion 0.20 hießen die Fähigkeiten Klingenkunst, Wurzelmagie und Schleichpfad, und es gab keine Rassen.
@@ -59,6 +61,7 @@ export function validate(x: unknown): GameState | null {
   // Fähigkeitsstufe: wie viele Meister in diesem Durchgang besiegt wurden
   s.player.skill = typeof s.player.skill === 'number' ? s.player.skill : Math.max(0, s.player.level - 1);
   s.player.innTalks = typeof s.player.innTalks === 'number' ? s.player.innTalks : 0;
+  s.player.fishCasts = Math.max(0, Math.floor(Number(s.player.fishCasts) || 0));
   s.player.soul = typeof s.player.soul === 'number' ? s.player.soul : 50 + 5 * s.player.level;
   s.player.favor = typeof s.player.favor === 'number' ? s.player.favor : 0;
   s.player.graveFights = typeof s.player.graveFights === 'number' ? s.player.graveFights : 10;

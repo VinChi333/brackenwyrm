@@ -12,10 +12,10 @@ export type SfxId = 'hit' | 'crit' | 'miss' | 'hurt' | 'win' | 'death' | 'coins'
   | 'dunkel' | 'mystik' | 'dieb' | 'click' | 'event' | 'letter' | 'buy' | 'open';
 
 export type TrackId = 'titel' | 'dorf' | 'wald' | 'kampf' | 'gasthaus' | 'schattenreich' | 'drache' | 'feste'
-  | 'heim' | 'klippe' | 'meister';
+  | 'heim' | 'klippe' | 'meister' | 'steg';
 
 /** Neue Stücke, die es vielleicht noch nicht gibt: Fehlt die Datei, läuft stattdessen dieses. */
-const FALLBACK: Partial<Record<TrackId, TrackId>> = { heim: 'dorf', klippe: 'wald', meister: 'kampf' };
+const FALLBACK: Partial<Record<TrackId, TrackId>> = { heim: 'dorf', klippe: 'wald', meister: 'kampf', steg: 'heim' };
 
 export interface SoundPrefs { musicVol: number; sfxVol: number; muted: boolean }
 

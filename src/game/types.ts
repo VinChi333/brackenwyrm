@@ -188,6 +188,7 @@ export interface Player {
   house?: House | null;        // eigenes Haus im Wohnviertel (bleibt auch nach dem Drachen)
   atHome?: boolean;            // schläft heute Nacht im eigenen Haus (oder bei Freunden mit Schlüssel)
   homeOf?: string;             // bei wem: leer = eigenes Haus, sonst die Spieler-ID des Besitzers
+  fishCasts?: number;          // Würfe am Steg heute (game/angeln.ts)
 }
 
 /** Ein Haus im Wohnviertel (Regeln in game/house.ts). */
@@ -273,5 +274,6 @@ export interface GameState {
   newDayNote?: { day: number; lines: string[] } | null;  // Kasten "Ein neuer Tag bricht an!" auf dem Dorfplatz, bis er weggeklickt wird
   feste?: FesteRun | null;      // laufender Ausflug in die versunkene Feste
   guide?: Guide | null;         // Einstieg für Neulinge (nur bei neu angelegten Helden)
+  fishbook?: Record<string, { n: number; max: number }>; // Fangbuch: gefangen je Fisch/Kuriosität, größtes Gewicht (bleibt für immer)
   settings: { retro: boolean; reducedMotion: boolean };
 }
