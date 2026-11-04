@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Cloud } from '../src/game/cloud';
 import { newGame } from '../src/game/engine';
 import { decideSync } from '../src/game/sync';
-import { validate } from '../src/game/storage';
+import { saveGame, validate } from '../src/game/storage';
 
 let n = 0;
 const t = (name: string, fn: () => void | Promise<void>) => Promise.resolve(fn()).then(() => { n++; console.log('ok  ', name); });
@@ -22,6 +22,18 @@ await t('nur hier weitergespielt: hochladen', () => assert.equal(decideSync({ lo
 await t('nur anderswo weitergespielt: herunterladen', () => assert.equal(decideSync({ local: 7, remote: 9, lastSynced: 7 }), 'pull'));
 await t('beide weitergespielt: fragen', () => assert.equal(decideSync({ local: 9, remote: 8, lastSynced: 7 }), 'conflict'));
 await t('erstes Anmelden mit zwei Ständen: fragen', () => assert.equal(decideSync({ local: 9, remote: 8, lastSynced: 0 }), 'conflict'));
+// Uhren gehen auf verschiedenen Geräten verschieden (Laptop geht nach, Handy vor)
+await t('Laptop-Uhr geht nach: Stand vom Handy geladen, danach hier weitergespielt → hochladen, nicht fragen', () =>
+  assert.equal(decideSync({ local: 900, remote: 1000, lastSynced: 1000 }), 'push'));
+await t('anderes Gerät mit nachgehender Uhr hat weitergespielt → herunterladen, nicht fragen', () =>
+  assert.equal(decideSync({ local: 1000, remote: 950, lastSynced: 1000 }), 'pull'));
+await t('Speichern zählt immer weiter, auch wenn die Uhr hinter dem geladenen Stand liegt', () => {
+  const g = newGame('Uhr', 'dieb');
+  const future = Date.now() + 3_600_000;
+  g.savedAt = future;
+  saveGame(g);
+  assert.ok((g.savedAt ?? 0) > future, 'savedAt darf nicht zurückspringen');
+});
 
 // Netzwerk mit einem nachgebauten Server prüfen
 const calls: { url: string; init: RequestInit }[] = [];

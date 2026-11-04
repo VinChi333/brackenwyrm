@@ -14,8 +14,11 @@ export function decideSync({ local, remote, lastSynced }: SyncInput): SyncDecisi
   if (remote === null) return 'push';
   if (local === null) return 'pull';
   if (local === remote) return 'none';
-  const localChanged = local > lastSynced;
-  const remoteChanged = remote > lastSynced;
+  // Nur auf Gleichheit prüfen, nicht auf "größer": savedAt stammt von der Uhr des jeweiligen Geräts.
+  // Geht die Uhr am Laptop nach, wäre ein neuer lokaler Stand sonst "älter" als der zuletzt abgeglichene,
+  // und es käme bei jeder Aktion wieder die Frage nach den zwei Spielständen.
+  const localChanged = local !== lastSynced;
+  const remoteChanged = remote !== lastSynced;
   if (localChanged && !remoteChanged) return 'push';
   if (remoteChanged && !localChanged) return 'pull';
   // Beide Seiten haben seit dem letzten Abgleich weitergespielt (oder es gab noch keinen):

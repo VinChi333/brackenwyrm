@@ -67,7 +67,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const VERSION = t('Version {0}', '0.63');
+const VERSION = t('Version {0}', '0.64');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -2529,8 +2529,9 @@ let syncing = false;
 async function pushFirst(st: GameState): Promise<void> {
   saveGame(st);
   try {
+    const pushedAt = st.savedAt ?? 0;  // während des Hochladens kann weitergespielt werden
     await cloud.push(JSON.parse(JSON.stringify(st)) as GameState);
-    prefs.lastSyncedAt = st.savedAt ?? 0;
+    prefs.lastSyncedAt = pushedAt;
     savePrefs(prefs);
   } catch { /* der Server prüft selbst */ }
 }
@@ -2584,7 +2585,7 @@ async function syncNow(): Promise<string> {
         changed = true;
       }
     }
-    if (local && (d === 'push' || changed || (local.savedAt ?? 0) > prefs.lastSyncedAt)) {
+    if (local && (d === 'push' || changed || (local.savedAt ?? 0) !== prefs.lastSyncedAt)) {
       const pushedAt = local.savedAt ?? 0;  // merken, was wirklich hochging (während des Hochladens kann weitergespielt werden)
       await cloud.push(JSON.parse(JSON.stringify(local)) as GameState);
       prefs.lastSyncedAt = pushedAt;
@@ -3106,8 +3107,9 @@ function handle(act: string, el: HTMLElement): void {
         try {
           // Erst die eigenen Werte hochladen, damit der Server mit dem aktuellen Stand rechnet.
           saveGame(s);
+          const pushedAt = s.savedAt ?? 0;
           await cloud.push(JSON.parse(JSON.stringify(s)) as GameState);
-          prefs.lastSyncedAt = s.savedAt ?? 0;
+          prefs.lastSyncedAt = pushedAt;
           savePrefs(prefs);
           const res = await cloud.pvpAttack(a, place);
           applyPvpResult(s, res, place);
@@ -3247,6 +3249,7 @@ function handle(act: string, el: HTMLElement): void {
       if (a !== conflictPick(s, remote.state) && !ui.confirmDelete) { ui.confirmDelete = true; render(); return; }
       ui.confirmDelete = false;
       ui.conflict = null;
+      ui.acctMsg = '';  // die alte Meldung "Zwei Spielstände gefunden" nicht in den Einstellungen stehen lassen
       if (a === 'remote') {
         state = remote.state;
         localSaveWithoutTouch(state);
@@ -3255,8 +3258,11 @@ function handle(act: string, el: HTMLElement): void {
         go('village');
       } else {
         // Diesen Stand behalten: als neuester speichern und hochladen
+        // Den Zeitpunkt merken, der wirklich hochgeht: wer sofort weiterspielt, ändert s.savedAt schon wieder,
+        // und dann käme gleich die nächste Frage nach zwei Spielständen.
         saveGame(s);
-        cloud.push(s).then(() => { prefs.lastSyncedAt = s.savedAt ?? 0; savePrefs(prefs); }, () => {});
+        const pushedAt = s.savedAt ?? 0;
+        cloud.push(JSON.parse(JSON.stringify(s)) as GameState).then(() => { prefs.lastSyncedAt = pushedAt; savePrefs(prefs); }, () => {});
         go('village');
       }
       return;

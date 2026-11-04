@@ -12,7 +12,8 @@ const CODE_PREFIX = 'BW1:';
 
 /** keepTime: Zeitpunkt nicht erneuern (für einen vom Server geladenen Stand). */
 export function saveGame(s: GameState, keepTime = false): boolean {
-  if (!keepTime || !s.savedAt) s.savedAt = Date.now();
+  // Immer weiterzählen, auch wenn die Uhr dieses Geräts hinter dem Gerät liegt, von dem der Stand kam.
+  if (!keepTime || !s.savedAt) s.savedAt = Math.max(Date.now(), (s.savedAt ?? 0) + 1);
   try {
     localStorage.setItem(KEY, JSON.stringify(s));
     return true;
