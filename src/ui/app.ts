@@ -26,7 +26,7 @@ import {
   announce, applyHaunt, HAUNT_FAVOR, attack, bankDeposit, bankWithdraw, buyItem, canChallengeMaster, canSeekDragon, checkRealDay, chooseDragonBonus,
   CHRONICLE_SIZE, closeFight, defense, bankBorrow, LOAN_PER_LEVEL, expNeeded, fightAction, forestSearch, harzbierCost, heal, healCost, maxHp,
   graveSearch, maxSoul, RESURRECT_FAVOR, restoreSoul, resurrect, soulRestoreCost, jumpCliff,
-  newGame, rentRoom, roomCost, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
+  newGame, rentRoom, wakeUp, roomCost, requestSong, resolveEvent, startDragonFight, startMasterFight, startNewDay, talkToFrieda,
 } from '../game/engine';
 import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
@@ -59,6 +59,9 @@ import { LANGS, lang, missing, switchLang, t, tkey, tr } from '../i18n';
 import { news, showNews } from '../i18n/news';
 import { serverText } from '../i18n/server';
 
+/** Bildschirme, die nur Menüs sind: Wer schläft, wacht davon nicht auf. */
+const QUIET_SCREENS = ['settings', 'feedback', 'mail', 'news', 'warriors', 'bio', 'bestiary', 'chronicle', 'fame', 'impressum', 'datenschutz', 'wache', 'blocks', 'deleteAccount', 'fangbuch'];
+
 type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' | 'healer' | 'smith'
   | 'bank' | 'inn' | 'bestiary' | 'fame' | 'chronicle' | 'feedback' | 'settings' | 'shadows' | 'dragonBonus' | 'syncConflict' | 'login' | 'fields' | 'innGuests' | 'news' | 'flirt' | 'stable' | 'warriors' | 'mail' | 'haunt' | 'bio' | 'ambros'
   | 'datenschutz' | 'impressum' | 'wache' | 'blocks' | 'deleteAccount' | 'steg' | 'fangbuch'
@@ -67,7 +70,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const VERSION = t('Version {0}', '0.67');
+const VERSION = t('Version {0}', '0.68');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -988,7 +991,7 @@ function innScreen(s: GameState): string {
     ${withNpc('frieda', `<p class="lead">${t`Das Feuer knistert. Wirtin <span class="npc">Frieda</span> poliert ein Glas, das davon nicht sauberer wird. In der Ecke stimmt Barde <span class="npc">Florian</span> seine Laute.`}</p>`)}
     <p class="rumor">${esc(RUMORS[s.day % RUMORS.length])}</p>
     ${flashHtml()}
-    ${cloud.enabled && p.innRoom ? `<p class="muted">${t`Du hast für heute ein Zimmer. Wenn du jetzt aufhörst zu spielen, schläfst du hier sicherer als draußen auf den Feldern.`}</p>` : ''}
+    ${cloud.enabled && p.innRoom ? `<p class="notice">${t`Du liegst oben in Zimmer 3 und schläfst. Hör jetzt einfach auf zu spielen: Hier bist du sicherer als draußen auf den Feldern. Verlässt du das Gasthaus, stehst du wieder auf.`}</p>` : ''}
     <section class="table-talk"><h2>${t`Am Stammtisch`}</h2>
       ${regularsSay(s).map((l) => `<p><span class="npc">${esc(l.who.charAt(0).toUpperCase() + l.who.slice(1))}:</span> ${esc(l.t)}</p>`).join('')}
     </section>
@@ -1006,7 +1009,7 @@ function innScreen(s: GameState): string {
       { act: 'go:flirt', label: p.marriedTo ? t`Zu ${PARTNERS[p.marriedTo].name} gehen` : t`${PARTNERS[partnerOf(p)].name} umwerben`, key: 'u', hint: p.seenLover ? t('heute schon') : p.marriedTo ? t('dein Schatz') : '' },
       { act: 'looks', label: t`${PARTNERS[friendOf(p)].name} fragen, wie du aussiehst`, key: 'a' },
       ...(cloud.enabled ? [
-        { act: 'room', label: t('Zimmer mieten'), key: 'z', hint: p.innRoom ? t('gemietet') : t`${roomCost(p.level)} Gold`, disabled: p.innRoom },
+        { act: 'room', label: p.innRoom ? t('Du schläfst oben') : p.roomDay === s.lastRealDate ? t('Wieder schlafen gehen') : t('Zimmer mieten und schlafen'), key: 'z', hint: p.innRoom ? '' : p.roomDay === s.lastRealDate ? t('schon bezahlt') : t`${roomCost(p.level)} Gold`, disabled: p.innRoom },
         { act: 'bribe', label: t('Frieda bestechen'), key: 'b', hint: cloud.signedIn ? t('1 Edelstein') : t('nur mit Spielerkonto'), disabled: !cloud.signedIn || p.gems < 1 },
       ] : []),
     ] },
@@ -2985,6 +2988,14 @@ function handle(act: string, el: HTMLElement): void {
       document.getElementById('acct-pass')?.scrollIntoView({ block: 'center' });
       return;
     case 'go':
+      // Wer schläft und den Schlafplatz verlässt, steht auf (Menüs wie Briefe, Einstellungen oder Neuigkeiten wecken nicht).
+      if (s && (s.player.innRoom || s.player.atHome)) {
+        const stay = s.player.innRoom ? ['inn'] : ['house', 'houses'];
+        if (!stay.includes(a) && !QUIET_SCREENS.includes(a)) {
+          const woke = wakeUp(s);
+          if (woke) { ui.flash = []; say(woke, 'info'); saveGame(s); scheduleSync(300); }
+        }
+      }
       if (a === 'fields' && cloud.signedIn) { go('fields'); loadTargets('felder'); return; }
       if (a === 'news' && cloud.enabled) { ui.newsRows = null; cloud.news(40).then((r) => { ui.newsRows = r; }, () => { ui.newsRows = []; }).finally(() => { if (ui.screen === 'news') render(); }); }
       if (a === 'warriors' && cloud.signedIn) { go('warriors'); loadWarriors(); return; }

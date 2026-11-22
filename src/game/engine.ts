@@ -254,14 +254,37 @@ export function roomCost(level: number): number {
 
 export function rentRoom(s: GameState): string {
   const p = s.player;
-  if (p.innRoom) return t('Dein Zimmer ist schon bezahlt. Frieda hat dir sogar das Kissen aufgeschüttelt.');
+  if (p.innRoom) return t('Du liegst doch schon im Bett. Frieda hat dir sogar das Kissen aufgeschüttelt.');
+  const paid = !!p.roomDay && p.roomDay === s.lastRealDate;
   const cost = roomCost(p.level);
-  if (p.gold < cost) return t`Ein Zimmer kostet ${cost} Gold. So viel hast du nicht dabei.`;
-  p.gold -= cost;
+  if (!paid && p.gold < cost) return t`Ein Zimmer kostet ${cost} Gold. So viel hast du nicht dabei.`;
+  if (!paid) p.gold -= cost;
+  p.roomDay = s.lastRealDate;
   p.innRoom = true;
   p.atHome = false;
   p.homeOf = '';
-  return t`Frieda gibt dir den Schlüssel zu Zimmer 3. „Abschließen nicht vergessen.“ Wer hier schläft, ist vor Überfällen auf den Feldern sicher. (${cost} Gold)`;
+  return paid
+    ? t('Du gehst wieder hinauf in Zimmer 3 und legst dich hin. Bezahlt ist es ja noch.')
+    : t`Frieda gibt dir den Schlüssel zu Zimmer 3. „Abschließen nicht vergessen.“ Du legst dich hin. Solange du schläfst, bist du vor Überfällen auf den Feldern sicher. (${cost} Gold)`;
+}
+
+/**
+ * Wer schläft (im Gasthaus oder daheim) und dann doch weiterspielt, steht auf und ist nicht mehr geschützt.
+ * Gibt die Meldung zurück, oder null, wenn er gar nicht geschlafen hat.
+ */
+export function wakeUp(s: GameState): string | null {
+  const p = s.player;
+  if (!p.alive) return null;
+  if (p.innRoom) {
+    p.innRoom = false;
+    return t('Du stehst auf und gehst die Treppe hinunter. Solange du wach bist, schützt dich das Zimmer nicht. Bezahlt ist es bis zum nächsten Spieltag, du kannst dich also jederzeit wieder hinlegen.');
+  }
+  if (p.atHome) {
+    p.atHome = false;
+    p.homeOf = '';
+    return t('Du stehst wieder auf und ziehst die Stiefel an. Solange du wach bist, schützt dich das Haus nicht. Leg dich einfach wieder hin, wenn du aufhörst.');
+  }
+  return null;
 }
 
 export function restoreSoul(s: GameState): string {
@@ -360,7 +383,8 @@ export function startMasterFight(s: GameState): boolean {
   if (canChallengeMaster(p) !== 'ok') return false;
   const m = masterForLevel(p.level);
   if (!m) return false;
-  p.seenMaster = true;
+  // Wie im Original: Gesperrt für heute wird man erst nach einer Niederlage (oder Aufgabe). Wer gewinnt und schon
+  // genug Erfahrung für die nächste Stufe hat, darf gleich den nächsten Meister fordern.
   const ms = masterStats(p.level);
   const mp = masterToughness(p);
   const mt = toughen(mp, roll, Math.round(mp * 0.25));
@@ -486,6 +510,7 @@ export function fightAction(s: GameState, action: FightAction): void {
     const odds = f.kind === 'forest' || f.kind === 'feste' ? 0.5 : f.kind === 'dragon' || f.kind === 'grave' ? 0.33 : 1;
     if (f.kind === 'master') {
       log.push({ t: t`Du gibst auf. ${f.foe.name} nickt verständnisvoll.`, k: 'info' });
+      p.seenMaster = true;
       f.over = 'fled';
       pushLog(f, log);
       return;
@@ -753,6 +778,7 @@ function loseFight(s: GameState): void {
   f.over = 'lose';
   if (f.kind === 'master') {
     p.hp = 1;
+    p.seenMaster = true;
     f.log.push({ t: masterForLevel(p.level)?.defeat ?? t('Du bist besiegt.'), k: 'warn' });
   } else if (f.kind === 'grave') {
     p.soul = 0;

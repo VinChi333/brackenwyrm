@@ -1,7 +1,8 @@
 // Prüft Ambros' Zahlenraten, den Steckbrief im Spielstand und das Wachsen der Gegner mit den Drachenpunkten.
 import assert from 'node:assert/strict';
 import { AMBROS_GAMES_PER_DAY, AMBROS_TRIES, ambrosBets, guessAmbros, startAmbros } from '../src/game/ambros';
-import { newGame, startNewDay } from '../src/game/engine';
+import { fightAction as act, canChallengeMaster, newGame, rentRoom, startMasterFight, startNewDay, wakeUp } from '../src/game/engine';
+import { sleepAtHome } from '../src/game/house';
 import { dragonToughness, expNeeded, forestToughness, masterToughness, toughen } from '../src/game/balance';
 import { exportCode, importCode } from '../src/game/storage';
 
@@ -70,5 +71,44 @@ t('Drachenpunkte: Gegner wachsen mit, Erfahrung pro Stufe steigt mit den Drachen
   assert.equal(expNeeded(5, 0), expNeeded(5));
   const r = toughen(10, (_a, b) => b);
   assert.equal(r.atk + r.def + r.hp / 5, 10);
+});
+t('Meister: nach einem Sieg mit voller Erfahrung gleich den nächsten fordern, nach einer Niederlage erst morgen', () => {
+  const s = newGame('Held', 'dieb');
+  const p = s.player;
+  p.exp = 100000; p.hp = 100000; p.baseMaxHp = 100000;
+  assert.ok(startMasterFight(s));
+  for (let i = 0; i < 200 && !s.fight!.over; i++) { s.fight!.foe.hp = 1; act(s, 'attack'); }
+  assert.equal(s.fight!.over, 'win');
+  s.fight = null;
+  assert.equal(p.level, 2);
+  assert.equal(canChallengeMaster(p), 'ok', 'gleich den nächsten Meister');
+  assert.ok(startMasterFight(s));
+  act(s, 'flee');
+  s.fight = null;
+  assert.equal(canChallengeMaster(p), 'seen', 'nach Aufgeben erst morgen');
+  startNewDay(s);
+  assert.equal(canChallengeMaster(p), 'ok');
+});
+t('Schlafen: Zimmer bezahlt bis zum nächsten Spieltag, aufstehen hebt den Schutz auf', () => {
+  const s = newGame('Held', 'dieb');
+  const p = s.player;
+  s.lastRealDate = '2026-11-22a'; p.gold = 1000; p.level = 3;
+  rentRoom(s);
+  assert.equal(p.innRoom, true); assert.equal(p.gold, 1000 - 40);
+  assert.match(wakeUp(s) ?? '', /stehst auf/);
+  assert.equal(p.innRoom, false);
+  rentRoom(s);
+  assert.equal(p.innRoom, true); assert.equal(p.gold, 960, 'wieder hinlegen kostet nichts');
+  wakeUp(s);
+  s.lastRealDate = '2026-11-22b';
+  rentRoom(s);
+  assert.equal(p.gold, 920, 'neuer Spieltag: neues Zimmer');
+  assert.equal(wakeUp(s) !== null, true);
+  assert.equal(wakeUp(s), null, 'wer wach ist, wacht nicht nochmal auf');
+  p.house = { name: 'Haus', stage: 99, stageDay: '' };
+  sleepAtHome(s);
+  assert.equal(p.atHome, true);
+  wakeUp(s);
+  assert.equal(p.atHome, false);
 });
 console.log(`${n} Prüfungen bestanden`);

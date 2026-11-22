@@ -158,7 +158,8 @@ export interface Player {
   soul: number;           // Seelenkraft im Schattenreich (statt Lebenspunkten)
   favor: number;          // Gunst bei Morwen, bleibt über den Tod hinaus
   graveFights: number;    // Schattenkämpfe heute
-  innRoom: boolean;       // Zimmer im Gasthaus für diese Nacht gemietet
+  innRoom: boolean;       // schläft gerade im Zimmer im Gasthaus (geschützt); wer das Gasthaus verlässt, steht auf
+  roomDay?: string;       // Spieltag, für den das Zimmer bezahlt ist (wieder hinlegen kostet dann nichts)
   buffs: Buff[];
   bonusFights: number;    // zusätzliche Waldkämpfe pro Tag aus Drachenpunkten
   charm: number;          // Charme, wächst mit jedem Drachenkill (für Flirten und Heiraten im Gasthaus)
