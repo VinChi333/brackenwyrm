@@ -74,6 +74,12 @@ geben, die gemeinsame Truhe für Edelsteine, sicher daheim schlafen und Einbrüc
 nur ohne Truhe, Schlüssel und Einbruch.
 **Teil 11 ersetzt die Spielerkämpfe aus Teil 4 und Teil 6: Wer Teil 4 oder Teil 6 erneut ausführt, führt danach auch Teil 11 erneut aus.**
 
+## Teil 12: Gilden-Einladungen (ab 0.67)
+
+`supabase-12-einladungen.sql` nach Teil 11 ausführen. Gildenmeister und Offiziere können dann Helden per Namen in ihre
+Gilde einladen (in der Gildenhalle oder direkt aus dem Steckbrief). Der Eingeladene bekommt einen Brief und nimmt in der
+Gildenhalle an oder lehnt ab. Ohne Teil 12 geht weiter nur die Bewerbung.
+
 ## E-Mails: Passwort vergessen (ab 0.44)
 
 „Passwort vergessen?“ schickt einen Code per E-Mail. Der eingebaute Mailversand von Supabase schickt nur an

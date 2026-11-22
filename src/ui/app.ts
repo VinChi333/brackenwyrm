@@ -31,7 +31,7 @@ import {
 import type { FightAction, ForestMode } from '../game/engine';
 import { deleteGame, exportCode, importCode, loadGame, loadPrefs, saveGame, savePrefs } from '../game/storage';
 import { Cloud, CloudError } from '../game/cloud';
-import type { AushangRow, HouseDetail, HouseRow, PvpPlace, BountyRow, CodeRow, FeedbackRow, TitleInfo, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
+import type { AushangRow, HouseDetail, HouseRow, PvpPlace, BountyRow, CodeRow, FeedbackRow, TitleInfo, GuildInvite, GuildMember, GuildMine, GuildRow, DiceResult, FameCat, FameCatRow, JackpotInfo, BlockRow, MailRow, ModBanned, ModCheat, ModReport, ReportKind, WarriorRow } from '../game/cloud';
 import { censor, isClean } from '../content/badwords';
 import { COLOR_CODES, colorize } from './colors';
 import { datenschutzHtml, impressumHtml, legalIncomplete } from '../content/legal';
@@ -67,7 +67,7 @@ type Screen = 'title' | 'create' | 'village' | 'forest' | 'fight' | 'training' |
 
 // Titelbild: der schlafende Wyrm (art-source/titel-wyrm.png) und der Spruch darunter.
 const TITLE_ART = (import.meta.glob('../assets/title/titel-wyrm.webp', { eager: true, import: 'default' }) as Record<string, string>)['../assets/title/titel-wyrm.webp'];
-const VERSION = t('Version {0}', '0.66');
+const VERSION = t('Version {0}', '0.67');
 
 /** Testmodus (neuer Tag per Knopf): nur in Testbuilds und für die Wache, nie für normale Spieler. */
 function devAllowed(): boolean { return import.meta.env.MODE !== 'production' || ui.isAdmin; }
@@ -129,7 +129,7 @@ interface Ui {
   sayText: string;
   acctEmail: string;        // Spielerkonto: eingegebene Adresse
   acctMsg: string;
-  guild: { mine: GuildMine | null | undefined; list: GuildRow[] | null; err: string; confirmLeave: boolean; tags: Map<string, string> };
+  guild: { mine: GuildMine | null | undefined; list: GuildRow[] | null; err: string; confirmLeave: boolean; tags: Map<string, string>; invites: GuildInvite[] };
   resetStep: '' | 'email' | 'code';   // Passwort vergessen: Adresse eingeben, dann Code und neues Passwort
   conflict: RemoteSave | null;  // Server-Stand, wenn beide Geräte weitergespielt haben
   fame: FameRow[] | null;       // echte Spieler aus der Online-Ruhmeshalle
@@ -148,7 +148,7 @@ cloud.onExpired = (email, why) => {
   render();
 };
 const ui: Ui = {
-  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '', codes: null, newCodes: [], feedback: null, fbAll: false }, full: null, fullMsg: '', dkPoint: null, dkSpec: null, confirmDelete: false, confirmDragon: false, houses: { list: null, err: '', detail: null, of: '', burgle: false, busy: false }, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' }, gilde: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', guild: { mine: undefined, list: null, err: '', confirmLeave: false, tags: new Map() }, conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
+  screen: 'title', flash: [], createName: '', createSpec: 'dunkel', createGender: 'm', createRace: 'mensch', dkRace: null, skillMenu: false, warriors: null, mail: null, listErr: '', mailOpen: null, compose: null, unread: 0, unreadAt: 0, bio: null, bioNews: null, statue: null, ambros: null, blocked: new Set(), blocksList: null, isAdmin: false, repConfirm: '', legalFrom: 'title', delMsg: '', bankMode: '', bounties: null, dice: { info: null, last: null, err: '', busy: false }, aushang: null, fameCat: 'drachen', fameRows: null, wache: { tab: 'reports', reports: null, banned: null, cheats: null, err: '', codes: null, newCodes: [], feedback: null, fbAll: false }, full: null, fullMsg: '', dkPoint: null, dkSpec: null, confirmDelete: false, confirmDragon: false, houses: { list: null, err: '', detail: null, of: '', burgle: false, busy: false }, confirmNew: false, importMsg: '', newCard: null, fullLog: false, fbKinds: [], fbText: '', fbFrom: 'village', fbMsg: '', devTaps: 0, menuOpen: false, pvp: { targets: null, loading: false, busy: false, error: '', fightsLeft: null, immune: false }, squares: { dorfplatz: { comments: null, loading: false, at: 0, error: '' }, gasthaus: { comments: null, loading: false, at: 0, error: '' }, schattenreich: { comments: null, loading: false, at: 0, error: '' }, felsen: { comments: null, loading: false, at: 0, error: '' }, garten: { comments: null, loading: false, at: 0, error: '' }, gilde: { comments: null, loading: false, at: 0, error: '' } }, newsRows: null, sayText: '', acctEmail: '', acctMsg: '', resetStep: '', guild: { mine: undefined, list: null, err: '', confirmLeave: false, tags: new Map(), invites: [] }, conflict: null, fame: null, guideToast: [], hint: '', confirmGuide: false,
 };
 let root: HTMLElement;
 
@@ -556,7 +556,7 @@ function villageScreen(s: GameState): string {
   const p = s.player;
   const m = masterForLevel(p.level);
   const mstate = canChallengeMaster(p);
-  const found = Object.keys(s.bestiary).filter((k) => k !== 'dragon').length;
+  const found = MONSTERS.filter((m) => s.bestiary[m.id]).length;  // nur Waldgegner zählen (wie im Bestiarium), nicht Feste und Schattenreich
   const main = `<h1>${t`Moosgrund`}</h1>
     ${placeArt('dorfplatz', t('Der Dorfplatz von Moosgrund'))}
     <p class="lead">${t`Du stehst auf dem Dorfplatz von <span class="place">Moosgrund</span>. Rauch steigt aus den Kaminen, aus dem Gasthaus <span class="place">Zum Schlafenden Wurm</span> klingt Gelächter. Im Norden rauscht der <span class="place">Brackenwald</span>, und irgendwo dahinter schläft der Wyrm.`}</p>
@@ -1098,7 +1098,7 @@ function loadAushang(): void {
 function loadGuild(): void {
   const g = ui.guild;
   g.err = '';
-  Promise.all([cloud.guildMine(), cloud.guildList()]).then(([mine, list]) => { g.mine = mine; g.list = list; if (mine && mine.rank !== 'applicant') loadSquare('gilde', true); },
+  Promise.all([cloud.guildMine(), cloud.guildList(), cloud.guildInvites()]).then(([mine, list, inv]) => { g.mine = mine; g.list = list; g.invites = inv; if (mine && mine.rank !== 'applicant') loadSquare('gilde', true); },
     (e) => { g.mine = null; g.list = g.list ?? []; g.err = e instanceof CloudError ? e.message : t('Die Gildenhalle ist verschlossen.'); })
     .finally(() => { if (currentScreen() === 'gilde') render(); });
 }
@@ -1125,7 +1125,9 @@ function gildeScreen(s: GameState): string {
     const list = g.list === null ? '<p class="muted">…</p>' : g.list.length
       ? `<table class="fame"><thead><tr><th>${t`Gilde`}</th><th class="num">${t`Mitglieder`}</th><th></th></tr></thead><tbody>${g.list.map((x) => `<tr class="${mine?.guild.id === x.id ? 'me' : ''}"><td><strong>${esc(x.name)}</strong> <span class="g-tag">[${esc(x.tag)}]</span>${x.leader ? `<small>${t`Gildenmeister: ${esc(x.leader)}`}</small>` : ''}</td><td class="num">${x.members}</td><td>${mine ? (mine.guild.id === x.id ? `<span class="muted">${t`angefragt`}</span>` : '') : `<button type="button" class="tbtn" data-act="guild:apply:${x.id}">${t`Beitritt anfragen`}</button>`}</td></tr>`).join('')}</tbody></table>`
       : `<p class="muted">${t`Noch hängt kein einziges Wappen an der Tür. Gründe die erste Gilde von Moosgrund!`}</p>`;
-    const main = `<h1>${t`Die Gildenhalle`}</h1>${lead}${flashHtml()}${err}
+    const invites = g.invites.length ? `<section class="good-box"><h2>${t`Einladungen`}</h2>${g.invites.map((v) => `<p>${t`<strong>${esc(v.invited_by || '?')}</strong> lädt dich in die Gilde <strong>${esc(v.name)}</strong> [${esc(v.tag)}] ein.`}</p>
+        <div class="row"><button type="button" class="btn" data-act="guild:inv-yes:${v.guild_id}">${t`Annehmen`}</button><button type="button" class="tbtn ghost" data-act="guild:inv-no:${v.guild_id}">${t`Ablehnen`}</button></div>`).join('')}</section>` : '';
+    const main = `<h1>${t`Die Gildenhalle`}</h1>${lead}${flashHtml()}${err}${invites}
       ${mine ? `<p class="notice">${t`Deine Bewerbung bei <strong>${esc(mine.guild.name)}</strong> [${esc(mine.guild.tag)}] wartet auf eine Antwort der Gildenführung.`} <button type="button" class="linkish" data-act="guild:withdraw">${t`Bewerbung zurückziehen`}</button></p>` : ''}
       <h2>${t`Die Gilden von Moosgrund`}</h2>${list}
       <h2>${t`Eine Gilde gründen`}</h2>
@@ -1159,6 +1161,9 @@ function gildeScreen(s: GameState): string {
     ${lead2 && mine.applicants.length ? `<h2>${t`Bewerbungen`}</h2><ul class="warriors">${mine.applicants.map((a) => `<li class="warrior g-member"><span class="t-info"><strong>${esc(a.name)}</strong> <small>${t`Stufe ${a.level}`}${a.dragon_kills ? t` · Drachentöter ${a.dragon_kills}×` : ''}</small></span><span class="row"><button type="button" class="tbtn" data-act="guild:accept:${a.user_id}">${t`aufnehmen`}</button><button type="button" class="tbtn ghost" data-act="guild:decline:${a.user_id}">${t`ablehnen`}</button></span></li>`).join('')}</ul>` : ''}
     <h2>${t`Mitglieder (${mine.members.length})`}</h2>
     <ul class="warriors">${mine.members.map(memberRow).join('')}</ul>
+    ${lead2 ? `<h2>${t`Helden einladen`}</h2>
+      <div class="row"><input type="text" id="guild-invite" maxlength="40" placeholder="${t`Name des Helden`}" aria-label="${t`Name des Helden`}" autocomplete="off"><button type="button" class="tbtn" data-act="guild:invite">${t`Einladen`}</button></div>
+      <p class="muted">${t`Der Held bekommt einen Brief vom Gildenboten und kann hier in der Gildenhalle annehmen. Einladen geht auch direkt aus seinem Steckbrief.`}</p>` : ''}
     ${squareHtml('gilde')}
     ${lead2 ? `<details class="guild-edit"><summary>${t`Nachricht und Beschreibung ändern`}</summary>
       <label class="field">${t`Nachricht der Gildenführung`}<textarea id="guild-motd" maxlength="300" rows="3">${esc(gi.motd ?? '')}</textarea></label>
@@ -1280,7 +1285,7 @@ function fameScreen(s: GameState): string {
   const st = s.stats;
   const rows = fameTable(s).map((e, i) => `<tr class="${e.isPlayer ? 'me' : ''}"><td class="rank">${i + 1}.</td>
     <td><strong>${esc(e.name)}</strong><small>${esc(e.title)}</small></td><td class="num">${e.dragonKills}</td><td class="num">${e.level}</td></tr>`).join('');
-  const found = Object.keys(s.bestiary).filter((k) => k !== 'dragon').length;
+  const found = MONSTERS.filter((m) => s.bestiary[m.id]).length;  // nur Waldgegner zählen (wie im Bestiarium), nicht Feste und Schattenreich
   const rec = (label: string, value: string) => `<div class="rec"><span>${label}</span><strong>${value}</strong></div>`;
   const main = `<h1>${t`Ruhmeshalle`}</h1>
     <p class="lead">${t`An der Wand im Rathaus hängen die Namen aller, die dem Brackenwyrm gegenübergetreten sind. Manche sind frisch geschnitzt, andere kaum noch zu lesen.`}</p>
@@ -1671,6 +1676,8 @@ function bioScreen(s: GameState): string {
   return layout(s, main, [
     { title: t('Steckbrief'), items: [
       ...(me ? [] : [{ act: `write:${w.userId}`, label: t('Brief schreiben'), key: 'b', primary: true }]),
+      ...(!me && ui.guild.mine && (ui.guild.mine.rank === 'leader' || ui.guild.mine.rank === 'officer') && !ui.guild.mine.members.some((m) => m.user_id === w.userId)
+        ? [{ act: 'guild:invitebio', label: t('In meine Gilde einladen'), key: 'g' }] : []),
       { act: 'go:warriors', label: t('Zur Kriegerliste'), key: 'l' },
     ] },
     ...(me ? [] : [{ title: t('Ärger?'), items: [
@@ -3356,6 +3363,16 @@ function handle(act: string, el: HTMLElement): void {
         return;
       }
       if (a === 'apply') { cloud.guildApply(Number(b)).then((r) => done(t`Deine Bewerbung bei „${r.name}“ hängt jetzt am Brett. Die Gildenführung bekommt einen Brief.`), fail); return; }
+      if (a === 'invite' || a === 'invitebio') {
+        const hero = a === 'invitebio' ? ui.bio?.name ?? '' : ((document.getElementById('guild-invite') as HTMLInputElement | null)?.value ?? '').trim();
+        if (!hero) { say(t('Bitte den Namen des Helden eingeben.'), 'warn'); render(); return; }
+        cloud.guildInvite(hero).then((r) => done(r.joined ? t`${r.name} hatte sich schon beworben und ist jetzt aufgenommen.` : t`Der Gildenbote bringt ${r.name} die Einladung.`), fail);
+        return;
+      }
+      if (a === 'inv-yes' || a === 'inv-no') {
+        cloud.guildInviteAnswer(Number(b), a === 'inv-yes').then((r) => done(a === 'inv-yes' ? t`Willkommen in der Gilde „${r.name}“ [${r.tag}]!` : t`Du lehnst die Einladung von „${r.name}“ höflich ab.`, a === 'inv-yes' ? 'gold' : 'info'), fail);
+        return;
+      }
       if (a === 'withdraw') { cloud.guildWithdraw().then(() => done(t('Du nimmst deine Bewerbung wieder vom Brett.'), 'info'), fail); return; }
       if (a === 'accept' || a === 'decline') { cloud.guildDecide(b, a === 'accept').then(() => done(a === 'accept' ? t('Aufgenommen! Ein Bote bringt die gute Nachricht.') : t('Abgelehnt. Ein Bote bringt die Nachricht.'), 'info'), fail); return; }
       if (a === 'kick') { cloud.guildKick(b).then(() => done(t('Entlassen. Der Name wird von der Tafel gewischt.'), 'info'), fail); return; }

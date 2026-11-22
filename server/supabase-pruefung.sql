@@ -25,5 +25,6 @@ select pruefung, ok from (values
   ('Teil 10: Startseite',                      exists (select 1 from pg_proc where proname = 'title_info')),
   ('Teil 11: Häuser',                          to_regclass('public.houses') is not null and exists (select 1 from pg_proc where proname = 'house_chest')),
   ('Teil 11: nach Teil 4 und 6 ausgeführt',    exists (select 1 from pg_proc where proname = 'pvp_attack' and prosrc like '%in_house%')
-                                               and exists (select 1 from pg_proc where proname = 'pvp_targets' and prosrc like '%in_house%'))
+                                               and exists (select 1 from pg_proc where proname = 'pvp_targets' and prosrc like '%in_house%')),
+  ('Teil 12: Gilden-Einladungen',              to_regclass('public.guild_invites') is not null and exists (select 1 from pg_proc where proname = 'guild_invite_answer'))
 ) as t(pruefung, ok);

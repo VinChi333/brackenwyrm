@@ -45,6 +45,7 @@ export interface JackpotInfo { pot: number; last5: string; last5_pot: number; la
 export interface DiceResult { dice: number[]; sixes: number; win: number; cost: number; pot: number; plays_left: number }
 export interface GuildRow { id: number; name: string; tag: string; members: number; leader: string }
 export type GuildRank = 'leader' | 'officer' | 'member' | 'applicant';
+export interface GuildInvite { guild_id: number; name: string; tag: string; invited_by: string; created_at: string }
 export interface GuildMember { user_id: string; name: string; level: number; gender: Gender; dragon_kills: number; rank: GuildRank; online?: boolean; since: string }
 export interface GuildMine {
   rank: GuildRank;
@@ -650,6 +651,26 @@ export class Cloud {
   guildKick(target: string): Promise<void> { return this.rpc7('guild_kick', { target }); }
   guildRank(target: string, newRank: 'leader' | 'officer' | 'member'): Promise<void> { return this.rpc7('guild_rank', { target, new_rank: newRank }); }
   guildText(motd: string, descr: string): Promise<void> { return this.rpc7('guild_text', { motd, descr }); }
+
+  // Einladungen (Teil 12)
+  private async rpc12<T>(name: string, body: object): Promise<T> {
+    await this.ensureSession();
+    try {
+      return await this.call(`/rest/v1/rpc/${name}`, { method: 'POST', body });
+    } catch (e) {
+      if (this.missingPart5(e)) throw new CloudError('server', t('Einladungen sind auf dem Server noch nicht eingerichtet (Teil 12).'));
+      throw e;
+    }
+  }
+  guildInvite(hero: string): Promise<{ name: string; joined: boolean }> { return this.rpc12('guild_invite', { hero }); }
+  guildInviteAnswer(gid: number, accept: boolean): Promise<{ name: string; tag: string }> { return this.rpc12('guild_invite_answer', { gid, accept }); }
+  /** Meine offenen Einladungen; ohne Teil 12 einfach keine. */
+  async guildInvites(): Promise<GuildInvite[]> {
+    try {
+      const r = await this.rpc12<GuildInvite[] | null>('guild_invites_mine', {});
+      return Array.isArray(r) ? r : [];
+    } catch { return []; }
+  }
 
   // ---------- Vollversion (Teil 8) ----------
   /** Hat dieses Konto die Vollversion? Ohne Teil 8 auf dem Server gibt es keine Sperre. */

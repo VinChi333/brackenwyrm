@@ -36,6 +36,8 @@ await db.exec(readFileSync(new URL('../server/supabase-10-startseite.sql', impor
 await db.exec(readFileSync(new URL('../server/supabase-10-startseite.sql', import.meta.url), 'utf8')); // wiederholbar
 await db.exec(readFileSync(new URL('../server/supabase-11-haeuser.sql', import.meta.url), 'utf8'));
 await db.exec(readFileSync(new URL('../server/supabase-11-haeuser.sql', import.meta.url), 'utf8')); // wiederholbar
+await db.exec(readFileSync(new URL('../server/supabase-12-einladungen.sql', import.meta.url), 'utf8'));
+await db.exec(readFileSync(new URL('../server/supabase-12-einladungen.sql', import.meta.url), 'utf8')); // wiederholbar
 const A = '00000000-0000-0000-0000-00000000000a', B = '00000000-0000-0000-0000-00000000000b', C = '00000000-0000-0000-0000-00000000000c', N = '00000000-0000-0000-0000-00000000000d';
 await db.exec(`insert into auth.users values ('${A}','a@x'),('${B}','b@x'),('${C}','c@x'),('${N}','n@x')`);
 // Testhelden haben die Vollversion (Teil 8), sonst zählt online nur ein Drachenkill
@@ -741,6 +743,54 @@ await db.exec(`update public.fighters set banned = false where user_id = '${A}'`
     const x = await old.query(`select race, specialty from public.fighters`);
     ok(x.rows[0].race === 'mensch' && x.rows[0].specialty === 'klinge', 'alte Datenbank lässt sich aktualisieren, bestehende Kämpfer bleiben');
   }
+}
+
+// Teil 12: Gilden-Einladungen
+{
+  const L = '00000000-0000-0000-0000-0000000000e1', I = '00000000-0000-0000-0000-0000000000e2', O = '00000000-0000-0000-0000-0000000000e3';
+  await db.exec(`insert into auth.users values ('${L}','l@x'),('${I}','i@x'),('${O}','o@x')`);
+  await fighter(L, 'Gildenchefin', 6); await fighter(I, 'Eingeladener', 3); await fighter(O, 'Fremder', 3);
+  await db.exec(`update public.fighters set gold = 5000, banned = false where user_id in ('${L}','${I}','${O}')`);
+  const fail = async (uid, sql) => { try { await as(uid, sql); return ''; } catch (e) { return e.message; } };
+  await as(L, `select public.guild_create('Die Einlader', 'EIN')`);
+  const gEin = (await db.query(`select id from public.guilds where tag = 'EIN'`)).rows[0].id;
+  let e = await fail(O, `select public.guild_invite('Eingeladener')`);
+  ok(/Gildenführung/.test(e), 'Einladen nur durch die Gildenführung: ' + e);
+  e = await fail(L, `select public.guild_invite('Gibtsnicht')`);
+  ok(/diesem Namen/.test(e), 'unbekannter Name');
+  r = await as(L, `select public.guild_invite('eingeladener') as r`);
+  ok(r.rows[0].r.name === 'Eingeladener' && r.rows[0].r.joined === false, 'Einladung verschickt (Name ohne Groß/klein)');
+  r = await db.query(`select count(*)::int as n from public.mail where to_user = '${I}' and subject = 'Einladung in eine Gilde'`);
+  ok(r.rows[0].n === 1, 'Brief vom Gildenboten');
+  e = await fail(L, `select public.guild_invite('Eingeladener')`);
+  ok(/schon eine Einladung/.test(e), 'nicht zweimal am selben Tag');
+  r = await as(I, `select public.guild_invites_mine() as v`);
+  ok(r.rows[0].v.length === 1 && r.rows[0].v[0].tag === 'EIN' && r.rows[0].v[0].invited_by === 'Gildenchefin', 'Eingeladener sieht die Einladung');
+  r = await as(O, `select public.guild_invites_mine() as v`);
+  ok(r.rows[0].v.length === 0, 'andere sehen sie nicht');
+  e = await fail(O, `select public.guild_invite_answer(${gEin}, true)`);
+  ok(/gibt es nicht mehr/.test(e), 'ohne Einladung kein Beitritt');
+  r = await as(I, `select public.guild_invite_answer(${gEin}, true) as r`);
+  ok(r.rows[0].r.tag === 'EIN', 'Einladung angenommen');
+  r = await as(I, `select public.guild_mine() as m`);
+  ok(r.rows[0].m.rank === 'member' && r.rows[0].m.members.length === 2, 'sofort Mitglied');
+  r = await db.query(`select count(*)::int as n from public.mail where to_user = '${L}' and subject = 'Neues Mitglied'`);
+  ok(r.rows[0].n === 1, 'Gildenführung bekommt Bescheid');
+  r = await as(I, `select public.guild_invites_mine() as v`);
+  ok(r.rows[0].v.length === 0, 'Einladung danach weg');
+  e = await fail(L, `select public.guild_invite('Eingeladener')`);
+  ok(/schon in deiner Gilde/.test(e), 'Mitglieder kann man nicht einladen');
+  // Bewerber wird durch Einladen gleich aufgenommen
+  await as(O, `select public.guild_apply(${gEin})`);
+  r = await as(L, `select public.guild_invite('Fremder') as r`);
+  ok(r.rows[0].r.joined === true, 'Bewerber wird durch Einladen sofort aufgenommen');
+  // Ablehnen
+  const P = '00000000-0000-0000-0000-0000000000e4';
+  await db.exec(`insert into auth.users values ('${P}','p@x')`); await fighter(P, 'Zögerer', 3);
+  await as(L, `select public.guild_invite('Zögerer')`);
+  await as(P, `select public.guild_invite_answer(${gEin}, false)`);
+  r = await as(P, `select public.guild_mine() as m, public.guild_invites_mine() as v`);
+  ok(r.rows[0].m === null && r.rows[0].v.length === 0, 'Ablehnen: kein Mitglied, Einladung weg');
 }
 
 console.log(fails ? `\n${fails} FEHLER` : '\nAlle Prüfungen bestanden');
